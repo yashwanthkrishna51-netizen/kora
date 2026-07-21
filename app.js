@@ -1732,13 +1732,13 @@ async function exportPptx(clientId){
     const s1=pptx.addSlide();s1.background={color:NV};
     s1.addText('INTEGRATION STATUS REPORT',{x:.5,y:1.0,w:12.5,h:.4,fontSize:10,color:'7dd3e8',align:'center',charSpacing:4});
     s1.addText(c.name,{x:.5,y:1.6,w:12.5,h:1.2,fontSize:44,color:'FFFFFF',bold:true,align:'center'});
-    try{s1.addImage({data:KOGNOZ_LOGO,x:5.15,y:2.9,w:2.8,h:0.84});}catch(e){s1.addText('Kognoz',{x:.5,y:3.0,w:12.5,h:.4,fontSize:14,color:'7dd3e8',align:'center'});}
+    try{s1.addImage({path:KOGNOZ_LOGO,x:5.15,y:2.9,w:2.8,h:0.84});}catch(e){s1.addText('Kognoz',{x:.5,y:3.0,w:12.5,h:.4,fontSize:14,color:'7dd3e8',align:'center'});}
     s1.addShape(pptx.ShapeType.rect,{x:5.65,y:3.55,w:2,h:.05,fill:{color:MG},line:{type:'none'}});
     s1.addText(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}),{x:.5,y:6.7,w:12.5,h:.3,fontSize:10,color:'64748b',align:'center'});
     // Summary
     const s2=pptx.addSlide();s2.background={color:'f5f9fa'};
     s2.addShape(pptx.ShapeType.rect,{x:0,y:0,w:13.3,h:.7,fill:{color:NV},line:{type:'none'}});
-    try{s2.addImage({data:KOGNOZ_LOGO,x:.2,y:.05,w:1.2,h:0.36});}catch(e){}
+    try{s2.addImage({path:KOGNOZ_LOGO,x:.2,y:.05,w:1.2,h:0.36});}catch(e){}
     s2.addText('Integration Summary',{x:1.6,y:.1,w:11,h:.5,fontSize:15,color:'FFFFFF',bold:true});
     s2.addText(c.name,{x:.4,y:.1,w:12.5,h:.5,fontSize:11,color:'7dd3e8',align:'right'});
     const sg={};c.integrations.forEach(i=>sg[i.status]=(sg[i.status]||0)+1);
@@ -1837,7 +1837,7 @@ function exportPdf(clientId){
     const sg={};c.integrations.forEach(i=>sg[i.status]=(sg[i.status]||0)+1);
     [{l:'Total',v:c.integrations.length,rgb:NV},{l:'In Progress',v:sg['In Progress']||0,rgb:SRGB['In Progress']},{l:'At Risk',v:sg['At Risk']||0,rgb:SRGB['At Risk']},{l:'Completed',v:sg['Completed']||0,rgb:SRGB['Completed']},{l:'On Hold',v:(sg['On Hold — Internal']||0)+(sg['On Hold — Client']||0),rgb:SRGB['On Hold — Internal']}]
     .forEach(({l,v,rgb},i)=>{const x=10+i*57;doc.setFillColor(...rgb);doc.roundedRect(x,18,50,20,2,2,'F');doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(255,255,255);doc.text(String(v),x+25,30,{align:'center'});doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.text(l,x+25,37,{align:'center'});});
-    doc.autoTable({startY:42,head:[['Integration','Status','Assignee','Due Date']],body:c.integrations.map(i=>[i.name,i.status,i.assignee||'—',i.dueDate?fmtDate(i.dueDate):'—']),headStyles:{fillColor:NV,textColor:[255,255,255],fontStyle:'bold',fontSize:9},styles:{fontSize:8.5,cellPadding:3},alternateRowStyles:{fillColor:[245,249,250]},columnStyles:{0:{cellWidth:105},1:{cellWidth:40},2:{cellWidth:60},3:{cellWidth:50}},didParseCell:d=>{if(d.column.index===1&&d.section==='body'){const rgb=SRGB[d.cell.raw];if(rgb){d.cell.styles.textColor=rgb;d.cell.styles.fontStyle='bold';}}},margin:{left:10,right:10}});
+    doc.autoTable({startY:42,head:[['Integration','Status','Assignee','Due Date']],body:c.integrations.map(i=>[i.name,i.status,i.assignee||'—',i.dueDate?fmtDate(i.dueDate):'—']),headStyles:{fillColor:NV,textColor:[255,255,255],fontStyle:'bold',fontSize:9},styles:{fontSize:8.5,cellPadding:3},alternateRowStyles:{fillColor:[245,249,250]},columnStyles:{0:{cellWidth:127},1:{cellWidth:40},2:{cellWidth:60},3:{cellWidth:50}},didParseCell:d=>{if(d.column.index===1&&d.section==='body'){const rgb=SRGB[d.cell.raw];if(rgb){d.cell.styles.textColor=rgb;d.cell.styles.fontStyle='bold';}}},margin:{left:10,right:10}});
     // Integration Details — single autoTable call, natively paginates across as many pages as needed
     doc.addPage();
     const detailRows=c.integrations.map(i=>{
