@@ -655,6 +655,7 @@ function renderDashboard(){
           ${expanded?`<div style="padding:4px 12px 10px 24px;background:var(--surface);border-bottom:1px solid var(--line-2);">
             ${items.map(it=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11.5px;">
               <span class="k-badge" style="font-size:9px;">${it.cat}</span>
+              ${it.cat==='Phase'&&it.moduleName?`<span style="color:var(--ink-3);font-weight:500;">${esc(it.moduleName)}</span><span style="color:var(--mute-2);">·</span>`:''}
               <span style="color:var(--ink-3);" class="truncate">${esc(it.name||it.description||'Untitled')}</span>
               <span style="color:var(--mute-2);">· ${esc(it.clientName||'')}</span>
               ${it.status?`<span style="color:var(--mute);">· ${esc(it.status)}</span>`:''}
