@@ -369,7 +369,7 @@ function renderSidebar(){
     ${!collapsed?`<button data-act="open-profile" class="w-full flex items-center gap-2.5 mb-2 rounded-md p-1.5 hover:bg-white/5 text-left" style="transition:background 120ms ease;">
       <div style="width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">${esc((S.user?.name||'?')[0].toUpperCase())}</div>
       <div class="min-w-0 flex-1">
-        <div style="font-size:12px;font-weight:500;color:#fafafa;" class="truncate">${esc(S.user?.name)}</div>
+        <div class="k-side-username truncate">${esc(S.user?.name)}</div>
         <div class="k-side-tag" style="text-transform:capitalize;">${esc(S.user?.role)}</div>
       </div>
     </button>`:``}
@@ -634,16 +634,16 @@ function renderClientList(){
       const od2=c.integrations.filter(isOverdue).length;
       return`<div data-act="open-client" data-id="${c.id}" style="animation-delay:${Math.min(idx*35,400)}ms" class="row-in card-hover bg-white rounded-2xl border border-gray-100 p-5 hover:border-[#0e7490]/30 transition cursor-pointer relative overflow-hidden">
         <div class="absolute left-0 top-0 bottom-0 w-1 ${healthColor(c)}"></div>
-        <div class="flex items-start justify-between mb-3 pl-1.5">
+        <div class="flex items-start justify-between mb-2 pl-1.5">
           <div class="flex-1 min-w-0 pr-2"><div class="font-semibold text-gray-900" title="${esc(c.name)}">${esc(c.name)}</div>${c.description?`<div class="text-xs text-gray-400 mt-0.5 truncate" title="${esc(c.description)}">${esc(c.description)}</div>`:''}</div>
           <span class="text-2xl font-extrabold text-[#0e7490] opacity-60 shrink-0">${c.integrations.length}</span>
         </div>
         <div class="text-xs text-gray-400 pl-1.5">${c.integrations.length} integration${c.integrations.length!==1?'s':''}</div>
-        <div class="flex gap-1 mt-2 mb-1 h-1 pl-1.5">${sBar(c.integrations)}</div>
-        <div class="flex gap-2 pl-1.5 mt-2">
+        <div class="flex gap-1 mt-2 h-1 pl-1.5">${sBar(c.integrations)}</div>
+        ${(ar2>0||od2>0)?`<div class="flex gap-2 pl-1.5 mt-2">
           ${ar2>0?`<span class="text-xs font-medium text-rose-600 bg-rose-50 rounded-lg px-2.5 py-1 inline-block">⚠ ${ar2} at risk</span>`:''}
           ${od2>0?`<span class="text-xs font-medium text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1 inline-block">⏰ ${od2} overdue</span>`:''}
-        </div>
+        </div>`:''}
       </div>`;
     }).join(''):`<div class="col-span-3 text-center py-16 text-gray-400">${emptyIcon('search')}No clients match "${esc(S.search)}"</div>`}
   </div>
