@@ -390,7 +390,7 @@ th[data-sort]:hover { background: var(--surface); }
 .row-in { animation: fade-in 250ms ease backwards; }
 .card-hover { transition: border-color var(--t-fast), transform var(--t-fast); }
 .card-hover:hover { border-color: var(--ink-3); transform: translateY(-1px); box-shadow: var(--shadow-s); }
-.bar-fill { transition: width 400ms cubic-bezier(.3,.8,.4,1); background: var(--ink) !important; }
+.bar-fill { transition: width 400ms cubic-bezier(.3,.8,.4,1); }
 .pulse-dot { animation: pulse 2s ease-in-out infinite; }
 .label-fade { transition: opacity var(--t-fast); }
 
