@@ -138,7 +138,7 @@ function daysOverdue(i){return daysDiff(i.dueDate);}
 function lastUpdateDate(i){return i.timeline?.[0]?.date||null;}
 function isStale(i,days=7){if(i.status==='Completed')return false;const lu=lastUpdateDate(i);if(!lu)return true;return daysDiff(lu)>=days;}
 function overdueBadge(i){if(!isOverdue(i))return'';const d=daysOverdue(i);return`<span class="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">⏰ ${d}d overdue</span>`;}
-function healthColor(c){const ar=c.integrations.filter(i=>i.status==='At Risk').length;const od=c.integrations.filter(isOverdue).length;if(ar>0||od>0)return'bg-rose-500';const oh=c.integrations.filter(i=>i.status==='On Hold').length;if(oh>0)return'bg-violet-400';return'bg-green-500';}
+function healthColor(c){const ar=c.integrations.filter(i=>i.status==='At Risk').length;const od=c.integrations.filter(isOverdue).length;if(ar>0||od>0)return'bg-rose-500';const oh=c.integrations.filter(i=>i.status==='On Hold — Internal'||i.status==='On Hold — Client').length;if(oh>0)return'bg-violet-400';return'bg-green-500';}
 function emptyIcon(type){const icons={search:'🔍',inbox:'📭',clock:'🕐',chart:'📊',doc:'📄',hours:'⏱️',team:'👥'};return`<div class="text-3xl mb-2 opacity-30">${icons[type]||'📭'}</div>`;}
 
 let _tt;
@@ -1722,6 +1722,7 @@ function addLogoToDoc(doc, x, y, maxH){
   try{doc.addImage(KOGNOZ_LOGO,'PNG',x,y-(maxH*0.75),w,maxH);}catch(e){}
 }
 async function exportPptx(clientId){
+  if(typeof PptxGenJS==='undefined'){showToast('PPTX export library failed to load — check your connection and refresh','error');return;}
   const c=S.clients.find(x=>x.id===clientId);if(!c)return;
   showToast('Generating PPTX…','info');
   try{
@@ -1741,7 +1742,7 @@ async function exportPptx(clientId){
     s2.addText('Integration Summary',{x:1.6,y:.1,w:11,h:.5,fontSize:15,color:'FFFFFF',bold:true});
     s2.addText(c.name,{x:.4,y:.1,w:12.5,h:.5,fontSize:11,color:'7dd3e8',align:'right'});
     const sg={};c.integrations.forEach(i=>sg[i.status]=(sg[i.status]||0)+1);
-    [{l:'Total',v:c.integrations.length,col:NV},{l:'In Progress',v:sg['In Progress']||0,col:SHEX['In Progress']},{l:'At Risk',v:sg['At Risk']||0,col:SHEX['At Risk']},{l:'Completed',v:sg['Completed']||0,col:SHEX['Completed']},{l:'On Hold',v:sg['On Hold']||0,col:SHEX['On Hold']}]
+    [{l:'Total',v:c.integrations.length,col:NV},{l:'In Progress',v:sg['In Progress']||0,col:SHEX['In Progress']},{l:'At Risk',v:sg['At Risk']||0,col:SHEX['At Risk']},{l:'Completed',v:sg['Completed']||0,col:SHEX['Completed']},{l:'On Hold',v:(sg['On Hold — Internal']||0)+(sg['On Hold — Client']||0),col:SHEX['On Hold — Internal']}]
     .forEach(({l,v,col},i)=>{const x=.4+i*2.5;s2.addShape(pptx.ShapeType.rect,{x,y:.85,w:2.2,h:.85,fill:{color:col},line:{type:'none'}});s2.addText(String(v),{x,y:.88,w:2.2,h:.48,fontSize:22,color:'FFFFFF',bold:true,align:'center'});s2.addText(l,{x,y:1.36,w:2.2,h:.28,fontSize:7.5,color:'FFFFFF',align:'center'});});
     const rows=[['Integration','Status','Assignee','Due Date'].map(t=>({text:t,options:{bold:true,fill:{color:NV},color:'FFFFFF',fontSize:9}})),
       ...c.integrations.map((i,idx)=>[
@@ -1817,6 +1818,7 @@ async function exportPptx(clientId){
 
 // ─── EXPORT: PDF (Kognoz branded) ──────────────────────────────────
 function exportPdf(clientId){
+  if(typeof window.jspdf==='undefined'){showToast('PDF export library failed to load — check your connection and refresh','error');return;}
   const c=S.clients.find(x=>x.id===clientId);if(!c)return;
   showToast('Generating PDF…','info');
   try{
@@ -1833,7 +1835,7 @@ function exportPdf(clientId){
     doc.addPage();doc.setFillColor(...NV);doc.rect(0,0,W,14,'F');addLogoToDoc(doc,10,13,10);
     doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);doc.text('Integration Summary',58,9.5);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(c.name,W-10,9.5,{align:'right'});
     const sg={};c.integrations.forEach(i=>sg[i.status]=(sg[i.status]||0)+1);
-    [{l:'Total',v:c.integrations.length,rgb:NV},{l:'In Progress',v:sg['In Progress']||0,rgb:SRGB['In Progress']},{l:'At Risk',v:sg['At Risk']||0,rgb:SRGB['At Risk']},{l:'Completed',v:sg['Completed']||0,rgb:SRGB['Completed']},{l:'On Hold',v:sg['On Hold']||0,rgb:SRGB['On Hold']}]
+    [{l:'Total',v:c.integrations.length,rgb:NV},{l:'In Progress',v:sg['In Progress']||0,rgb:SRGB['In Progress']},{l:'At Risk',v:sg['At Risk']||0,rgb:SRGB['At Risk']},{l:'Completed',v:sg['Completed']||0,rgb:SRGB['Completed']},{l:'On Hold',v:(sg['On Hold — Internal']||0)+(sg['On Hold — Client']||0),rgb:SRGB['On Hold — Internal']}]
     .forEach(({l,v,rgb},i)=>{const x=10+i*57;doc.setFillColor(...rgb);doc.roundedRect(x,18,50,20,2,2,'F');doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(255,255,255);doc.text(String(v),x+25,30,{align:'center'});doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.text(l,x+25,37,{align:'center'});});
     doc.autoTable({startY:42,head:[['Integration','Status','Assignee','Due Date']],body:c.integrations.map(i=>[i.name,i.status,i.assignee||'—',i.dueDate?fmtDate(i.dueDate):'—']),headStyles:{fillColor:NV,textColor:[255,255,255],fontStyle:'bold',fontSize:9},styles:{fontSize:8.5,cellPadding:3},alternateRowStyles:{fillColor:[245,249,250]},columnStyles:{0:{cellWidth:105},1:{cellWidth:40},2:{cellWidth:60},3:{cellWidth:50}},didParseCell:d=>{if(d.column.index===1&&d.section==='body'){const rgb=SRGB[d.cell.raw];if(rgb){d.cell.styles.textColor=rgb;d.cell.styles.fontStyle='bold';}}},margin:{left:10,right:10}});
     // Integration Details — single autoTable call, natively paginates across as many pages as needed
@@ -1911,6 +1913,7 @@ function exportPdf(clientId){
 
 // ─── EXPORT: Implementation Module Progress (PDF) ──────────────────
 function exportImplPdf(clientId){
+  if(typeof window.jspdf==='undefined'){showToast('PDF export library failed to load — check your connection and refresh','error');return;}
   const c=S.clients.find(x=>x.id===clientId);if(!c)return;
   showToast('Generating PDF…','info');
   try{
@@ -2052,6 +2055,7 @@ function exportImplPdf(clientId){
 // ─── EXPORT: AMS Billing Breakdown (PDF, admin only) ────────────────
 function exportAmsActivityPdf(clientId){
   if(!can('admin'))return;
+  if(typeof window.jspdf==='undefined'){showToast('PDF export library failed to load — check your connection and refresh','error');return;}
   const c=S.clients.find(x=>x.id===clientId);if(!c)return;
   showToast('Generating activity report…','info');
   try{
@@ -2133,6 +2137,7 @@ function exportAmsActivityPdf(clientId){
 
 function exportAmsInvoicePdf(clientId){
   if(!can('admin'))return;
+  if(typeof window.jspdf==='undefined'){showToast('PDF export library failed to load — check your connection and refresh','error');return;}
   const c=S.clients.find(x=>x.id===clientId);if(!c)return;
   if(!c.manDayRate){showToast('Invoice not available — no day rate set for this client. Use Activity Report instead.','warn');return;}
   showToast('Generating invoice…','info');
@@ -2222,6 +2227,7 @@ function exportExcel(type, clientId){
 
 function exportConsolidatedPdf(clientIds, sections){
   if(!clientIds.length){showToast('Select at least one client','error');return;}
+  if(typeof window.jspdf==='undefined'){showToast('PDF export library failed to load — check your connection and refresh','error');return;}
   const{jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'landscape',format:'a4',unit:'mm'});
   const W=297,H=210,NV=[13,61,79],MG=[181,23,158];
