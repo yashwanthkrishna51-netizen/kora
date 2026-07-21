@@ -569,19 +569,20 @@ function renderDashboard(){
         <span class="k-eyebrow">${needsAttn.length}</span>
       </div>
       <div style="max-height:340px;overflow-y:auto;">
-        <table class="w-full" style="font-size:12px;">
+        <table class="w-full" style="font-size:12px;table-layout:fixed;">
+          <colgroup><col style="width:26%;"><col style="width:16%;"><col style="width:16%;"><col style="width:26%;"><col style="width:16%;"></colgroup>
           <thead style="position:sticky;top:0;background:var(--paper);z-index:2;">
             <tr>
-              ${[['name','Integration'],['client','Client'],['assignee','Assignee'],['status','Status'],['days','Days']].map(([k,l])=>`<th data-act="sort-dash-attn" data-key="${k}" style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;">${l} ${sortArrowFor(S.dashAttnSort,k)}</th>`).join('')}
+              ${[['name','Integration'],['client','Client'],['assignee','Assignee'],['status','Status'],['days','Days']].map(([k,l])=>`<th data-act="sort-dash-attn" data-key="${k}" style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l} ${sortArrowFor(S.dashAttnSort,k)}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${needsSorted.length?needsSorted.map(i=>`<tr class="k-list-row" style="margin:0;border-radius:0;" data-act="open-integ" data-cid="${i.clientId}" data-iid="${i.id}">
-              <td style="padding:7px 12px;"><span class="truncate" style="display:block;max-width:140px;color:var(--ink);font-weight:500;" title="${esc(i.name)}">${esc(i.name)}</span></td>
-              <td style="padding:7px 12px;color:var(--ink-3);white-space:nowrap;">${esc(i.clientName)}</td>
-              <td style="padding:7px 12px;color:var(--mute);white-space:nowrap;">${esc(i.assignee||'Unassigned')}</td>
-              <td style="padding:7px 12px;" onclick="event.stopPropagation()">${can('editor')?`<select data-act="inline-status" data-cid="${i.clientId}" data-iid="${i.id}" style="font-size:11px;" class="border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${STATUSES.map(s=>`<option value="${esc(s)}"${s===i.status?' selected':''}>${esc(s)}</option>`).join('')}</select>`:sbadge(i.status)}</td>
-              <td style="padding:7px 12px;white-space:nowrap;">${i.reason==='overdue'?`<span style="color:var(--red);font-weight:500;">${daysOverdue(i)}d overdue</span>`:`<span style="color:var(--amber);">${needsDays(i)}d stale</span>`}</td>
+              <td style="padding:7px 12px;overflow:hidden;"><span class="truncate" style="display:block;color:var(--ink);font-weight:500;" title="${esc(i.name)}">${esc(i.name)}</span></td>
+              <td style="padding:7px 12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(i.clientName)}">${esc(i.clientName)}</td>
+              <td style="padding:7px 12px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(i.assignee||'Unassigned')}">${esc(i.assignee||'Unassigned')}</td>
+              <td style="padding:7px 12px;overflow:hidden;" onclick="event.stopPropagation()">${can('editor')?`<select data-act="inline-status" data-cid="${i.clientId}" data-iid="${i.id}" style="font-size:11px;width:100%;max-width:100%;" class="border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${STATUSES.map(s=>`<option value="${esc(s)}"${s===i.status?' selected':''}>${esc(s)}</option>`).join('')}</select>`:sbadge(i.status)}</td>
+              <td style="padding:7px 12px;white-space:nowrap;overflow:hidden;">${i.reason==='overdue'?`<span style="color:var(--red);font-weight:500;">${daysOverdue(i)}d overdue</span>`:`<span style="color:var(--amber);">${needsDays(i)}d stale</span>`}</td>
             </tr>`).join(''):`<tr><td colspan="5" class="k-empty">All caught up — nothing overdue or stale 🎉</td></tr>`}
           </tbody>
         </table>
@@ -593,15 +594,16 @@ function renderDashboard(){
         <h3 class="k-h3">Status by Client</h3>
       </div>
       <div style="max-height:340px;overflow-y:auto;">
-        <table class="w-full" style="font-size:12px;">
+        <table class="w-full" style="font-size:12px;table-layout:fixed;">
+          <colgroup><col style="width:36%;"><col style="width:16%;"><col style="width:16%;"><col style="width:16%;"><col style="width:16%;"></colgroup>
           <thead style="position:sticky;top:0;background:var(--paper);z-index:2;">
             <tr>
-              ${[['name','Client'],['total','Total'],['inProgress','In Progress'],['atRisk','At Risk'],['completed','Completed']].map(([k,l])=>`<th data-act="sort-dash-client" data-key="${k}" style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;">${l} ${sortArrowFor(S.dashClientSort,k)}</th>`).join('')}
+              ${[['name','Client'],['total','Total'],['inProgress','In Progress'],['atRisk','At Risk'],['completed','Completed']].map(([k,l])=>`<th data-act="sort-dash-client" data-key="${k}" style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l} ${sortArrowFor(S.dashClientSort,k)}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${clientRowsSorted.map(r=>`<tr class="k-list-row" style="margin:0;border-radius:0;" data-act="open-client" data-id="${r.id}">
-              <td style="padding:7px 12px;"><span class="truncate" style="display:block;max-width:130px;color:var(--ink);font-weight:500;" title="${esc(r.name)}">${esc(r.name)}</span></td>
+              <td style="padding:7px 12px;overflow:hidden;"><span class="truncate" style="display:block;color:var(--ink);font-weight:500;" title="${esc(r.name)}">${esc(r.name)}</span></td>
               <td style="padding:7px 12px;color:var(--ink-3);">${r.total}</td>
               <td style="padding:7px 12px;color:var(--teal);font-weight:500;">${r.inProgress}</td>
               <td style="padding:7px 12px;${r.atRisk?'color:var(--red);font-weight:500;':'color:var(--mute-2);'}">${r.atRisk}</td>
