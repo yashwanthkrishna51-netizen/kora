@@ -1,6 +1,6 @@
 const KOGNOZ_LOGO="/kognoz_Iogo.png";
 // ─── STATE ────────────────────────────────────────────────────────
-const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set()};
+const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'}};
 
 try{S.sidebarCollapsed=localStorage.getItem('itk_sb_collapsed')==='1';}catch(e){}
 try{const r=localStorage.getItem('itk_recent');if(r)S.recentlyViewed=JSON.parse(r);}catch(e){}
@@ -454,6 +454,10 @@ function renderDashboard(){
   const weekAgo=new Date(Date.now()-7*86400000);
   const thisWeekUpdates=all.reduce((n,i)=>n+(i.timeline||[]).filter(t=>new Date(t.date)>=weekAgo).length,0);
   const needsAttn=[...overdue.map(i=>({...i,reason:'overdue'})),...stale.map(i=>({...i,reason:'stale'}))].sort((a,b)=>(a.reason==='overdue'&&b.reason!=='overdue')?-1:1);
+  const needsDays=i=>i.reason==='overdue'?daysOverdue(i):(lastUpdateDate(i)?daysDiff(lastUpdateDate(i)):0);
+  const needsSorted=sortGeneric(needsAttn,S.dashAttnSort,{name:i=>i.name,client:i=>i.clientName,assignee:i=>i.assignee||'',status:i=>i.status,days:needsDays,reason:i=>i.reason,_default:i=>i.name});
+  const clientRows=S.clients.map(c=>({id:c.id,name:c.name,total:c.integrations.length,inProgress:c.integrations.filter(i=>i.status==='In Progress').length,atRisk:c.integrations.filter(i=>i.status==='At Risk').length,completed:c.integrations.filter(i=>i.status==='Completed').length,integrations:c.integrations}));
+  const clientRowsSorted=sortGeneric(clientRows,S.dashClientSort,{name:r=>r.name,total:r=>r.total,inProgress:r=>r.inProgress,atRisk:r=>r.atRisk,completed:r=>r.completed,_default:r=>r.name});
 
   const implClients=S.clients.filter(c=>c.modules!==undefined);
   const allModules=implClients.flatMap(c=>(c.modules||[]).map(m=>({...m,clientName:c.name,clientId:c.id})));
@@ -559,41 +563,54 @@ function renderDashboard(){
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-    <div class="k-card" style="padding:20px;">
-      <div class="k-card-head" style="margin-bottom:12px;">
+    <div class="k-card" style="padding:0;overflow:hidden;">
+      <div class="k-card-head" style="padding:16px 16px 0;margin-bottom:10px;">
         <h3 class="k-h3">⚠️ Needs Attention</h3>
         <span class="k-eyebrow">${needsAttn.length}</span>
       </div>
-      <div class="max-h-80 overflow-y-auto pr-1" style="display:flex;flex-direction:column;gap:2px;">
-        ${needsAttn.length?needsAttn.slice(0,12).map((i,idx)=>`<div data-act="open-integ" data-cid="${i.clientId}" data-iid="${i.id}" style="animation-delay:${Math.min(idx*20,250)}ms" class="row-in k-list-row">
-          <div class="min-w-0 flex-1">
-            <div style="font-size:13px;font-weight:500;color:var(--ink);" class="truncate" title="${esc(i.name)}">${esc(i.name)}</div>
-            <div class="k-eyebrow" style="margin-top:2px;text-transform:none;letter-spacing:0;">${esc(i.clientName)} · ${esc(i.assignee||'Unassigned')}</div>
-          </div>
-          ${i.reason==='overdue'?overdueBadge(i):`<span class="k-status" style="white-space:nowrap;"><span style="color:var(--amber);">No update ${lastUpdateDate(i)?daysDiff(lastUpdateDate(i))+'d':''}</span></span>`}
-        </div>`).join(''):`<p class="k-empty">All caught up — nothing overdue or stale 🎉</p>`}
+      <div style="max-height:340px;overflow-y:auto;">
+        <table class="w-full" style="font-size:12px;">
+          <thead style="position:sticky;top:0;background:var(--paper);z-index:2;">
+            <tr>
+              ${[['name','Integration'],['client','Client'],['assignee','Assignee'],['status','Status'],['days','Days']].map(([k,l])=>`<th data-act="sort-dash-attn" data-key="${k}" style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;">${l} ${sortArrowFor(S.dashAttnSort,k)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${needsSorted.length?needsSorted.map(i=>`<tr class="k-list-row" style="margin:0;border-radius:0;" data-act="open-integ" data-cid="${i.clientId}" data-iid="${i.id}">
+              <td style="padding:7px 12px;"><span class="truncate" style="display:block;max-width:140px;color:var(--ink);font-weight:500;" title="${esc(i.name)}">${esc(i.name)}</span></td>
+              <td style="padding:7px 12px;color:var(--ink-3);white-space:nowrap;">${esc(i.clientName)}</td>
+              <td style="padding:7px 12px;color:var(--mute);white-space:nowrap;">${esc(i.assignee||'Unassigned')}</td>
+              <td style="padding:7px 12px;" onclick="event.stopPropagation()">${can('editor')?`<select data-act="inline-status" data-cid="${i.clientId}" data-iid="${i.id}" style="font-size:11px;" class="border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${STATUSES.map(s=>`<option value="${esc(s)}"${s===i.status?' selected':''}>${esc(s)}</option>`).join('')}</select>`:sbadge(i.status)}</td>
+              <td style="padding:7px 12px;white-space:nowrap;">${i.reason==='overdue'?`<span style="color:var(--red);font-weight:500;">${daysOverdue(i)}d overdue</span>`:`<span style="color:var(--amber);">${needsDays(i)}d stale</span>`}</td>
+            </tr>`).join(''):`<tr><td colspan="5" class="k-empty">All caught up — nothing overdue or stale 🎉</td></tr>`}
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <div class="k-card" style="padding:20px;">
-      <h3 class="k-h3" style="margin-bottom:16px;">Status by Client</h3>
-      <div class="max-h-80 overflow-y-auto pr-1" style="display:flex;flex-direction:column;gap:10px;">
-        ${S.clients.map((c,idx)=>{
-          const tot=c.integrations.length||1;
-          return`<div data-act="open-client" data-id="${c.id}" style="animation-delay:${Math.min(idx*20,250)}ms;padding:6px 8px;margin:0 -8px;" class="row-in k-list-row" data-block="1">
-            <div style="width:100%;">
-              <div class="flex items-center justify-between" style="font-size:12px;margin-bottom:4px;">
-                <span style="font-weight:500;color:var(--ink-3);" class="truncate" title="${esc(c.name)}">${esc(c.name)}</span>
-                <span style="color:var(--mute);">${c.integrations.length}</span>
-              </div>
-              <div class="flex gap-0.5 h-2 rounded-full overflow-hidden" style="background:var(--line-2);">
-                ${STATUSES.map(s=>{const n=c.integrations.filter(i=>i.status===s).length;return n?`<div class="bar-fill" style="width:${Math.round(n/tot*100)}%;background:${SDOT[s]};" title="${s}: ${n}"></div>`:'';}).join('')}
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
+    <div class="k-card" style="padding:0;overflow:hidden;">
+      <div class="k-card-head" style="padding:16px 16px 0;margin-bottom:10px;">
+        <h3 class="k-h3">Status by Client</h3>
       </div>
-      <div class="flex flex-wrap gap-3 mt-4 pt-3" style="border-top:1px solid var(--line-2);">
+      <div style="max-height:340px;overflow-y:auto;">
+        <table class="w-full" style="font-size:12px;">
+          <thead style="position:sticky;top:0;background:var(--paper);z-index:2;">
+            <tr>
+              ${[['name','Client'],['total','Total'],['inProgress','In Progress'],['atRisk','At Risk'],['completed','Completed']].map(([k,l])=>`<th data-act="sort-dash-client" data-key="${k}" style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;">${l} ${sortArrowFor(S.dashClientSort,k)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${clientRowsSorted.map(r=>`<tr class="k-list-row" style="margin:0;border-radius:0;" data-act="open-client" data-id="${r.id}">
+              <td style="padding:7px 12px;"><span class="truncate" style="display:block;max-width:130px;color:var(--ink);font-weight:500;" title="${esc(r.name)}">${esc(r.name)}</span></td>
+              <td style="padding:7px 12px;color:var(--ink-3);">${r.total}</td>
+              <td style="padding:7px 12px;color:var(--teal);font-weight:500;">${r.inProgress}</td>
+              <td style="padding:7px 12px;${r.atRisk?'color:var(--red);font-weight:500;':'color:var(--mute-2);'}">${r.atRisk}</td>
+              <td style="padding:7px 12px;${r.completed?'color:var(--green);font-weight:500;':'color:var(--mute-2);'}">${r.completed}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="flex flex-wrap gap-3" style="padding:12px 16px;border-top:1px solid var(--line-2);">
         ${STATUSES.map(s=>`<span class="flex items-center gap-1.5" style="font-size:11px;color:var(--mute);"><span class="w-2.5 h-2.5 rounded-full" style="background:${SDOT[s]};"></span>${s}</span>`).join('')}
       </div>
     </div>
@@ -1159,7 +1176,13 @@ function sortIntegs(list){
     return av<bv?-1*m:av>bv?1*m:0;
   });
 }
+function sortGeneric(list,state,getters){
+  const{key,dir}=state;const m=dir==='asc'?1:-1;
+  const get=getters[key]||getters._default;
+  return[...list].sort((a,b)=>{const av=get(a),bv=get(b);return av<bv?-1*m:av>bv?1*m:0;});
+}
 function sortArrow(key){if(S.sort.key!==key)return'<span class="text-gray-300">↕</span>';return S.sort.dir==='asc'?'<span class="text-[#0e7490]">↑</span>':'<span class="text-[#0e7490]">↓</span>';}
+function sortArrowFor(state,key){if(state.key!==key)return'<span class="text-gray-300">↕</span>';return state.dir==='asc'?'<span class="text-[#0e7490]">↑</span>':'<span class="text-[#0e7490]">↓</span>';}
 
 function renderClientDetail(clientId){
   const c=S.clients.find(x=>x.id===clientId);
@@ -2373,6 +2396,8 @@ document.addEventListener('click',async e=>{
   if(act==='open-ams-client'){navigate('ams-client-detail',{clientId:el.dataset.id});return;}
   if(act==='filter'){S.filter=el.dataset.filter;render();return;}
   if(act==='sort'){const k=el.dataset.key;if(S.sort.key===k){S.sort.dir=S.sort.dir==='asc'?'desc':'asc';}else{S.sort={key:k,dir:'asc'};}render();return;}
+  if(act==='sort-dash-attn'){const k=el.dataset.key;if(S.dashAttnSort.key===k){S.dashAttnSort.dir=S.dashAttnSort.dir==='asc'?'desc':'asc';}else{S.dashAttnSort={key:k,dir:'asc'};}render();return;}
+  if(act==='sort-dash-client'){const k=el.dataset.key;if(S.dashClientSort.key===k){S.dashClientSort.dir=S.dashClientSort.dir==='asc'?'desc':'asc';}else{S.dashClientSort={key:k,dir:'asc'};}render();return;}
   if(act==='admin-tab'){S.adminTab=el.dataset.tab;render();return;}
   if(act==='exp-pptx'){setBtnBusy(el,'Generating…');try{await exportPptx(el.dataset.id);}finally{clearBtnBusy(el);}return;}
   if(act==='exp-pdf'){setBtnBusy(el,'Generating…');try{await exportPdf(el.dataset.id);}finally{clearBtnBusy(el);}return;}
