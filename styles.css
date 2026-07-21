@@ -230,6 +230,7 @@ label { font-size: 11px; font-weight: 500; color: var(--mute); text-transform: u
 .k-sidebar .k-side-item:hover .k-side-icon { opacity: 1; }
 .k-sidebar .k-side-profile { border-top: 1px solid rgba(255,255,255,.06); padding: 12px; }
 .k-sidebar .k-side-profile:hover { background: rgba(255,255,255,.03); }
+.k-sidebar .k-side-username { font-size: 12px; font-weight: 500; color: #fafafa; }
 .k-sidebar .k-side-brand { font-family: var(--font); font-weight: 700; letter-spacing: 0.14em; color: var(--teal); font-size: 12px; }
 .k-sidebar .k-side-tag { color: #52525b; font-size: 10px; }
 
@@ -453,6 +454,7 @@ html.dark .k-sidebar .k-side-item:hover { color: #18181b; background: rgba(0,0,0
 html.dark .k-sidebar .k-side-item.active { color: #18181b; background: rgba(0,0,0,.08); }
 html.dark .k-sidebar .k-side-header { border-bottom: 1px solid rgba(0,0,0,.06); }
 html.dark .k-sidebar .k-side-profile { border-top: 1px solid rgba(0,0,0,.06); }
+html.dark .k-sidebar .k-side-username { color: #18181b; }
 html.dark .k-sidebar .k-side-search { background: rgba(0,0,0,.05); color: #18181b; border-color: rgba(0,0,0,.08); }
 html.dark .k-sidebar .k-side-search::placeholder { color: #a1a1aa; }
 html.dark .k-sidebar .k-side-brand { color: #2563eb; }
