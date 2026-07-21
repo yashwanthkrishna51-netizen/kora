@@ -22,7 +22,7 @@ const HOURS_PER_DAY=8;
 const TEAL='0e7490',TEAL_DARK='0d3d4f',MAGENTA='b5179e',VIOLET='7c3aed';
 const SBG={'Completed':'k-status k-status-completed','In Progress':'k-status k-status-inprogress','At Risk':'k-status k-status-atrisk','On Hold — Internal':'k-status k-status-onhold','On Hold — Client':'k-status k-status-onhold','Pending Client':'k-status k-status-pending','Under Review':'k-status k-status-review','Delayed':'k-status k-status-delayed','Cancelled':'k-status k-status-cancelled','Not Started':'k-status k-status-notstarted'};
 const SHEX={'Completed':'22c55e','In Progress':'0e7490','At Risk':'be185d','On Hold — Internal':'7c3aed','On Hold — Client':'9333ea','Pending Client':'d97706','Under Review':'0284c7','Delayed':'ea580c','Cancelled':'94a3b8','Not Started':'64748b'};
-const SDOT=Object.fromEntries(Object.entries(SHEX).map(([s,hex])=>[s,`bg-[#${hex}]`]));
+const SDOT=Object.fromEntries(Object.entries(SHEX).map(([s,hex])=>[s,`#${hex}`]));
 const SRGB={'Completed':[34,197,94],'In Progress':[14,116,144],'At Risk':[190,24,93],'On Hold — Internal':[124,58,237],'On Hold — Client':[147,51,234],'Pending Client':[217,119,6],'Under Review':[2,132,199],'Delayed':[234,88,12],'Cancelled':[148,163,184],'Not Started':[100,116,139]};
 
 // ─── UTILS ────────────────────────────────────────────────────────
@@ -164,7 +164,6 @@ function stopLoading(){
 function spinnerSvg(extra=''){return`<svg class="animate-spin h-3.5 w-3.5 ${extra}" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>`;}
 function setBtnBusy(el,label){if(!el)return;el.dataset._origHtml=el.innerHTML;el.disabled=true;el.classList.add('btn-busy');el.innerHTML=`<span class="inline-flex items-center justify-center gap-2">${spinnerSvg()}${label||'Working…'}</span>`;}
 function clearBtnBusy(el){if(!el)return;if(el.dataset._origHtml!==undefined){el.innerHTML=el.dataset._origHtml;delete el.dataset._origHtml;}el.disabled=false;el.classList.remove('btn-busy');}
-
 // ─── API ──────────────────────────────────────────────────────────
 async function apiRead(path){
   startLoading();
@@ -207,11 +206,10 @@ async function saveUsers(msg){
     throw err;
   }
 }
-
 // ─── HELPERS ──────────────────────────────────────────────────────
 function sbadge(s){return`<span class="${SBG[s]||SBG['Not Started']}">${esc(s)}</span>`;}
-function sBar(integs){if(!integs.length)return'';const c={};integs.forEach(i=>c[i.status]=(c[i.status]||0)+1);return Object.entries(c).map(([s,n])=>`<div class="h-1.5 ${SDOT[s]||'bg-gray-400'} rounded" style="width:${Math.round(n/integs.length*100)}%"></div>`).join('');}
-function sCounts(integs){const c={};integs.forEach(i=>c[i.status]=(c[i.status]||0)+1);return Object.entries(c).map(([s,n])=>`<span class="flex items-center gap-1 text-xs text-gray-500"><span class="w-2 h-2 inline-block rounded-full ${SDOT[s]||'bg-gray-400'}"></span>${n} ${esc(s)}</span>`).join('');}
+function sBar(integs){if(!integs.length)return'';const c={};integs.forEach(i=>c[i.status]=(c[i.status]||0)+1);return Object.entries(c).map(([s,n])=>`<div class="h-1.5 rounded" style="width:${Math.round(n/integs.length*100)}%;background:${SDOT[s]||'#9ca3af'};"></div>`).join('');}
+function sCounts(integs){const c={};integs.forEach(i=>c[i.status]=(c[i.status]||0)+1);return Object.entries(c).map(([s,n])=>`<span class="flex items-center gap-1 text-xs text-gray-500"><span class="w-2 h-2 inline-block rounded-full" style="background:${SDOT[s]||'#9ca3af'};"></span>${n} ${esc(s)}</span>`).join('');}
 // Clients are shared across all sections now. This lets a modal offer "pick an
 // existing client not yet in this section" alongside "create a new one".
 function clientPickerHtml(excludeFn){
@@ -576,14 +574,14 @@ function renderDashboard(){
                 <span style="color:var(--mute);">${c.integrations.length}</span>
               </div>
               <div class="flex gap-0.5 h-2 rounded-full overflow-hidden" style="background:var(--line-2);">
-                ${STATUSES.map(s=>{const n=c.integrations.filter(i=>i.status===s).length;return n?`<div class="${SDOT[s]} bar-fill" style="width:${Math.round(n/tot*100)}%" title="${s}: ${n}"></div>`:'';}).join('')}
+                ${STATUSES.map(s=>{const n=c.integrations.filter(i=>i.status===s).length;return n?`<div class="bar-fill" style="width:${Math.round(n/tot*100)}%;background:${SDOT[s]};" title="${s}: ${n}"></div>`:'';}).join('')}
               </div>
             </div>
           </div>`;
         }).join('')}
       </div>
       <div class="flex flex-wrap gap-3 mt-4 pt-3" style="border-top:1px solid var(--line-2);">
-        ${STATUSES.map(s=>`<span class="flex items-center gap-1.5" style="font-size:11px;color:var(--mute);"><span class="w-2.5 h-2.5 rounded-full ${SDOT[s]}"></span>${s}</span>`).join('')}
+        ${STATUSES.map(s=>`<span class="flex items-center gap-1.5" style="font-size:11px;color:var(--mute);"><span class="w-2.5 h-2.5 rounded-full" style="background:${SDOT[s]};"></span>${s}</span>`).join('')}
       </div>
     </div>
   </div>
@@ -591,10 +589,10 @@ function renderDashboard(){
   <div class="k-card" style="padding:20px;">
     <h3 class="k-h3" style="margin-bottom:16px;">Overall Status Distribution</h3>
     <div class="flex gap-1.5 h-4 rounded-full overflow-hidden mb-3" style="background:var(--line-2);">
-      ${STATUSES.map(s=>{const n=all.filter(i=>i.status===s).length;return n?`<div class="${SDOT[s]} bar-fill" style="width:${Math.round(n/(ti||1)*100)}%" title="${s}: ${n}"></div>`:'';}).join('')}
+      ${STATUSES.map(s=>{const n=all.filter(i=>i.status===s).length;return n?`<div class="bar-fill" style="width:${Math.round(n/(ti||1)*100)}%;background:${SDOT[s]};" title="${s}: ${n}"></div>`:'';}).join('')}
     </div>
     <div class="flex flex-wrap gap-4">
-      ${STATUSES.map(s=>{const n=all.filter(i=>i.status===s).length;return`<span class="flex items-center gap-1.5" style="font-size:12px;color:var(--ink-3);"><span class="w-2.5 h-2.5 rounded-full ${SDOT[s]}"></span>${s}: <b class="k-num" style="font-size:12px;">${n}</b></span>`;}).join('')}
+      ${STATUSES.map(s=>{const n=all.filter(i=>i.status===s).length;return`<span class="flex items-center gap-1.5" style="font-size:12px;color:var(--ink-3);"><span class="w-2.5 h-2.5 rounded-full" style="background:${SDOT[s]};"></span>${s}: <b class="k-num" style="font-size:12px;">${n}</b></span>`;}).join('')}
     </div>
   </div>
   ${topUsers.length?`<div class="k-card mt-5" style="padding:20px;">
@@ -1705,7 +1703,6 @@ function renderModal(){
   </div>
 </div>`;
 }
-
 // ─── EXPORT: PPTX (Kognoz branded) ────────────────────────────────
 
 function addLogoToDoc(doc, x, y, maxH){
