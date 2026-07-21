@@ -458,7 +458,6 @@ html.dark .k-btn-primary:hover { background: #d4d4d8; }
 html.dark .btn-grad { background: #fafafa !important; color: #09090b !important; }
 html.dark .btn-grad:hover { background: #d4d4d8 !important; }
 html.dark .nav-active { background: #fafafa !important; color: #09090b !important; }
-html.dark .bar-fill { background: var(--ink) !important; }
 html.dark input, html.dark select, html.dark textarea { background: var(--paper); color: var(--ink); border-color: var(--line); }
 html.dark input::placeholder, html.dark textarea::placeholder { color: var(--mute-2); }
 html.dark option { background: var(--paper); color: var(--ink); }
