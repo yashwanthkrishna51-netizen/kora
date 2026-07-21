@@ -50,8 +50,34 @@ h2, .k-h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; line-hei
 h3, .k-h3 { font-size: 13px; font-weight: 600; letter-spacing: -0.005em; line-height: 1.4; color: var(--ink); }
 .k-eyebrow { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mute); }
 .k-num-l { font-family: var(--mono); font-size: 28px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.1; color: var(--ink); }
+.k-num-m { font-family: var(--mono); font-size: 21px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.1; color: var(--ink); }
 .k-num { font-family: var(--mono); font-weight: 500; letter-spacing: -0.005em; }
 .k-mono { font-family: var(--mono); font-size: 12px; }
+
+/* ── Metric tile — signature rail + mono figure, one shape used everywhere ── */
+.k-metric { position: relative; padding-left: 14px; }
+.k-metric::before {
+  content: ""; position: absolute; left: 0; top: 1px; bottom: 1px;
+  width: 3px; border-radius: 2px; background: var(--line);
+}
+.k-metric-teal::before  { background: var(--teal); }
+.k-metric-red::before   { background: var(--red); }
+.k-metric-green::before { background: var(--green); }
+.k-metric-amber::before { background: var(--amber); }
+.k-metric-row { display: grid; gap: 0; }
+.k-metric-row > .k-metric { padding: 0 20px 0 20px; }
+.k-metric-row > .k-metric::before { top: 2px; bottom: 2px; }
+.k-metric-row > .k-metric:first-child { padding-left: 14px; }
+.k-metric-row > .k-metric:not(:first-child) { border-left: 1px solid var(--line); }
+.k-metric-sub { font-size: 11px; color: var(--mute); margin-top: 2px; }
+
+/* ── Card header — label + optional action, used on every panel ── */
+.k-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.k-link { font-size: 12px; color: var(--teal); font-weight: 500; }
+.k-link:hover { text-decoration: underline; }
+.k-empty { font-size: 13px; color: var(--mute); text-align: center; padding: 28px 0; }
+.k-list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; margin: 0 -10px; border-radius: var(--radius); transition: background var(--t-fast); cursor: pointer; }
+.k-list-row:hover { background: var(--surface); }
 
 /* Interaction */
 [data-act] { cursor: pointer; }
