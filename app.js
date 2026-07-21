@@ -613,10 +613,12 @@ function renderDashboard(){
 // ─── CLIENT LIST ──────────────────────────────────────────────────
 function renderClientList(){
   const q=S.search.toLowerCase();
-  const fl=S.clients.filter(c=>c.name.toLowerCase().includes(q));
-  const ti=S.clients.reduce((a,c)=>a+c.integrations.length,0);
-  const ar=S.clients.reduce((a,c)=>a+c.integrations.filter(i=>i.status==='At Risk').length,0);
-  const ip=S.clients.reduce((a,c)=>a+c.integrations.filter(i=>i.status==='In Progress').length,0);
+  const inIntegDomain=c=>c.integrations.length>0||(c.modules===undefined&&c.workLog===undefined);
+  const fl=S.clients.filter(inIntegDomain).filter(c=>c.name.toLowerCase().includes(q));
+  const scoped=S.clients.filter(inIntegDomain);
+  const ti=scoped.reduce((a,c)=>a+c.integrations.length,0);
+  const ar=scoped.reduce((a,c)=>a+c.integrations.filter(i=>i.status==='At Risk').length,0);
+  const ip=scoped.reduce((a,c)=>a+c.integrations.filter(i=>i.status==='In Progress').length,0);
   return`<div class="k-page fade">
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     ${[['Clients',S.clients.length,'text-[#0e7490]','bg-[#0e7490]/10'],['Total Integrations',ti,'text-gray-700','bg-gray-100'],['In Progress',ip,'text-[#0e7490]','bg-cyan-50'],['At Risk',ar,'text-rose-600','bg-rose-50']].map(([l,v,tc,bg])=>`<div class="${bg} rounded-2xl p-4"><div class="text-2xl font-bold ${tc}">${v}</div><div class="text-xs text-gray-500 mt-0.5">${l}</div></div>`).join('')}
@@ -1385,7 +1387,7 @@ function renderAdminClients(){
         ${['Client','Integrations','At Risk','Completed','Actions'].map(h=>`<th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">${h}</th>`).join('')}
       </tr></thead>
       <tbody class="divide-y divide-gray-50">
-        ${S.clients.map(c=>`<tr class="hover:bg-gray-50/50 transition">
+        ${S.clients.filter(c=>c.integrations.length>0||(c.modules===undefined&&c.workLog===undefined)).map(c=>`<tr class="hover:bg-gray-50/50 transition">
           <td class="px-4 py-3"><div class="font-medium text-gray-900" title="${esc(c.name)}">${esc(c.name)}</div>${c.description?`<div class="text-xs text-gray-400 truncate max-w-[180px]" title="${esc(c.description)}">${esc(c.description)}</div>`:''}</td>
           <td class="px-4 py-3 font-semibold text-gray-700">${c.integrations.length}</td>
           <td class="px-4 py-3">${c.integrations.filter(i=>i.status==='At Risk').length>0?`<span class="text-rose-600 font-semibold">${c.integrations.filter(i=>i.status==='At Risk').length}</span>`:`<span class="text-gray-400">0</span>`}</td>
