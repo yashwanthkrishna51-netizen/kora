@@ -21,8 +21,8 @@ const AMS_MODES=['Online / Remote','Offline / In-person'];
 const HOURS_PER_DAY=8;
 const TEAL='0e7490',TEAL_DARK='0d3d4f',MAGENTA='b5179e',VIOLET='7c3aed';
 const SBG={'Completed':'k-status k-status-completed','In Progress':'k-status k-status-inprogress','At Risk':'k-status k-status-atrisk','On Hold — Internal':'k-status k-status-onhold','On Hold — Client':'k-status k-status-onhold','Pending Client':'k-status k-status-pending','Under Review':'k-status k-status-review','Delayed':'k-status k-status-delayed','Cancelled':'k-status k-status-cancelled','Not Started':'k-status k-status-notstarted'};
-const SDOT={'Completed':'','In Progress':'','At Risk':'','On Hold — Internal':'','On Hold — Client':'','Pending Client':'','Under Review':'','Delayed':'','Cancelled':'','Not Started':''};
 const SHEX={'Completed':'22c55e','In Progress':'0e7490','At Risk':'be185d','On Hold — Internal':'7c3aed','On Hold — Client':'9333ea','Pending Client':'d97706','Under Review':'0284c7','Delayed':'ea580c','Cancelled':'94a3b8','Not Started':'64748b'};
+const SDOT=Object.fromEntries(Object.entries(SHEX).map(([s,hex])=>[s,`bg-[#${hex}]`]));
 const SRGB={'Completed':[34,197,94],'In Progress':[14,116,144],'At Risk':[190,24,93],'On Hold — Internal':[124,58,237],'On Hold — Client':[147,51,234],'Pending Client':[217,119,6],'Under Review':[2,132,199],'Delayed':[234,88,12],'Cancelled':[148,163,184],'Not Started':[100,116,139]};
 
 // ─── UTILS ────────────────────────────────────────────────────────
@@ -640,8 +640,8 @@ function renderClientList(){
           <div class="flex-1 min-w-0 pr-2"><div class="font-semibold text-gray-900" title="${esc(c.name)}">${esc(c.name)}</div>${c.description?`<div class="text-xs text-gray-400 mt-0.5 truncate" title="${esc(c.description)}">${esc(c.description)}</div>`:''}</div>
           <span class="text-2xl font-extrabold text-[#0e7490] opacity-60 shrink-0">${c.integrations.length}</span>
         </div>
-        <div class="flex gap-1 mb-3 h-1.5 pl-1.5">${sBar(c.integrations)}</div>
-        <div class="flex flex-wrap gap-x-3 gap-y-1 mb-2 pl-1.5">${sCounts(c.integrations)}</div>
+        <div class="text-xs text-gray-400 pl-1.5">${c.integrations.length} integration${c.integrations.length!==1?'s':''}</div>
+        <div class="flex gap-1 mt-2 mb-1 h-1 pl-1.5">${sBar(c.integrations)}</div>
         <div class="flex gap-2 pl-1.5 mt-2">
           ${ar2>0?`<span class="text-xs font-medium text-rose-600 bg-rose-50 rounded-lg px-2.5 py-1 inline-block">⚠ ${ar2} at risk</span>`:''}
           ${od2>0?`<span class="text-xs font-medium text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1 inline-block">⏰ ${od2} overdue</span>`:''}
