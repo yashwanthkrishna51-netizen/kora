@@ -28,8 +28,17 @@ const SRGB={'Completed':[34,197,94],'In Progress':[14,116,144],'At Risk':[190,24
 // ─── UTILS ────────────────────────────────────────────────────────
 async function sha256(str){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
 function persistSession(token,user){try{localStorage.setItem('itk_sess',btoa(JSON.stringify({token,user})));}catch(e){}}
-function clearSession(){try{localStorage.removeItem('itk_sess');}catch(e){}}
+function clearSession(){try{localStorage.removeItem('itk_sess');localStorage.removeItem('itk_view');}catch(e){}}
 function restoreSession(){try{const r=localStorage.getItem('itk_sess');return r?JSON.parse(atob(r)):null;}catch(e){return null;}}
+function persistView(view,params){try{if(view==='login')return;localStorage.setItem('itk_view',JSON.stringify({view,params}));}catch(e){}}
+function restoreView(){try{const r=localStorage.getItem('itk_view');return r?JSON.parse(r):null;}catch(e){return null;}}
+function validateView(view,params){
+  if(['dashboard','clients','impl','ams','admin'].includes(view))return true;
+  if(view==='client-detail'||view==='impl-client-detail'||view==='ams-client-detail')return!!S.clients.find(x=>x.id===params.clientId);
+  if(view==='integ-detail'){const c=S.clients.find(x=>x.id===params.clientId);return!!(c&&c.integrations.find(x=>x.id===params.integId));}
+  if(view==='impl-phase-detail'){const c=S.clients.find(x=>x.id===params.clientId);if(!c)return false;const m=(c.modules||[]).find(x=>x.id===params.moduleId);return!!(m&&(m.phases||[]).find(p=>p.name===params.phase));}
+  return false;
+}
 // Offline detection
 window.addEventListener('online',()=>{S.offlineMode=false;render();});
 window.addEventListener('offline',()=>{S.offlineMode=true;render();});
@@ -119,7 +128,7 @@ function recordRecent(view,params){
 }
 function navigate(view,params={}){
   const isRealNav=S.view!==view;
-  const go=()=>{S.view=view;S.params=params;S.filter='all';S.search='';S.modal=null;S.sort={key:'name',dir:'asc'};S.editingTimelineId=null;S.expandedHistory=new Set();S.bulkImplMode=false;S.bulkImplCid=null;S.bulkSelected=new Set();recordRecent(view,params);render();};
+  const go=()=>{S.view=view;S.params=params;S.filter='all';S.search='';S.modal=null;S.sort={key:'name',dir:'asc'};S.editingTimelineId=null;S.expandedHistory=new Set();S.bulkImplMode=false;S.bulkImplCid=null;S.bulkSelected=new Set();recordRecent(view,params);persistView(view,params);render();};
   if(isRealNav&&document.startViewTransition)document.startViewTransition(go);else go();
 }
 function todayStr(){return new Date().toISOString().slice(0,10);}
@@ -3081,7 +3090,9 @@ window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=se
       const cl=await apiRead('data/clients.json');S.clients=cl.content;S.shas.clients=cl.sha;
       try{const ul=await apiRead('data/users.json');S.usersForDropdown=ul.content.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));if(can('admin')){S.users=ul.content;S.shas.users=ul.sha;}}
       catch(e){S.usersForDropdown=[{id:S.user.id,name:S.user.name||S.user.username,role:S.user.role,username:S.user.username}];}
-      navigate('dashboard');
+      const rv=restoreView();
+      if(rv&&rv.view&&validateView(rv.view,rv.params||{})){navigate(rv.view,rv.params||{});}
+      else{navigate('dashboard');}
     }catch(e){
       clearSession();S.user=null;S.sessionToken=null;render();
     }
