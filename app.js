@@ -56,6 +56,10 @@ function assigneeSelect(id,currentVal='',extra=''){
   if(!users.length)return`<input id="${id}" type="text" value="${esc(currentVal)}" placeholder="Assignee name" ${extra} class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>`;
   return`<select id="${id}" ${extra} class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"><option value="">— Unassigned —</option>${users.map(u=>`<option value="${esc(u.name)}"${u.name===currentVal?' selected':''}>${esc(u.name)}</option>`).join('')}</select>`;
 }
+function assigneeOptionsOnly(currentVal=''){
+  const users=(S.usersForDropdown||[]).filter(u=>u.role==='admin'||u.role==='editor');
+  return`<option value="">— Unassigned —</option>${users.map(u=>`<option value="${esc(u.name)}"${u.name===currentVal?' selected':''}>${esc(u.name)}</option>`).join('')}`;
+}
 function fileIcon(url='',mimeType=''){
   const u=url.toLowerCase();const m=mimeType.toLowerCase();
   if(m.includes('pdf')||u.endsWith('.pdf'))return'📄';
@@ -1170,6 +1174,8 @@ function renderClientDetail(clientId){
   </div>
   <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
     <div><h1 class="text-xl font-bold text-gray-900">${esc(c.name)}</h1>${c.description?`<p class="text-sm text-gray-400 mt-0.5">${esc(c.description)}</p>`:''}</div>
+    <div class="flex items-center gap-2">
+    ${can('admin')?`<button data-act="toggle-bulk-integ" data-cid="${c.id}" class="whitespace-nowrap text-sm font-medium px-4 py-2 rounded-xl transition ${S.bulkIntegMode&&S.bulkIntegCid===c.id?'bg-rose-50 border border-rose-200 text-rose-600':'border border-gray-200 text-gray-600 hover:border-gray-300'}">${S.bulkIntegMode&&S.bulkIntegCid===c.id?'✕ Cancel':'☑ Select'}</button>`:''}
     <div class="relative group">
       <button class="flex items-center gap-1.5 btn-grad text-white text-sm font-medium px-4 py-2 rounded-xl transition">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Export ▾
@@ -1183,26 +1189,33 @@ function renderClientDetail(clientId){
         <button data-act="open-import-integ" data-cid="${c.id}" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">⬆ Import Integrations (CSV)</button>
       </div>
     </div>
+    </div>
   </div>
   <div class="flex gap-2 overflow-x-auto pb-1 mb-5 items-center">
     ${['all',...STATUSES].map(st=>`<button data-act="filter" data-filter="${st}" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition ${S.filter===st?'bg-[#0e7490] text-white':'bg-white border border-gray-200 text-gray-600 hover:border-[#0e7490]/40'}">${st==='all'?`All (${c.integrations.length})`:esc(st)+` (${c.integrations.filter(i=>i.status===st).length})`}</button>`).join('')}
     <button data-act="modal-open" data-modal="add-integ" data-cid="${c.id}" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 ml-auto">+ Add Integration</button>
   </div>
+  ${S.bulkIntegMode&&S.bulkIntegCid===c.id?`<div class="flex items-center gap-3 mb-3 px-4 py-2.5 bg-rose-50 border border-rose-200 rounded-xl">
+    <span class="text-sm text-rose-700 font-medium">${S.bulkIntegSelected.size} selected</span>
+    <button data-act="bulk-delete-integ" data-cid="${c.id}" class="text-sm font-medium text-rose-600 hover:text-rose-800 ${S.bulkIntegSelected.size?'':'opacity-40 pointer-events-none'}">🗑 Delete Selected</button>
+  </div>`:''}
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
     <table class="w-full text-sm">
       <thead class="border-b border-gray-100 bg-gray-50 sticky-head">
-        <tr>${cols.map(([k,l])=>`<th data-act="sort" data-key="${k}" data-sort class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer transition select-none">${l} ${sortArrow(k)}</th>`).join('')}</tr>
+        <tr>${S.bulkIntegMode&&S.bulkIntegCid===c.id?`<th class="px-4 py-3 w-10"><input type="checkbox" data-act="toggle-bulk-integ-all" data-cid="${c.id}" ${sorted.length&&sorted.every(i=>S.bulkIntegSelected.has(i.id))?'checked':''} class="rounded"/></th>`:''}${cols.map(([k,l])=>`<th data-act="sort" data-key="${k}" data-sort class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer transition select-none">${l} ${sortArrow(k)}</th>`).join('')}</tr>
       </thead>
       <tbody class="divide-y divide-gray-50">
         ${sorted.length?sorted.map(i=>{
           const lu=lastUpdateDate(i);
-          return`<tr data-act="open-integ" data-cid="${c.id}" data-iid="${i.id}" class="hover:bg-gray-50/60 cursor-pointer transition">
-          <td class="px-4 py-3"><div class="font-medium text-gray-900" title="${esc(i.name)}">${esc(i.name)}</div>${i.description?`<div class="text-xs text-gray-400 truncate max-w-xs" title="${esc(i.description)}">${esc(i.description)}</div>`:''}</td>
-          <td class="px-4 py-3">${sbadge(i.status)}</td>
-          <td class="px-4 py-3 text-gray-600">${esc(i.assignee||'—')}</td>
-          <td class="px-4 py-3"><div class="flex flex-col gap-1"><span class="text-gray-600">${fmtDate(i.dueDate)}</span>${overdueBadge(i)}</div></td>
-          <td class="px-4 py-3 text-gray-500">${lu?fmtDate(lu):'<span class="text-amber-600 text-xs font-medium">No updates</span>'}</td>
-        </tr>`;}).join(''):`<tr><td colspan="5" class="text-center py-12 text-gray-400 text-sm">No integrations match this filter</td></tr>`}
+          const bulkOn=S.bulkIntegMode&&S.bulkIntegCid===c.id;
+          return`<tr class="hover:bg-gray-50/60 transition${bulkOn?'':' cursor-pointer'}" ${bulkOn?'':`data-act="open-integ" data-cid="${c.id}" data-iid="${i.id}"`}>
+          ${bulkOn?`<td class="px-4 py-3"><input type="checkbox" data-act="toggle-bulk-integ-row" data-cid="${c.id}" data-iid="${i.id}" ${S.bulkIntegSelected.has(i.id)?'checked':''} class="rounded"/></td>`:''}
+          <td class="px-4 py-3"${bulkOn?` data-act="open-integ" data-cid="${c.id}" data-iid="${i.id}"`:''}><div class="font-medium text-gray-900" title="${esc(i.name)}">${esc(i.name)}</div>${i.description?`<div class="text-xs text-gray-400 truncate max-w-xs" title="${esc(i.description)}">${esc(i.description)}</div>`:''}</td>
+          <td class="px-4 py-3" onclick="event.stopPropagation()">${can('editor')?`<select data-act="inline-status" data-cid="${c.id}" data-iid="${i.id}" class="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${STATUSES.map(s=>`<option value="${esc(s)}"${s===i.status?' selected':''}>${esc(s)}</option>`).join('')}</select>`:sbadge(i.status)}</td>
+          <td class="px-4 py-3 text-gray-600" onclick="event.stopPropagation()">${can('editor')?`<select data-act="inline-assignee" data-cid="${c.id}" data-iid="${i.id}" class="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0e7490] max-w-[140px]">${assigneeOptionsOnly(i.assignee)}</select>`:esc(i.assignee||'—')}</td>
+          <td class="px-4 py-3"${bulkOn?'':` data-act="open-integ" data-cid="${c.id}" data-iid="${i.id}"`}><div class="flex flex-col gap-1"><span class="text-gray-600">${fmtDate(i.dueDate)}</span>${overdueBadge(i)}</div></td>
+          <td class="px-4 py-3 text-gray-500"${bulkOn?'':` data-act="open-integ" data-cid="${c.id}" data-iid="${i.id}"`}>${lu?fmtDate(lu):'<span class="text-amber-600 text-xs font-medium">No updates</span>'}</td>
+        </tr>`;}).join(''):`<tr><td colspan="6" class="text-center py-12 text-gray-400 text-sm">No integrations match this filter</td></tr>`}
       </tbody>
     </table>
   </div>
@@ -1352,7 +1365,9 @@ function renderAdminImpl(){
           <td class="px-4 py-3"><div class="font-medium text-gray-900" title="${esc(c.name)}">${esc(c.name)}</div>${c.description?`<div class="text-xs text-gray-400 truncate max-w-[180px]" title="${esc(c.description)}">${esc(c.description)}</div>`:''}</td>
           <td class="px-4 py-3 font-semibold text-gray-700">${(c.modules||[]).length}</td>
           <td class="px-4 py-3">${pr.atRisk>0?`<span class="text-rose-600 font-semibold">${pr.atRisk}</span>`:`<span class="text-gray-400">0</span>`}</td>
-          <td class="px-4 py-3"><div class="flex gap-2">
+          <td class="px-4 py-3"><div class="flex gap-2 flex-wrap">
+            <button data-act="modal-open" data-modal="rename-client" data-cid="${c.id}" class="text-xs text-gray-500 hover:text-gray-800 font-medium">✎ Rename</button>
+            <button data-act="modal-open" data-modal="rename-modules" data-cid="${c.id}" class="text-xs text-gray-500 hover:text-gray-800 font-medium">✎ Rename Modules</button>
             <button data-act="modal-open" data-modal="add-impl-module" data-cid="${c.id}" class="text-xs text-[#0e7490] hover:text-[#0d3d4f] font-medium">+ Module</button>
             <button data-act="delete-impl-client" data-id="${c.id}" class="text-xs text-rose-400 hover:text-rose-600 font-medium">Remove from Implementations</button>
           </div></td>
@@ -1379,7 +1394,10 @@ function renderAdminAms(){
           <td class="px-4 py-3"><div class="font-medium text-gray-900" title="${esc(c.name)}">${esc(c.name)}</div>${c.description?`<div class="text-xs text-gray-400 truncate max-w-[180px]" title="${esc(c.description)}">${esc(c.description)}</div>`:''}</td>
           <td class="px-4 py-3 font-semibold text-gray-700">${c.manDayRate?`₹${c.manDayRate.toLocaleString('en-IN')}`:'Retainer (no rate)'}</td>
           <td class="px-4 py-3 text-gray-600">${t.totalHours.toFixed(1)}</td>
-          <td class="px-4 py-3"><button data-act="delete-ams-client" data-id="${c.id}" class="text-xs text-rose-400 hover:text-rose-600 font-medium">Remove from AMS</button></td>
+          <td class="px-4 py-3"><div class="flex gap-2 flex-wrap">
+            <button data-act="modal-open" data-modal="rename-client" data-cid="${c.id}" class="text-xs text-gray-500 hover:text-gray-800 font-medium">✎ Rename</button>
+            <button data-act="delete-ams-client" data-id="${c.id}" class="text-xs text-rose-400 hover:text-rose-600 font-medium">Remove from AMS</button>
+          </div></td>
         </tr>`;}).join(''):`<tr><td colspan="4" class="text-center py-8 text-gray-400 text-sm">No AMS clients yet</td></tr>`}
       </tbody>
     </table>
@@ -1401,7 +1419,9 @@ function renderAdminClients(){
           <td class="px-4 py-3 font-semibold text-gray-700">${c.integrations.length}</td>
           <td class="px-4 py-3">${c.integrations.filter(i=>i.status==='At Risk').length>0?`<span class="text-rose-600 font-semibold">${c.integrations.filter(i=>i.status==='At Risk').length}</span>`:`<span class="text-gray-400">0</span>`}</td>
           <td class="px-4 py-3">${c.integrations.filter(i=>i.status==='Completed').length>0?`<span class="text-green-600 font-semibold">${c.integrations.filter(i=>i.status==='Completed').length}</span>`:`<span class="text-gray-400">0</span>`}</td>
-          <td class="px-4 py-3"><div class="flex gap-2">
+          <td class="px-4 py-3"><div class="flex gap-2 flex-wrap">
+            <button data-act="modal-open" data-modal="rename-client" data-cid="${c.id}" class="text-xs text-gray-500 hover:text-gray-800 font-medium">✎ Rename</button>
+            <button data-act="modal-open" data-modal="rename-integrations" data-cid="${c.id}" class="text-xs text-gray-500 hover:text-gray-800 font-medium">✎ Rename Integrations</button>
             <button data-act="modal-open" data-modal="add-integ" data-cid="${c.id}" class="text-xs text-[#0e7490] hover:text-[#0d3d4f] font-medium">+ Integ</button>
             <button data-act="delete-client" data-id="${c.id}" class="text-xs text-rose-400 hover:text-rose-600 font-medium">Remove from Integrations</button>
           </div></td>
@@ -1694,6 +1714,27 @@ function renderModal(){
       </div>
       <p class="text-xs text-gray-400">Sections are skipped if a client has no data in that section.</p>
     </div>`;
+  } else if(m.type==='rename-client'){
+    const c=S.clients.find(x=>x.id===m.cid);
+    title='Rename Client';
+    body=`<div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Client Name *</label><input id="m1" type="text" value="${esc(c?.name||'')}" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+    </div>`;
+    btnLabel='Save';
+  } else if(m.type==='rename-integrations'){
+    const c=S.clients.find(x=>x.id===m.cid);
+    title=`Rename Integrations — ${esc(c?.name||'')}`;
+    body=`<div class="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
+      ${(c?.integrations||[]).length?(c.integrations.map(i=>`<div><label class="block text-xs font-medium text-gray-500 mb-1">Integration</label><input id="ri-${i.id}" type="text" value="${esc(i.name)}" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>`).join('')):'<p class="text-sm text-gray-400">No integrations for this client.</p>'}
+    </div>`;
+    btnLabel='Save All';
+  } else if(m.type==='rename-modules'){
+    const c=S.clients.find(x=>x.id===m.cid);
+    title=`Rename Modules — ${esc(c?.name||'')}`;
+    body=`<div class="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
+      ${(c?.modules||[]).length?(c.modules.map(mod=>`<div><label class="block text-xs font-medium text-gray-500 mb-1">Module</label><input id="rm-${mod.id}" type="text" value="${esc(mod.name)}" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>`).join('')):'<p class="text-sm text-gray-400">No modules for this client.</p>'}
+    </div>`;
+    btnLabel='Save All';
   } else if(m.type==='confirm'){
     title='Confirm';btnLabel='Delete';btnCls='bg-rose-600 hover:bg-rose-700';
     body=`<p class="text-sm text-gray-600">${esc(m.msg||'Are you sure? This cannot be undone.')}</p>`;
@@ -2552,6 +2593,45 @@ document.addEventListener('click',async e=>{
     S.modal={...S.modal,csvRows:rows,csvText:csv};render();
     return;
   }
+  if(act==='toggle-bulk-integ'){
+    if(!can('admin'))return;
+    const cid=el.dataset.cid;
+    if(S.bulkIntegMode&&S.bulkIntegCid===cid){
+      S.bulkIntegMode=false;S.bulkIntegCid=null;S.bulkIntegSelected=new Set();
+    }else{
+      S.bulkIntegMode=true;S.bulkIntegCid=cid;S.bulkIntegSelected=new Set();
+    }
+    render();return;
+  }
+  if(act==='toggle-bulk-integ-row'){
+    if(!can('admin'))return;
+    const iid=el.dataset.iid;
+    if(S.bulkIntegSelected.has(iid))S.bulkIntegSelected.delete(iid);else S.bulkIntegSelected.add(iid);
+    render();return;
+  }
+  if(act==='toggle-bulk-integ-all'){
+    if(!can('admin'))return;
+    const cid=el.dataset.cid;const c=S.clients.find(x=>x.id===cid);if(!c)return;
+    const fl=S.filter==='all'?c.integrations:c.integrations.filter(i=>i.status===S.filter);
+    if(fl.length&&fl.every(i=>S.bulkIntegSelected.has(i.id))){fl.forEach(i=>S.bulkIntegSelected.delete(i.id));}
+    else{fl.forEach(i=>S.bulkIntegSelected.add(i.id));}
+    render();return;
+  }
+  if(act==='bulk-delete-integ'){
+    if(!can('admin'))return;
+    const cid=el.dataset.cid;const c=S.clients.find(x=>x.id===cid);if(!c||!S.bulkIntegSelected.size)return;
+    const ids=new Set(S.bulkIntegSelected);
+    const prev=JSON.parse(JSON.stringify(c.integrations));
+    c.integrations=c.integrations.filter(i=>!ids.has(i.id));
+    setBtnBusy(el,'Deleting…');
+    try{
+      await saveClients(`Bulk delete ${ids.size} integration${ids.size!==1?'s':''}: ${c.name}`);
+      S.bulkIntegMode=false;S.bulkIntegCid=null;S.bulkIntegSelected=new Set();
+      showToast(`${ids.size} integration${ids.size!==1?'s':''} deleted ✓`);
+      navigate('client-detail',{clientId:cid});
+    }catch(err){c.integrations=prev;showToast('Delete failed: '+err.message,'error');clearBtnBusy(el);}
+    return;
+  }
   if(act==='toggle-bulk-impl'){
     if(!can('admin'))return;
     const cid=el.dataset.cid;
@@ -2904,6 +2984,31 @@ document.addEventListener('click',async e=>{
       S.users=[...S.users,...newUsers];
       try{await saveUsers(`Bulk import ${newUsers.length} users`);S.usersForDropdown=S.users.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));S.modal=null;showToast(`${newUsers.length} user${newUsers.length!==1?'s':''} imported ✓`);render();}
       catch(err){S.users=prev;S.modal=null;showToast('Import failed: '+err.message,'error');render();}
+    } else if(m.type==='rename-client'){
+      const c=S.clients.find(x=>x.id===m.cid);if(!c)return;
+      const name=document.getElementById('m1')?.value.trim();
+      if(!name){showToast('Name required','error');return;}
+      const prev=c.name;c.name=name;S.modal={...m,busy:true};render();
+      try{await saveClients(`Rename client: ${prev} → ${name}`);S.modal=null;showToast('Client renamed ✓');render();}
+      catch(err){c.name=prev;S.modal=null;showToast('Failed: '+err.message,'error');render();}
+    } else if(m.type==='rename-integrations'){
+      const c=S.clients.find(x=>x.id===m.cid);if(!c)return;
+      const prev=JSON.parse(JSON.stringify(c.integrations));
+      let changed=0;
+      c.integrations.forEach(i=>{const v=document.getElementById(`ri-${i.id}`)?.value.trim();if(v&&v!==i.name){i.name=v;changed++;}});
+      if(!changed){S.modal=null;render();return;}
+      S.modal={...m,busy:true};render();
+      try{await saveClients(`Rename ${changed} integration${changed!==1?'s':''}: ${c.name}`);S.modal=null;showToast('Integrations renamed ✓');render();}
+      catch(err){c.integrations=prev;S.modal=null;showToast('Failed: '+err.message,'error');render();}
+    } else if(m.type==='rename-modules'){
+      const c=S.clients.find(x=>x.id===m.cid);if(!c)return;
+      const prev=JSON.parse(JSON.stringify(c.modules));
+      let changed=0;
+      (c.modules||[]).forEach(mod=>{const v=document.getElementById(`rm-${mod.id}`)?.value.trim();if(v&&v!==mod.name){mod.name=v;changed++;}});
+      if(!changed){S.modal=null;render();return;}
+      S.modal={...m,busy:true};render();
+      try{await saveClients(`Rename ${changed} module${changed!==1?'s':''}: ${c.name}`);S.modal=null;showToast('Modules renamed ✓');render();}
+      catch(err){c.modules=prev;S.modal=null;showToast('Failed: '+err.message,'error');render();}
     } else if(m.type==='add-impl-client'){
       const existingId=document.getElementById('m0')?.value;
       if(existingId){
@@ -3006,6 +3111,24 @@ document.addEventListener('click',async e=>{
 });
 
 document.addEventListener('change',async e=>{
+  const statusEl=e.target.closest('[data-act="inline-status"]');
+  if(statusEl&&can('editor')){
+    const c=S.clients.find(x=>x.id===statusEl.dataset.cid);if(!c)return;
+    const i=c.integrations.find(x=>x.id===statusEl.dataset.iid);if(!i)return;
+    const prev=i.status;i.status=statusEl.value;statusEl.disabled=true;
+    try{await saveClients(`Status: ${i.name} → ${i.status}`);showToast(`${i.name} → ${i.status}`);statusEl.disabled=false;}
+    catch(err){i.status=prev;showToast('Failed: '+err.message,'error');render();}
+    return;
+  }
+  const assigneeEl=e.target.closest('[data-act="inline-assignee"]');
+  if(assigneeEl&&can('editor')){
+    const c=S.clients.find(x=>x.id===assigneeEl.dataset.cid);if(!c)return;
+    const i=c.integrations.find(x=>x.id===assigneeEl.dataset.iid);if(!i)return;
+    const prev=i.assignee;i.assignee=assigneeEl.value;assigneeEl.disabled=true;
+    try{await saveClients(`Assignee: ${i.name} → ${i.assignee||'Unassigned'}`);showToast(`Assignee updated ✓`);assigneeEl.disabled=false;}
+    catch(err){i.assignee=prev;showToast('Failed: '+err.message,'error');render();}
+    return;
+  }
   const roleEl=e.target.closest('[data-act="change-role"]');
   if(roleEl&&can('admin')){
     const u=S.users.find(x=>x.id===roleEl.dataset.uid);if(!u||u.id===S.user?.id)return;
