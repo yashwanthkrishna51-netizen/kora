@@ -115,7 +115,7 @@ h3, .k-h3 { font-size: 13px; font-weight: 600; letter-spacing: -0.005em; line-he
 /* ── Inputs ──────────────────────────────────────────────────── */
 .k-input, input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 select, textarea {
-  height: 32px; padding: 0 9px;
+  min-height: 32px; padding: 0 9px;
   font-size: 13px; font-family: var(--font);
   background: var(--paper); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--radius);
