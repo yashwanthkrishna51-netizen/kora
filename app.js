@@ -1,6 +1,6 @@
 const KOGNOZ_LOGO="/kognoz_Iogo.png";
 // ─── STATE ────────────────────────────────────────────────────────
-const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'}};
+const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'},dashAssigneeSort:{key:'total',dir:'desc'},dashAssigneeSearch:'',dashAssigneeExpanded:new Set(),dashAssigneeFilter:'all'};
 
 try{S.sidebarCollapsed=localStorage.getItem('itk_sb_collapsed')==='1';}catch(e){}
 try{const r=localStorage.getItem('itk_recent');if(r)S.recentlyViewed=JSON.parse(r);}catch(e){}
@@ -497,6 +497,27 @@ function renderDashboard(){
     if(tm.hasBucket&&tm.balanceAvailable<=Math.max(2,tm.totalAvailableHours*0.15)){amsLowBalance.push({name:c.name,id:c.id,balance:tm.balanceAvailable,total:tm.totalAvailableHours});}
   });
 
+  // Workload by assignee — cross-domain bandwidth view (open items only)
+  const workload={};
+  const wAdd=(bucket,name,item)=>{
+    const nm=(name||'').trim();
+    const key=nm||'__unassigned__';
+    if(!workload[key])workload[key]={name:nm||'Unassigned',unassigned:!nm,integ:[],phase:[],ams:[],total:0};
+    workload[key][bucket].push(item);workload[key].total++;
+  };
+  all.filter(i=>!['Completed','Cancelled'].includes(i.status)).forEach(i=>wAdd('integ',i.assignee,i));
+  implClients.forEach(c=>(c.modules||[]).forEach(m=>(m.phases||[]).forEach(ph=>{if(ph.status!=='Completed'&&ph.status!=='Not Started')wAdd('phase',ph.assignee,{...ph,clientName:c.name,moduleName:m.name});})));
+  amsClients.forEach(c=>(c.workLog||[]).forEach(e=>{if(e.entryStatus!=='Closed'){const rb=entryRaisedBy(e);wAdd('ams',rb==='—'?'':rb,{...e,clientName:c.name});}}));
+  let workloadRows=Object.values(workload);
+  if(S.dashAssigneeSearch.trim()){
+    const q=S.dashAssigneeSearch.toLowerCase();
+    workloadRows=workloadRows.filter(w=>w.name.toLowerCase().includes(q)||[...w.integ,...w.phase,...w.ams].some(it=>(it.name||'').toLowerCase().includes(q)));
+  }
+  if(S.dashAssigneeFilter!=='all')workloadRows=workloadRows.filter(w=>w[S.dashAssigneeFilter].length>0);
+  workloadRows=sortGeneric(workloadRows,S.dashAssigneeSort,{name:w=>w.name,total:w=>w.total,integ:w=>w.integ.length,phase:w=>w.phase.length,ams:w=>w.ams.length,_default:w=>w.total});
+  // Unassigned always pinned to top regardless of sort — it's the actionable item
+  workloadRows.sort((a,b)=>(a.unassigned&&!b.unassigned)?-1:(!a.unassigned&&b.unassigned)?1:0);
+
   return`<div class="k-page fade">
   <div class="k-page-header">
     <div>
@@ -601,6 +622,46 @@ function renderDashboard(){
       <div class="flex flex-wrap gap-3" style="padding:12px 16px;border-top:1px solid var(--line-2);">
         ${STATUSES.map(s=>`<span class="flex items-center gap-1.5" style="font-size:11px;color:var(--mute);"><span class="w-2.5 h-2.5 rounded-full" style="background:${SDOT[s]};"></span>${s}</span>`).join('')}
       </div>
+    </div>
+  </div>
+
+  <div class="k-card mb-6" style="padding:0;overflow:hidden;">
+    <div class="k-card-head" style="padding:16px 16px 0;margin-bottom:10px;">
+      <h3 class="k-h3">Workload by Assignee</h3>
+      <span class="k-eyebrow">${workloadRows.length} people${workloadRows.some(w=>w.unassigned)?' · unassigned flagged':''}</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2" style="padding:0 16px 12px;">
+      <input type="text" id="dash-assignee-search-inp" placeholder="Search person or item…" value="${esc(S.dashAssigneeSearch)}" data-act="dash-assignee-search" style="font-size:12px;max-width:220px;" class="border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+      <div class="flex gap-1">
+        ${[['all','All'],['integ','Integrations'],['phase','Phases'],['ams','AMS']].map(([k,l])=>`<button data-act="dash-assignee-filter" data-key="${k}" style="font-size:11px;padding:5px 10px;border-radius:9999px;font-weight:500;${S.dashAssigneeFilter===k?'background:var(--ink);color:#fff;':'background:var(--paper);color:var(--ink-3);border:1px solid var(--line);'}">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div style="max-height:380px;overflow-y:auto;font-size:12px;">
+      <div style="display:grid;grid-template-columns:26% 16% 16% 16% 13% 13%;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:1px solid var(--line);">
+        ${[['name','Person'],['integ','Integrations'],['phase','Phases'],['ams','AMS Entries'],['total','Total'],['','']].map(([k,l])=>k?`<div data-act="sort-dash-assignee" data-key="${k}" style="padding:6px 12px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l} ${sortArrowFor(S.dashAssigneeSort,k)}</div>`:`<div></div>`).join('')}
+      </div>
+      ${workloadRows.length?workloadRows.map(w=>{
+        const expanded=S.dashAssigneeExpanded.has(w.name);
+        const items=[...w.integ.map(it=>({...it,cat:'Integration'})),...w.phase.map(it=>({...it,cat:'Phase'})),...w.ams.map(it=>({...it,cat:'AMS'}))];
+        return`<div>
+          <div class="k-list-row" style="display:grid;grid-template-columns:26% 16% 16% 16% 13% 13%;align-items:center;margin:0;border-radius:0;border-bottom:1px solid var(--line-2);${w.unassigned?'background:var(--red-hi);':''}" data-act="dash-assignee-toggle" data-key="${esc(w.name)}">
+            <div style="padding:7px 12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:500;${w.unassigned?'color:var(--red);':'color:var(--ink);'}">${w.unassigned?'⚠ ':''}${esc(w.name)}</div>
+            <div style="padding:7px 12px;color:var(--ink-3);">${w.integ.length||''}</div>
+            <div style="padding:7px 12px;color:var(--ink-3);">${w.phase.length||''}</div>
+            <div style="padding:7px 12px;color:var(--ink-3);">${w.ams.length||''}</div>
+            <div style="padding:7px 12px;font-weight:600;color:var(--ink);">${w.total}</div>
+            <div style="padding:7px 12px;color:var(--mute);">${expanded?'▾':'▸'}</div>
+          </div>
+          ${expanded?`<div style="padding:4px 12px 10px 24px;background:var(--surface);border-bottom:1px solid var(--line-2);">
+            ${items.map(it=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11.5px;">
+              <span class="k-badge" style="font-size:9px;">${it.cat}</span>
+              <span style="color:var(--ink-3);" class="truncate">${esc(it.name||it.description||'Untitled')}</span>
+              <span style="color:var(--mute-2);">· ${esc(it.clientName||'')}</span>
+              ${it.status?`<span style="color:var(--mute);">· ${esc(it.status)}</span>`:''}
+            </div>`).join('')}
+          </div>`:''}
+        </div>`;
+      }).join(''):`<div class="k-empty">${S.dashAssigneeSearch?'No matches':'No open items assigned yet'}</div>`}
     </div>
   </div>
 
@@ -2385,6 +2446,9 @@ document.addEventListener('click',async e=>{
   if(act==='filter'){S.filter=el.dataset.filter;render();return;}
   if(act==='sort'){const k=el.dataset.key;if(S.sort.key===k){S.sort.dir=S.sort.dir==='asc'?'desc':'asc';}else{S.sort={key:k,dir:'asc'};}render();return;}
   if(act==='sort-dash-attn'){const k=el.dataset.key;if(S.dashAttnSort.key===k){S.dashAttnSort.dir=S.dashAttnSort.dir==='asc'?'desc':'asc';}else{S.dashAttnSort={key:k,dir:'asc'};}render();return;}
+  if(act==='dash-assignee-filter'){S.dashAssigneeFilter=el.dataset.key;render();return;}
+  if(act==='sort-dash-assignee'){const k=el.dataset.key;if(S.dashAssigneeSort.key===k){S.dashAssigneeSort.dir=S.dashAssigneeSort.dir==='asc'?'desc':'asc';}else{S.dashAssigneeSort={key:k,dir:'desc'};}render();return;}
+  if(act==='dash-assignee-toggle'){const key=el.dataset.key;if(S.dashAssigneeExpanded.has(key))S.dashAssigneeExpanded.delete(key);else S.dashAssigneeExpanded.add(key);render();return;}
   if(act==='sort-dash-client'){const k=el.dataset.key;if(S.dashClientSort.key===k){S.dashClientSort.dir=S.dashClientSort.dir==='asc'?'desc':'asc';}else{S.dashClientSort={key:k,dir:'asc'};}render();return;}
   if(act==='admin-tab'){S.adminTab=el.dataset.tab;render();return;}
   if(act==='exp-pptx'){setBtnBusy(el,'Generating…');try{await exportPptx(el.dataset.id);}finally{clearBtnBusy(el);}return;}
@@ -3194,6 +3258,7 @@ document.addEventListener('change',async e=>{
 
 let _st;
 let _ct;
+let _dat;
 document.addEventListener('input',e=>{
   if(e.target.dataset?.act==='search'){
     clearTimeout(_st);const v=e.target.value;
@@ -3202,6 +3267,10 @@ document.addEventListener('input',e=>{
   if(e.target.dataset?.act==='cmdp-input'){
     clearTimeout(_ct);const v=e.target.value;
     _ct=setTimeout(()=>{S.cmdQuery=v;render();setTimeout(()=>{const el=document.getElementById('cmdp-input');if(el){el.focus();try{el.setSelectionRange(v.length,v.length);}catch{}}},10);},100);
+  }
+  if(e.target.dataset?.act==='dash-assignee-search'){
+    clearTimeout(_dat);const v=e.target.value;
+    _dat=setTimeout(()=>{S.dashAssigneeSearch=v;render();setTimeout(()=>{const el=document.getElementById('dash-assignee-search-inp');if(el){el.focus();try{el.setSelectionRange(v.length,v.length);}catch{}}},10);},120);
   }
 });
 
