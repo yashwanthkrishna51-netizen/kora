@@ -1,5 +1,24 @@
 // ─── HELPERS ──────────────────────────────────────────────────────
 function sbadge(s){return`<span class="${SBG[s]||SBG['Not Started']}">${esc(s)}</span>`;}
+function roleBadge(role){
+  const map={admin:['#7c3aed','Admin'],editor:['#0e7490','Editor'],viewer:['#64748b','Viewer']};
+  const[color,label]=map[role]||map.viewer;
+  return`<span class="k-status" style="border-color:${color}22;"><span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block;"></span>${label}</span>`;
+}
+function adminRowMenu(items){
+  // items: [{label, act, extra (raw data-attr string), danger:bool}]; renders a "..." overflow menu,
+  // with a divider before the first danger item so destructive actions read as visually separate.
+  let sawDanger=false;
+  const rows=items.map(it=>{
+    const divider=(it.danger&&!sawDanger)?'<div class="border-t border-gray-100 my-1"></div>':'';
+    if(it.danger)sawDanger=true;
+    return`${divider}<button data-act="${it.act}" ${it.extra||''} class="w-full text-left px-3.5 py-2 text-sm ${it.danger?'text-rose-600 hover:bg-rose-50':'text-gray-700 hover:bg-gray-50'} transition">${esc(it.label)}</button>`;
+  }).join('');
+  return`<div class="relative group inline-block">
+    <button class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition" title="More actions">⋯</button>
+    <div class="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-xl w-52 py-1 hidden group-hover:block z-20">${rows}</div>
+  </div>`;
+}
 function sBar(integs){if(!integs.length)return'';const c={};integs.forEach(i=>c[i.status]=(c[i.status]||0)+1);return Object.entries(c).map(([s,n])=>`<div class="h-1.5 rounded" style="width:${Math.round(n/integs.length*100)}%;background:${SDOT[s]||'#9ca3af'};"></div>`).join('');}
 function sCounts(integs){const c={};integs.forEach(i=>c[i.status]=(c[i.status]||0)+1);return Object.entries(c).map(([s,n])=>`<span class="flex items-center gap-1 text-xs text-gray-500"><span class="w-2 h-2 inline-block rounded-full" style="background:${SDOT[s]||'#9ca3af'};"></span>${n} ${esc(s)}</span>`).join('');}
 // Clients are shared across all sections now. This lets a modal offer "pick an

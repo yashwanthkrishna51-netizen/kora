@@ -51,7 +51,7 @@ document.addEventListener('click',async e=>{
   if(act==='sort-dash-assignee'){const k=el.dataset.key;if(S.dashAssigneeSort.key===k){S.dashAssigneeSort.dir=S.dashAssigneeSort.dir==='asc'?'desc':'asc';}else{S.dashAssigneeSort={key:k,dir:'desc'};}render();return;}
   if(act==='dash-assignee-toggle'){const key=el.dataset.key;if(S.dashAssigneeExpanded.has(key))S.dashAssigneeExpanded.delete(key);else S.dashAssigneeExpanded.add(key);render();return;}
   if(act==='sort-dash-client'){const k=el.dataset.key;if(S.dashClientSort.key===k){S.dashClientSort.dir=S.dashClientSort.dir==='asc'?'desc':'asc';}else{S.dashClientSort={key:k,dir:'asc'};}render();return;}
-  if(act==='admin-tab'){S.adminTab=el.dataset.tab;render();return;}
+  if(act==='admin-tab'){S.adminTab=el.dataset.tab;S.adminSearch='';render();return;}
   if(act==='exp-pptx'){setBtnBusy(el,'Generating…');try{await exportPptx(el.dataset.id);}finally{clearBtnBusy(el);}return;}
   if(act==='exp-pdf'){setBtnBusy(el,'Generating…');try{await exportPdf(el.dataset.id);}finally{clearBtnBusy(el);}return;}
   if(act==='exp-impl-pdf'){setBtnBusy(el,'Generating…');try{exportImplPdf(el.dataset.cid);}finally{clearBtnBusy(el);}return;}
@@ -860,6 +860,7 @@ document.addEventListener('change',async e=>{
 let _st;
 let _ct;
 let _dat;
+let _adt;
 document.addEventListener('input',e=>{
   if(e.target.dataset?.act==='search'){
     clearTimeout(_st);const v=e.target.value;
@@ -872,6 +873,10 @@ document.addEventListener('input',e=>{
   if(e.target.dataset?.act==='dash-assignee-search'){
     clearTimeout(_dat);const v=e.target.value;
     _dat=setTimeout(()=>{S.dashAssigneeSearch=v;render();setTimeout(()=>{const el=document.getElementById('dash-assignee-search-inp');if(el){el.focus();try{el.setSelectionRange(v.length,v.length);}catch{}}},10);},120);
+  }
+  if(e.target.dataset?.act==='admin-search'){
+    clearTimeout(_adt);const v=e.target.value;
+    _adt=setTimeout(()=>{S.adminSearch=v;render();setTimeout(()=>{const el=document.getElementById('admin-search-inp');if(el){el.focus();try{el.setSelectionRange(v.length,v.length);}catch{}}},10);},120);
   }
 });
 
