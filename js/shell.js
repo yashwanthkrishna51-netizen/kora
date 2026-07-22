@@ -222,7 +222,9 @@ function renderLogin(){
   <div class="hidden lg:flex flex-col justify-between" style="width:58%;background:var(--ink-2);padding:56px 64px;position:relative;overflow:hidden;">
     <div style="position:absolute;inset:0;background:radial-gradient(circle at 15% 85%, rgba(37,99,235,.18), transparent 55%);"></div>
     <div style="position:relative;z-index:1;">
-      <img src="${KOGNOZ_LOGO}" alt="Kognoz" style="height:34px;width:auto;object-fit:contain;filter:brightness(0) invert(1);opacity:.92;" />
+      <div style="display:inline-block;background:#fff;padding:8px 16px;border-radius:10px;">
+        <img src="${KOGNOZ_LOGO}" alt="Kognoz" style="height:26px;width:auto;object-fit:contain;display:block;" />
+      </div>
     </div>
     <div style="position:relative;z-index:1;max-width:480px;">
       <h1 style="font-size:34px;font-weight:700;letter-spacing:-0.02em;line-height:1.15;color:#fff;margin-bottom:16px;">Every client.<br/>Every phase.<br/>One view.</h1>
