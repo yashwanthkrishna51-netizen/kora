@@ -212,13 +212,48 @@ function encBadge(opts={}){
   </div>`;
 }
 function renderLogin(){
-  return`<div class="min-h-screen flex items-center justify-center p-4" style="background:var(--surface);">
-  <div class="fade" style="width:100%;max-width:380px;">
-    <div class="k-card" style="padding:40px 32px;box-shadow:var(--shadow);">
-      <div class="text-center" style="margin-bottom:32px;">
-        <img src="${KOGNOZ_LOGO}" alt="Kognoz" style="height:52px;width:auto;object-fit:contain;margin:0 auto 12px;display:block;" />
-        <div style="font-size:26px;font-weight:700;letter-spacing:0.18em;color:var(--teal);text-transform:uppercase;line-height:1;">Kora</div>
-        <p style="font-size:12px;color:var(--mute);margin-top:14px;">Delivery Intelligence Platform</p>
+  const board=[
+    ['Completed','SAP S/4HANA rollout',100],
+    ['In Progress','Salesforce integration',62],
+    ['At Risk','Payroll sync',28],
+    ['Pending Client','SSO configuration',10],
+  ];
+  return`<div class="min-h-screen flex" style="background:var(--paper);">
+  <div class="hidden lg:flex flex-col justify-between" style="width:58%;background:var(--ink-2);padding:56px 64px;position:relative;overflow:hidden;">
+    <div style="position:absolute;inset:0;background:radial-gradient(circle at 15% 85%, rgba(37,99,235,.18), transparent 55%);"></div>
+    <div style="position:relative;z-index:1;">
+      <img src="${KOGNOZ_LOGO}" alt="Kognoz" style="height:34px;width:auto;object-fit:contain;filter:brightness(0) invert(1);opacity:.92;" />
+    </div>
+    <div style="position:relative;z-index:1;max-width:480px;">
+      <h1 style="font-size:34px;font-weight:700;letter-spacing:-0.02em;line-height:1.15;color:#fff;margin-bottom:16px;">Every client.<br/>Every phase.<br/>One view.</h1>
+      <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin-bottom:36px;">Kora tracks integrations, implementations, and AMS delivery across your whole portfolio — so nothing slips between spreadsheets.</p>
+      <div class="fade" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:20px 22px;backdrop-filter:blur(8px);">
+        <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;margin-bottom:14px;">Live portfolio status</div>
+        <div style="display:flex;flex-direction:column;gap:13px;">
+          ${board.map(([status,label,pct])=>`<div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:#${SHEX[status]};flex-shrink:0;"></span>
+              <span style="font-size:12.5px;color:#e2e8f0;flex:1;">${label}</span>
+              <span style="font-size:11px;color:#64748b;font-family:var(--mono);">${pct}%</span>
+            </div>
+            <div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:#${SHEX[status]};border-radius:2px;"></div>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div style="position:relative;z-index:1;font-size:11px;color:#475569;">© ${new Date().getFullYear()} Kognoz · Internal delivery platform</div>
+  </div>
+
+  <div class="flex items-center justify-center" style="width:100%;padding:24px;">
+    <div class="fade" style="width:100%;max-width:360px;">
+      <div class="lg:hidden text-center" style="margin-bottom:28px;">
+        <img src="${KOGNOZ_LOGO}" alt="Kognoz" style="height:40px;width:auto;object-fit:contain;margin:0 auto;display:block;" />
+      </div>
+      <div style="margin-bottom:32px;">
+        <div style="font-size:22px;font-weight:700;letter-spacing:-0.01em;color:var(--ink);">Sign in to Kora</div>
+        <p style="font-size:13px;color:var(--mute);margin-top:6px;">Enter your credentials to continue</p>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px;">
         <div>
@@ -232,9 +267,9 @@ function renderLogin(){
         <div id="lerr" class="hidden" style="font-size:12px;color:var(--red);background:var(--red-hi);padding:8px 12px;border-radius:var(--radius);text-align:center;"></div>
         <button data-act="login" class="k-btn k-btn-primary k-btn-lg" style="width:100%;margin-top:4px;">Sign In</button>
       </div>
-    </div>
-    <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--mute);">
-      Secured with AES-256 encryption
+      <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--mute-2);">
+        Kognoz internal platform · Access is provisioned by your admin
+      </div>
     </div>
   </div>
 </div>`;
