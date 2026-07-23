@@ -74,174 +74,179 @@ function renderDashboard(){
   // Unassigned always pinned to top regardless of sort — it's the actionable item
   workloadRows.sort((a,b)=>(a.unassigned&&!b.unassigned)?-1:(!a.unassigned&&b.unassigned)?1:0);
 
-  return`<div class="k-page fade">
-  <div class="k-page-header">
+  return`<div class="k-page fade kdash2">
+  <style>
+    .kdash2{--dp:#2563EB;--da:#059669;--dd:#DC2626;--damber:#D97706;--dbg:#F8FAFC;--dcard:#FFFFFF;--dborder:#E4ECFC;--dmute:#64748B;--dink:#0F172A;}
+    .kdash2 .bento{border-radius:24px;background:var(--dcard);border:1px solid var(--dborder);box-shadow:0 4px 6px rgba(0,0,0,.05);transition:transform 180ms ease,box-shadow 180ms ease;}
+    .kdash2 .bento:hover{transform:scale(1.006);box-shadow:0 8px 20px rgba(37,99,235,.08);}
+    .kdash2 .row2{display:flex;align-items:center;padding:7px 4px;border-bottom:1px solid var(--dborder);font-size:12.5px;cursor:pointer;}
+    .kdash2 .row2:last-child{border-bottom:none;}
+    .kdash2 .row2:hover{background:rgba(37,99,235,.03);}
+    .kdash2 .chip2{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;white-space:nowrap;}
+    .kdash2 .hd2{color:var(--dmute);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;}
+    .kdash2 .scrollbox{max-height:320px;overflow-y:auto;}
+  </style>
+
+  <div class="flex items-center justify-between mb-5">
     <div>
-      <h1 class="k-h1">Dashboard</h1>
-      <p style="font-size:13px;color:var(--mute);margin-top:4px;">Overview across all clients and integrations</p>
+      <h1 class="text-2xl font-extrabold" style="color:var(--dink)">Dashboard</h1>
+      <p class="text-sm mt-0.5" style="color:var(--dmute)">Overview across all clients and integrations</p>
     </div>
-    ${can('admin')?`<button data-act="portfolio-export" class="k-btn k-btn-primary">Portfolio Export</button>`:''}
+    ${can('admin')?`<button data-act="portfolio-export" class="text-sm font-semibold text-white px-4 py-2.5 rounded-xl" style="background:var(--dp)">Portfolio Export</button>`:''}
   </div>
 
-  <div class="k-card" style="padding:22px 0;margin-bottom:24px;">
-    <div class="k-metric-row" style="grid-template-columns:repeat(5,1fr);">
-      ${[
-        ['Clients',S.clients.length,'',''],
-        ['Integrations',ti,'',''],
-        ['In Progress',ip,'','teal'],
-        ['At Risk',ar,atRiskPct?`${atRiskPct}% of total`:'',ar?'red':''],
-        ['Updates',thisWeekUpdates,'past 7 days','']
-      ].map(([l,v,sub,rail])=>`<div class="k-metric${rail?` k-metric-${rail}`:''}">
-        <div class="k-num-l">${v}</div>
-        <div class="k-eyebrow" style="margin-top:8px;">${l}</div>
-        ${sub?`<div class="k-metric-sub">${sub}</div>`:''}
-      </div>`).join('')}
-    </div>
+  <!-- KPI strip -->
+  <div class="grid grid-cols-5 gap-4 mb-4">
+    <div class="bento p-4"><div class="text-3xl font-extrabold" style="color:var(--dink)">${S.clients.length}</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">Clients</div></div>
+    <div class="bento p-4"><div class="text-3xl font-extrabold" style="color:var(--dink)">${ti}</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">Integrations</div></div>
+    <div class="bento p-4"><div class="text-3xl font-extrabold" style="color:var(--dp)">${ip}</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">In Progress</div></div>
+    <div class="bento p-4"><div class="text-3xl font-extrabold" style="color:${ar?'var(--dd)':'var(--dink)'}">${ar}</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">At Risk${atRiskPct?` · ${atRiskPct}%`:''}</div></div>
+    <div class="bento p-4"><div class="text-3xl font-extrabold" style="color:var(--dink)">${thisWeekUpdates}</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">Updates · 7d</div></div>
   </div>
 
-  <div class="k-eyebrow" style="margin-bottom:12px;">Across your trackers</div>
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-    <div class="k-card" style="padding:20px;">
-      <div class="k-card-head">
-        <h3 class="k-h3">Implementations</h3>
-        <button data-act="nav-impl" class="k-link">View all →</button>
+  <div class="text-xs font-semibold uppercase tracking-wide mb-2 mt-1" style="color:var(--dmute)">Across your trackers</div>
+  <div class="grid grid-cols-2 gap-4 mb-4">
+    <div class="bento p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-sm" style="color:var(--dink)">Implementations</h3>
+        <button data-act="nav-impl" class="text-xs font-semibold" style="color:var(--dp)">View all →</button>
       </div>
-      <div class="grid grid-cols-2 gap-4 mb-4">
-        <div class="k-metric k-metric-teal"><div class="k-num-m">${implActiveClients.length}</div><div class="k-eyebrow" style="margin-top:4px;">Active Clients</div></div>
-        <div class="k-metric${implAtRiskClients.length?' k-metric-red':''}"><div class="k-num-m" style="${implAtRiskClients.length?'color:var(--red);':''}">${implAtRiskClients.length}</div><div class="k-eyebrow" style="margin-top:4px;">Need Attention</div></div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div class="rounded-xl p-3" style="background:rgba(37,99,235,.06)"><div class="text-xl font-extrabold" style="color:var(--dp)">${implActiveClients.length}</div><div class="text-xs" style="color:var(--dmute)">Active Clients</div></div>
+        <div class="rounded-xl p-3" style="background:${implAtRiskClients.length?'rgba(220,38,38,.06)':'rgba(100,116,139,.06)'}"><div class="text-xl font-extrabold" style="color:${implAtRiskClients.length?'var(--dd)':'var(--dmute)'}">${implAtRiskClients.length}</div><div class="text-xs" style="color:var(--dmute)">Need Attention</div></div>
       </div>
-      ${implTotalPhases?`<div class="flex gap-0.5 h-1.5 rounded overflow-hidden mb-2" style="background:var(--line-2);">
-        ${STATUSES.map(s=>{const n=allPhases.filter(ph=>ph.status===s).length;const c={'Completed':'var(--green)','In Progress':'var(--teal)','At Risk':'var(--red)','Delayed':'var(--red)','Not Started':'var(--mute-2)'}[s]||'var(--mute-2)';return n?`<div class="bar-fill" style="width:${Math.round(n/implTotalPhases*100)}%;background:${c}!important" title="${s}: ${n}"></div>`:'';}).join('')}
+      ${implTotalPhases?`<div class="flex gap-0.5 h-1.5 rounded-full overflow-hidden mb-3" style="background:var(--dborder)">
+        ${STATUSES.map(s=>{const n=allPhases.filter(ph=>ph.status===s).length;const c={'Completed':'var(--da)','In Progress':'var(--dp)','At Risk':'var(--dd)','Delayed':'var(--dd)','Not Started':'var(--dmute)'}[s]||'var(--dmute)';return n?`<div style="width:${Math.round(n/implTotalPhases*100)}%;background:${c};" title="${s}: ${n}"></div>`:'';}).join('')}
       </div>
-      <div style="font-size:12px;color:var(--mute);margin-bottom:8px;">${implTotalPhases} phases tracked across ${implClients.length} client${implClients.length!==1?'s':''}</div>`:`<div class="k-empty" style="padding:12px;">No implementation data yet.</div>`}
-      ${implAtRiskClients.length?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line-2);display:flex;flex-direction:column;gap:2px;">${implAtRiskClients.slice(0,3).map((c,idx)=>`<div data-act="open-impl-client" data-id="${c.id}" style="animation-delay:${idx*25}ms;font-size:12px;" class="row-in k-list-row">
-        <span class="truncate k-rag k-rag-red" title="${esc(c.name)}">${esc(c.name)}</span>
-      </div>`).join('')}</div>`:''}
+      <div class="text-xs mb-2" style="color:var(--dmute)">${implTotalPhases} phases tracked across ${implClients.length} client${implClients.length!==1?'s':''}</div>`:`<div class="text-xs py-2" style="color:var(--dmute)">No implementation data yet.</div>`}
+      ${implAtRiskClients.length?`<div class="flex flex-wrap gap-1.5 pt-2" style="border-top:1px solid var(--dborder)">${implAtRiskClients.slice(0,3).map(c=>`<button data-act="open-impl-client" data-id="${c.id}" class="chip2 truncate max-w-[140px]" style="background:rgba(220,38,38,.08);color:var(--dd)">${esc(c.name)}</button>`).join('')}</div>`:''}
     </div>
 
-    <div class="k-card" style="padding:20px;">
-      <div class="k-card-head">
-        <h3 class="k-h3">AMS &amp; Support</h3>
-        <button data-act="nav-ams" class="k-link">View all →</button>
+    <div class="bento p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-sm" style="color:var(--dink)">AMS &amp; Support</h3>
+        <button data-act="nav-ams" class="text-xs font-semibold" style="color:var(--dp)">View all →</button>
       </div>
-      <div class="grid grid-cols-2 gap-4 mb-4">
-        <div class="k-metric k-metric-teal"><div class="k-num-m">${amsHoursThisMonth.toFixed(1)}h</div><div class="k-eyebrow" style="margin-top:4px;">Hours This Month</div></div>
-        ${can('admin')?`<div class="k-metric${amsRevenueINR||amsRevenueUSD?' k-metric-green':''}">
-          ${amsRevenueINR>0?`<div class="k-num-m">₹${amsRevenueINR.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>`:''}
-          ${amsRevenueUSD>0?`<div class="k-num-m">$${amsRevenueUSD.toLocaleString('en-US',{maximumFractionDigits:0})}</div>`:''}
-          ${!amsRevenueINR&&!amsRevenueUSD?`<div class="k-num-m" style="color:var(--mute-2);">—</div>`:''}
-          <div class="k-eyebrow" style="margin-top:4px;">Billable This Month</div>
-        </div>`:`<div class="k-metric"><div class="k-num-m">${amsClients.length}</div><div class="k-eyebrow" style="margin-top:4px;">Active Clients</div></div>`}
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div class="rounded-xl p-3" style="background:rgba(37,99,235,.06)"><div class="text-xl font-extrabold" style="color:var(--dp)">${amsHoursThisMonth.toFixed(1)}h</div><div class="text-xs" style="color:var(--dmute)">Hours This Month</div></div>
+        ${can('admin')?`<div class="rounded-xl p-3" style="background:${amsRevenueINR||amsRevenueUSD?'rgba(5,150,105,.06)':'rgba(100,116,139,.06)'}">
+          ${amsRevenueINR>0?`<div class="text-xl font-extrabold" style="color:var(--da)">₹${amsRevenueINR.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>`:''}
+          ${amsRevenueUSD>0?`<div class="text-xl font-extrabold" style="color:var(--da)">$${amsRevenueUSD.toLocaleString('en-US',{maximumFractionDigits:0})}</div>`:''}
+          ${!amsRevenueINR&&!amsRevenueUSD?`<div class="text-xl font-extrabold" style="color:var(--dmute)">—</div>`:''}
+          <div class="text-xs" style="color:var(--dmute)">Billable This Month</div>
+        </div>`:`<div class="rounded-xl p-3" style="background:rgba(100,116,139,.06)"><div class="text-xl font-extrabold" style="color:var(--dink)">${amsClients.length}</div><div class="text-xs" style="color:var(--dmute)">Active Clients</div></div>`}
       </div>
-      ${amsLowBalance.length?`<div style="display:flex;flex-direction:column;gap:2px;">${amsLowBalance.slice(0,3).map((c,idx)=>`<div data-act="open-ams-client" data-id="${c.id}" style="animation-delay:${idx*25}ms;font-size:12px;color:var(--red);" class="row-in k-list-row">
-        <span class="truncate" title="${esc(c.name)}">${esc(c.name)} pool running low</span><span class="shrink-0 k-num" style="font-size:11px;">${c.balance.toFixed(1)}/${c.total.toFixed(1)}h</span>
-      </div>`).join('')}</div>`:amsClients.length?`<p class="k-empty" style="padding:8px 0;">All hour pools healthy ✓</p>`:`<div class="k-empty">${emptyIcon('hours')}No AMS clients yet.</div>`}
+      ${amsLowBalance.length?`<div class="space-y-1">${amsLowBalance.slice(0,3).map(c=>`<button data-act="open-ams-client" data-id="${c.id}" class="w-full flex items-center justify-between text-xs font-medium" style="color:var(--dd)"><span class="truncate">⚠ ${esc(c.name)} pool running low</span><span class="font-semibold shrink-0 ml-2">${c.balance.toFixed(1)}/${c.total.toFixed(1)}h</span></button>`).join('')}</div>`:amsClients.length?`<p class="text-xs" style="color:var(--dmute)">All hour pools healthy ✓</p>`:`<div class="text-xs" style="color:var(--dmute)">${emptyIcon('hours')}No AMS clients yet.</div>`}
     </div>
   </div>
 
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-    <div class="k-card" style="padding:0;overflow:hidden;">
-      <div class="k-card-head" style="padding:16px 16px 0;margin-bottom:10px;">
-        <h3 class="k-h3">⚠️ Needs Attention</h3>
-        <span class="k-eyebrow">${needsAttn.length}</span>
+  <!-- Needs Attention + Status by Client -->
+  <div class="grid grid-cols-2 gap-4 mb-4">
+    <div class="bento p-5">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-bold text-sm" style="color:var(--dink)">⚠️ Needs Attention</h3>
+        <span class="chip2" style="background:rgba(220,38,38,.08);color:var(--dd)">${needsAttn.length}</span>
       </div>
-      <div style="max-height:340px;overflow-y:auto;font-size:12px;">
-        <div style="display:grid;grid-template-columns:28% 16% 16% 24% 16%;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:1px solid var(--line);">
-          ${[['name','Integration'],['client','Client'],['assignee','Assignee'],['status','Status'],['days','Days']].map(([k,l])=>`<div data-act="sort-dash-attn" data-key="${k}" style="padding:6px 12px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l} ${sortArrowFor(S.dashAttnSort,k)}</div>`).join('')}
+      <div class="scrollbox">
+        <div class="flex" style="border-bottom:1px solid var(--dborder)">
+          ${[['name','Integration','flex-1'],['client','Client','w-28'],['assignee','Assignee','w-24'],['status','Status','w-24'],['days','Days','w-20']].map(([k,l,w])=>`<div data-act="sort-dash-attn" data-key="${k}" class="hd2 ${w} px-2 py-1.5 truncate">${l} ${sortArrowFor(S.dashAttnSort,k)}</div>`).join('')}
         </div>
-        ${needsSorted.length?needsSorted.map(i=>`<div class="k-list-row" style="display:grid;grid-template-columns:28% 16% 16% 24% 16%;align-items:center;margin:0;border-radius:0;border-bottom:1px solid var(--line-2);" data-act="open-integ" data-cid="${i.clientId}" data-iid="${i.id}">
-          <div style="padding:7px 12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--ink);font-weight:500;" title="${esc(i.name)}">${esc(i.name)}</div>
-          <div style="padding:7px 12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--ink-3);" title="${esc(i.clientName)}">${esc(i.clientName)}</div>
-          <div style="padding:7px 12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--mute);" title="${esc(i.assignee||'Unassigned')}">${esc(i.assignee||'Unassigned')}</div>
-          <div style="padding:7px 12px;overflow:hidden;" onclick="event.stopPropagation()">${can('editor')?`<select data-act="inline-status" data-cid="${i.clientId}" data-iid="${i.id}" style="font-size:11px;width:100%;" class="border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${STATUSES.map(s=>`<option value="${esc(s)}"${s===i.status?' selected':''}>${esc(s)}</option>`).join('')}</select>`:sbadge(i.status)}</div>
-          <div style="padding:7px 12px;white-space:nowrap;overflow:hidden;">${i.reason==='overdue'?`<span style="color:var(--red);font-weight:500;">${daysOverdue(i)}d overdue</span>`:`<span style="color:var(--amber);">${needsDays(i)}d stale</span>`}</div>
-        </div>`).join(''):`<div class="k-empty">All caught up — nothing overdue or stale 🎉</div>`}
+        ${needsSorted.length?needsSorted.map(i=>`<div class="row2" data-act="open-integ" data-cid="${i.clientId}" data-iid="${i.id}">
+          <div class="flex-1 px-2 font-medium truncate" style="color:var(--dink)" title="${esc(i.name)}">${esc(i.name)}</div>
+          <div class="w-28 px-2 truncate" style="color:var(--dmute)" title="${esc(i.clientName)}">${esc(i.clientName)}</div>
+          <div class="w-24 px-2 truncate" style="color:var(--dmute)" title="${esc(i.assignee||'Unassigned')}">${esc(i.assignee||'Unassigned')}</div>
+          <div class="w-24 px-2 truncate" onclick="event.stopPropagation()">${can('editor')?`<select data-act="inline-status" data-cid="${i.clientId}" data-iid="${i.id}" class="text-xs rounded-lg px-1.5 py-1 focus:outline-none w-full" style="border:1px solid var(--dborder)">${STATUSES.map(s=>`<option value="${esc(s)}"${s===i.status?' selected':''}>${esc(s)}</option>`).join('')}</select>`:sbadge(i.status)}</div>
+          <div class="w-20 px-2 font-semibold truncate" style="color:${i.reason==='overdue'?'var(--dd)':'var(--damber)'}">${i.reason==='overdue'?`${daysOverdue(i)}d overdue`:`${needsDays(i)}d stale`}</div>
+        </div>`).join(''):`<div class="text-sm text-center py-8" style="color:var(--dmute)">All caught up — nothing overdue or stale 🎉</div>`}
       </div>
     </div>
 
-    <div class="k-card" style="padding:0;overflow:hidden;">
-      <div class="k-card-head" style="padding:16px 16px 0;margin-bottom:10px;">
-        <h3 class="k-h3">Status by Client</h3>
-      </div>
-      <div style="max-height:340px;overflow-y:auto;font-size:12px;">
-        <div style="display:grid;grid-template-columns:40% 15% 15% 15% 15%;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:1px solid var(--line);">
-          ${[['name','Client'],['total','Total'],['inProgress','In Progress'],['atRisk','At Risk'],['completed','Completed']].map(([k,l])=>`<div data-act="sort-dash-client" data-key="${k}" style="padding:6px 12px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l} ${sortArrowFor(S.dashClientSort,k)}</div>`).join('')}
+    <div class="bento p-5">
+      <h3 class="font-bold text-sm mb-2" style="color:var(--dink)">Status by Client</h3>
+      <div class="scrollbox">
+        <div class="flex" style="border-bottom:1px solid var(--dborder)">
+          ${[['name','Client','flex-1'],['total','Total','w-16 text-right'],['inProgress','Progress','w-20 text-right'],['atRisk','At Risk','w-16 text-right'],['completed','Done','w-16 text-right']].map(([k,l,w])=>`<div data-act="sort-dash-client" data-key="${k}" class="hd2 ${w} px-2 py-1.5 truncate">${l} ${sortArrowFor(S.dashClientSort,k)}</div>`).join('')}
         </div>
-        ${clientRowsSorted.map(r=>`<div class="k-list-row" style="display:grid;grid-template-columns:40% 15% 15% 15% 15%;align-items:center;margin:0;border-radius:0;border-bottom:1px solid var(--line-2);" data-act="open-client" data-id="${r.id}">
-          <div style="padding:7px 12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--ink);font-weight:500;" title="${esc(r.name)}">${esc(r.name)}</div>
-          <div style="padding:7px 12px;color:var(--ink-3);">${r.total}</div>
-          <div style="padding:7px 12px;color:var(--teal);font-weight:500;">${r.inProgress}</div>
-          <div style="padding:7px 12px;${r.atRisk?'color:var(--red);font-weight:500;':'color:var(--mute-2);'}">${r.atRisk}</div>
-          <div style="padding:7px 12px;${r.completed?'color:var(--green);font-weight:500;':'color:var(--mute-2);'}">${r.completed}</div>
+        ${clientRowsSorted.map(r=>`<div class="row2" data-act="open-client" data-id="${r.id}">
+          <div class="flex-1 px-2 font-medium truncate" style="color:var(--dink)" title="${esc(r.name)}">${esc(r.name)}</div>
+          <div class="w-16 px-2 text-right" style="color:var(--dmute)">${r.total}</div>
+          <div class="w-20 px-2 text-right font-semibold" style="color:var(--dp)">${r.inProgress}</div>
+          <div class="w-16 px-2 text-right font-semibold" style="color:${r.atRisk?'var(--dd)':'var(--dmute)'}">${r.atRisk}</div>
+          <div class="w-16 px-2 text-right font-semibold" style="color:${r.completed?'var(--da)':'var(--dmute)'}">${r.completed}</div>
         </div>`).join('')}
       </div>
-      <div class="flex flex-wrap gap-3" style="padding:12px 16px;border-top:1px solid var(--line-2);">
-        ${STATUSES.map(s=>`<span class="flex items-center gap-1.5" style="font-size:11px;color:var(--mute);"><span class="w-2.5 h-2.5 rounded-full" style="background:${SDOT[s]};"></span>${s}</span>`).join('')}
+      <div class="flex flex-wrap gap-3 pt-3 mt-1" style="border-top:1px solid var(--dborder)">
+        ${STATUSES.map(s=>`<span class="flex items-center gap-1.5 text-xs" style="color:var(--dmute)"><span class="w-2.5 h-2.5 rounded-full" style="background:${SDOT[s]}"></span>${s}</span>`).join('')}
       </div>
     </div>
   </div>
 
-  <div class="k-card mb-6" style="padding:0;overflow:hidden;">
-    <div class="k-card-head" style="padding:16px 16px 0;margin-bottom:10px;">
-      <h3 class="k-h3">Workload by Assignee</h3>
-      <span class="k-eyebrow">${workloadRows.length} people${workloadRows.some(w=>w.unassigned)?' · unassigned flagged':''}</span>
+  <!-- Workload by Assignee -->
+  <div class="bento p-5 mb-4">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="font-bold text-sm" style="color:var(--dink)">Workload by Assignee</h3>
+      <span class="text-xs" style="color:var(--dmute)">${workloadRows.length} people${workloadRows.some(w=>w.unassigned)?' · unassigned flagged':''}</span>
     </div>
-    <div class="flex flex-wrap items-center gap-2" style="padding:0 16px 12px;">
-      <input type="text" id="dash-assignee-search-inp" placeholder="Search person or item…" value="${esc(S.dashAssigneeSearch)}" data-act="dash-assignee-search" style="font-size:12px;max-width:220px;" class="border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
-      <div class="flex gap-1">
-        ${[['all','All'],['integ','Integrations'],['phase','Phases'],['ams','AMS']].map(([k,l])=>`<button data-act="dash-assignee-filter" data-key="${k}" style="font-size:11px;padding:5px 10px;border-radius:9999px;font-weight:500;${S.dashAssigneeFilter===k?'background:var(--ink);color:#fff;':'background:var(--paper);color:var(--ink-3);border:1px solid var(--line);'}">${l}</button>`).join('')}
+    <div class="flex flex-wrap items-center gap-2 mb-2">
+      <input type="text" id="dash-assignee-search-inp" placeholder="Search person or item…" value="${esc(S.dashAssigneeSearch)}" data-act="dash-assignee-search" class="text-xs rounded-lg px-2.5 py-1.5 focus:outline-none max-w-[220px]" style="border:1px solid var(--dborder)"/>
+      <div class="flex gap-1.5">
+        ${[['all','All'],['integ','Integrations'],['phase','Phases'],['ams','AMS']].map(([k,l])=>`<button data-act="dash-assignee-filter" data-key="${k}" class="chip2" style="${S.dashAssigneeFilter===k?'background:var(--dink);color:#fff;':'background:var(--dbg);color:var(--dmute);border:1px solid var(--dborder);'}">${l}</button>`).join('')}
       </div>
     </div>
-    <div style="max-height:380px;overflow-y:auto;font-size:12px;">
-      <div style="display:grid;grid-template-columns:26% 16% 16% 16% 13% 13%;position:sticky;top:0;background:var(--paper);z-index:2;border-bottom:1px solid var(--line);">
-        ${[['name','Person'],['integ','Integrations'],['phase','Phases'],['ams','AMS Entries'],['total','Total'],['','']].map(([k,l])=>k?`<div data-act="sort-dash-assignee" data-key="${k}" style="padding:6px 12px;font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l} ${sortArrowFor(S.dashAssigneeSort,k)}</div>`:`<div></div>`).join('')}
+    <div class="scrollbox">
+      <div class="flex" style="border-bottom:1px solid var(--dborder)">
+        ${[['name','Person','flex-1'],['integ','Integrations','w-24 text-right'],['phase','Phases','w-20 text-right'],['ams','AMS','w-20 text-right'],['total','Total','w-16 text-right']].map(([k,l,w])=>`<div data-act="sort-dash-assignee" data-key="${k}" class="hd2 ${w} px-2 py-1.5 truncate">${l} ${sortArrowFor(S.dashAssigneeSort,k)}</div>`).join('')}
+        <div class="w-8"></div>
       </div>
       ${workloadRows.length?workloadRows.map(w=>{
         const expanded=S.dashAssigneeExpanded.has(w.name);
         const items=[...w.integ.map(it=>({...it,cat:'Integration'})),...w.phase.map(it=>({...it,cat:'Phase'})),...w.ams.map(it=>({...it,cat:'AMS'}))];
         return`<div>
-          <div class="k-list-row" style="display:grid;grid-template-columns:26% 16% 16% 16% 13% 13%;align-items:center;margin:0;border-radius:0;border-bottom:1px solid var(--line-2);${w.unassigned?'background:var(--red-hi);':''}" data-act="dash-assignee-toggle" data-key="${esc(w.name)}">
-            <div style="padding:7px 12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:500;${w.unassigned?'color:var(--red);':'color:var(--ink);'}">${w.unassigned?'⚠ ':''}${esc(w.name)}</div>
-            <div style="padding:7px 12px;color:var(--ink-3);">${w.integ.length||''}</div>
-            <div style="padding:7px 12px;color:var(--ink-3);">${w.phase.length||''}</div>
-            <div style="padding:7px 12px;color:var(--ink-3);">${w.ams.length||''}</div>
-            <div style="padding:7px 12px;font-weight:600;color:var(--ink);">${w.total}</div>
-            <div style="padding:7px 12px;color:var(--mute);">${expanded?'▾':'▸'}</div>
+          <div class="row2" data-act="dash-assignee-toggle" data-key="${esc(w.name)}" style="${w.unassigned?'background:rgba(220,38,38,.04);':''}">
+            <div class="flex-1 px-2 font-medium truncate" style="color:${w.unassigned?'var(--dd)':'var(--dink)'}">${w.unassigned?'⚠ ':''}${esc(w.name)}</div>
+            <div class="w-24 px-2 text-right" style="color:var(--dmute)">${w.integ.length||''}</div>
+            <div class="w-20 px-2 text-right" style="color:var(--dmute)">${w.phase.length||''}</div>
+            <div class="w-20 px-2 text-right" style="color:var(--dmute)">${w.ams.length||''}</div>
+            <div class="w-16 px-2 text-right font-bold" style="color:var(--dink)">${w.total}</div>
+            <div class="w-8 px-2" style="color:var(--dmute)">${expanded?'▾':'▸'}</div>
           </div>
-          ${expanded?`<div style="padding:4px 12px 10px 24px;background:var(--surface);border-bottom:1px solid var(--line-2);">
-            ${items.map(it=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11.5px;">
-              <span class="k-badge" style="font-size:9px;">${it.cat}</span>
-              ${it.cat==='Phase'&&it.moduleName?`<span style="color:var(--ink-3);font-weight:500;">${esc(it.moduleName)}</span><span style="color:var(--mute-2);">·</span>`:''}
-              <span style="color:var(--ink-3);" class="truncate">${esc(it.name||it.description||'Untitled')}</span>
-              <span style="color:var(--mute-2);">· ${esc(it.clientName||'')}</span>
-              ${it.status?`<span style="color:var(--mute);">· ${esc(it.status)}</span>`:''}
+          ${expanded?`<div class="pl-6 pr-2 py-2" style="background:var(--dbg);border-bottom:1px solid var(--dborder)">
+            ${items.map(it=>`<div class="flex items-center gap-2 py-1 text-xs">
+              <span class="chip2" style="background:var(--dborder);color:var(--dmute);font-size:9px;">${it.cat}</span>
+              ${it.cat==='Phase'&&it.moduleName?`<span class="font-medium" style="color:var(--dmute)">${esc(it.moduleName)}</span><span style="color:var(--dborder)">·</span>`:''}
+              <span class="truncate" style="color:var(--dmute)">${esc(it.name||it.description||'Untitled')}</span>
+              <span style="color:var(--dborder)">· ${esc(it.clientName||'')}</span>
+              ${it.status?`<span style="color:var(--dmute)">· ${esc(it.status)}</span>`:''}
             </div>`).join('')}
           </div>`:''}
         </div>`;
-      }).join(''):`<div class="k-empty">${S.dashAssigneeSearch?'No matches':'No open items assigned yet'}</div>`}
+      }).join(''):`<div class="text-sm text-center py-8" style="color:var(--dmute)">${S.dashAssigneeSearch?'No matches':'No open items assigned yet'}</div>`}
     </div>
   </div>
 
-  <div class="k-card" style="padding:20px;">
-    <h3 class="k-h3" style="margin-bottom:16px;">Overall Status Distribution</h3>
-    <div class="flex gap-1.5 h-4 rounded-full overflow-hidden mb-3" style="background:var(--line-2);">
-      ${STATUSES.map(s=>{const n=all.filter(i=>i.status===s).length;return n?`<div class="bar-fill" style="width:${Math.round(n/(ti||1)*100)}%;background:${SDOT[s]};" title="${s}: ${n}"></div>`:'';}).join('')}
+  <!-- Status Distribution + Team Activity -->
+  <div class="grid grid-cols-2 gap-4">
+    <div class="bento p-5">
+      <h3 class="font-bold text-sm mb-3" style="color:var(--dink)">Overall Status Distribution</h3>
+      <div class="flex gap-1 h-3.5 rounded-full overflow-hidden mb-3" style="background:var(--dborder)">
+        ${STATUSES.map(s=>{const n=all.filter(i=>i.status===s).length;return n?`<div style="width:${Math.round(n/(ti||1)*100)}%;background:${SDOT[s]};" title="${s}: ${n}"></div>`:'';}).join('')}
+      </div>
+      <div class="flex flex-wrap gap-3">
+        ${STATUSES.map(s=>{const n=all.filter(i=>i.status===s).length;return`<span class="flex items-center gap-1.5 text-xs" style="color:var(--dmute)"><span class="w-2.5 h-2.5 rounded-full" style="background:${SDOT[s]}"></span>${s}: <b style="color:var(--dink)">${n}</b></span>`;}).join('')}
+      </div>
     </div>
-    <div class="flex flex-wrap gap-4">
-      ${STATUSES.map(s=>{const n=all.filter(i=>i.status===s).length;return`<span class="flex items-center gap-1.5" style="font-size:12px;color:var(--ink-3);"><span class="w-2.5 h-2.5 rounded-full" style="background:${SDOT[s]};"></span>${s}: <b class="k-num" style="font-size:12px;">${n}</b></span>`;}).join('')}
-    </div>
+    ${topUsers.length?`<div class="bento p-5">
+      <h3 class="font-bold text-sm mb-3" style="color:var(--dink)">Team Activity This Week</h3>
+      <div class="flex flex-col gap-2.5">
+        ${topUsers.map(([name,count],i)=>`<div class="flex items-center gap-3">
+          <div class="flex items-center justify-center shrink-0 rounded-full text-[11px] font-bold" style="width:22px;height:22px;background:rgba(37,99,235,.1);color:var(--dp)">${i+1}</div>
+          <div class="flex-1 min-w-0 text-sm font-medium truncate" style="color:var(--dink)">${esc(name)}</div>
+          <div class="text-sm font-bold" style="color:var(--dp)">${count}</div>
+          <div class="text-xs" style="color:var(--dmute)">update${count!==1?'s':''}</div>
+          <div class="w-20 h-1.5 rounded-full overflow-hidden" style="background:var(--dborder)"><div class="h-full rounded-full" style="width:${Math.round(count/topUsers[0][1]*100)}%;background:var(--dp)"></div></div>
+        </div>`).join('')}
+      </div>
+    </div>`:'<div></div>'}
   </div>
-  ${topUsers.length?`<div class="k-card mt-5" style="padding:20px;">
-    <h3 class="k-h3" style="margin-bottom:14px;">Team Activity This Week</h3>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      ${topUsers.map(([name,count],i)=>`<div class="flex items-center gap-3">
-        <div class="flex items-center justify-center shrink-0" style="width:22px;height:22px;border-radius:50%;background:var(--teal-hi);color:var(--teal);font-size:11px;font-weight:600;">${i+1}</div>
-        <div class="flex-1 min-w-0" style="font-size:13px;font-weight:500;color:var(--ink);" class="truncate">${esc(name)}</div>
-        <div class="k-num" style="font-size:13px;color:var(--teal);">${count}</div>
-        <div class="k-eyebrow" style="text-transform:none;letter-spacing:0;">update${count!==1?'s':''}</div>
-        <div class="w-20 h-1.5 rounded-full overflow-hidden" style="background:var(--line-2);"><div class="h-full rounded-full" style="width:${Math.round(count/topUsers[0][1]*100)}%;background:var(--teal);"></div></div>
-      </div>`).join('')}
-    </div>
-  </div>`:''}
 </div>`;
 }
