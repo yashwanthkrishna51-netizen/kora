@@ -1,6 +1,6 @@
 const KOGNOZ_LOGO="/kognoz_Iogo.png";
 // ─── STATE ────────────────────────────────────────────────────────
-const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'},dashAssigneeSort:{key:'total',dir:'desc'},dashAssigneeSearch:'',dashAssigneeExpanded:new Set(),dashAssigneeFilter:'all',adminSearch:''};
+const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'},dashAssigneeSort:{key:'total',dir:'desc'},dashAssigneeSearch:'',dashAssigneeExpanded:new Set(),dashAssigneeFilter:'all',adminSearch:'',auditRows:[],auditTotal:0,auditPage:0,auditPageSize:50,auditFrom:'',auditTo:'',auditUser:'',auditSearch:'',auditLoading:false,auditLoaded:false};
 
 try{S.sidebarCollapsed=localStorage.getItem('itk_sb_collapsed')==='1';}catch(e){}
 try{const r=localStorage.getItem('itk_recent');if(r)S.recentlyViewed=JSON.parse(r);}catch(e){}
@@ -116,6 +116,7 @@ function parseUsersCsv(text){
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtDate(s){if(!s)return'—';try{return new Date(s).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});}catch{return s;}}
+function fmtDateTime(s){if(!s)return'—';try{return new Date(s).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch{return s;}}
 function can(p){if(!S.user)return false;const r={admin:3,editor:2,viewer:1};return(r[S.user.role]||0)>=(r[p]||0);}
 function recordRecent(view,params){
   let entry=null;
@@ -191,10 +192,30 @@ async function apiRead(path){
 async function apiWrite(path,obj,sha,msg){
   startLoading();
   try{
-    const r=await fetch('/api/write',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':S.sessionToken||''},body:JSON.stringify({path,content:JSON.stringify(obj,null,2),sha,message:msg})});
+    const r=await fetch('/api/write',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':S.sessionToken||''},body:JSON.stringify({path,content:JSON.stringify(obj,null,2),sha,message:msg,screen:S.view})});
     if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||e.message||`Write ${r.status}`);}
     const d=await r.json();return d.sha||d.content?.sha;
   }finally{stopLoading();}
+}
+async function fetchAuditLog(opts={}){
+  const params=new URLSearchParams();
+  if(S.auditFrom)params.set('from',new Date(S.auditFrom).toISOString());
+  if(S.auditTo)params.set('to',new Date(S.auditTo+'T23:59:59').toISOString());
+  if(S.auditUser)params.set('user',S.auditUser);
+  if(S.auditSearch)params.set('q',S.auditSearch);
+  if(opts.export){params.set('export','1');}
+  else{params.set('limit',S.auditPageSize);params.set('offset',S.auditPage*S.auditPageSize);}
+  const r=await fetch(`/api/audit?${params.toString()}`,{headers:{'x-session-token':S.sessionToken||''}});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||`Audit ${r.status}`);}
+  return r.json();
+}
+async function loadAuditLog(){
+  S.auditLoading=true;render();
+  try{
+    const d=await fetchAuditLog();
+    S.auditRows=d.rows;S.auditTotal=d.total;S.auditLoaded=true;
+  }catch(e){showToast(e.message||'Failed to load audit log','error');}
+  finally{S.auditLoading=false;render();}
 }
 async function saveClients(msg){
   // The server-side write.js always fetches the fresh SHA from GitHub before

@@ -509,6 +509,19 @@ function exportExcel(type, clientId){
   XLSX.writeFile(wb,filename);showToast('Excel downloaded ✓');
 }
 
+function exportAuditExcel(rows){
+  if(typeof XLSX==='undefined'){showToast('Excel export not available','error');return;}
+  const headers=['Timestamp','Username','Role','Action','Entity','Screen','IP','User Agent'];
+  const data=(rows||[]).map(r=>[fmtDateTime(r.ts),r.username||'',r.role||'',r.action||'',r.entity||'',screenLabel(r.screen),r.ip||'',r.userAgent||'']);
+  const ws=XLSX.utils.aoa_to_sheet([headers,...data]);
+  const range=XLSX.utils.decode_range(ws['!ref']);
+  for(let C=range.s.c;C<=range.e.c;C++){const cell=XLSX.utils.encode_cell({r:0,c:C});if(ws[cell])ws[cell].s={font:{bold:true}};}
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Audit Log');
+  const stamp=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`Kora_Audit_Log_${stamp}.xlsx`);
+  showToast(`Excel downloaded ✓ (${data.length} events)`);
+}
+
 function exportConsolidatedPdf(clientIds, sections){
   if(!clientIds.length){showToast('Select at least one client','error');return;}
   if(typeof window.jspdf==='undefined'){showToast('PDF export library failed to load — check your connection and refresh','error');return;}

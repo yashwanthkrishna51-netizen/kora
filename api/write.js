@@ -6,6 +6,7 @@
 
 const bcrypt = require('bcryptjs');
 const { validateToken } = require('./_auth');
+const { logAudit, clientIp } = require('./_audit');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,10 +23,19 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized', reason: check.reason });
   }
 
-  const { path, content } = req.body || {};
+  const { path, content, message, screen } = req.body || {};
   if (!path || content === undefined) {
     return res.status(400).json({ error: 'path and content required' });
   }
+
+  const auditBase = {
+    actorId: check.payload.id,
+    username: check.payload.username,
+    role: check.payload.role,
+    screen: screen || null,
+    ip: clientIp(req),
+    userAgent: req.headers['user-agent'],
+  };
 
   const sbHeaders = {
     apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -88,6 +98,12 @@ module.exports = async function handler(req, res) {
         );
       }
 
+      await logAudit({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY }, {
+        ...auditBase,
+        action: message || 'Update clients',
+        entity: 'clients',
+      });
+
       return res.status(200).json({ sha: 'supabase' });
     }
 
@@ -130,6 +146,12 @@ module.exports = async function handler(req, res) {
           { method: 'DELETE', headers: { ...sbHeaders, Prefer: '' } }
         );
       }
+
+      await logAudit({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY }, {
+        ...auditBase,
+        action: message || 'Update users',
+        entity: 'users',
+      });
 
       return res.status(200).json({ sha: 'supabase' });
     }

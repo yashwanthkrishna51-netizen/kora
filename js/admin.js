@@ -3,9 +3,9 @@ function renderAdmin(){
   return`<div class="k-page fade">
   <h1 class="text-xl font-bold text-gray-900 mb-5">Admin</h1>
   <div class="flex border-b border-gray-200 mb-6 gap-1 overflow-x-auto">
-    ${[['integrations','Clients & Integrations'],['implementations','Implementation Clients'],['ams','AMS Clients'],['users','Users']].map(([t,l])=>`<button data-act="admin-tab" data-tab="${t}" class="whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition ${S.adminTab===t?'border-[#0e7490] text-[#0e7490]':'border-transparent text-gray-500 hover:text-gray-800'}">${l}</button>`).join('')}
+    ${[['integrations','Clients & Integrations'],['implementations','Implementation Clients'],['ams','AMS Clients'],['users','Users'],['audit','Audit Log']].map(([t,l])=>`<button data-act="admin-tab" data-tab="${t}" class="whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition ${S.adminTab===t?'border-[#0e7490] text-[#0e7490]':'border-transparent text-gray-500 hover:text-gray-800'}">${l}</button>`).join('')}
   </div>
-  ${S.adminTab==='integrations'?renderAdminClients():S.adminTab==='implementations'?renderAdminImpl():S.adminTab==='ams'?renderAdminAms():renderAdminUsers()}
+  ${S.adminTab==='integrations'?renderAdminClients():S.adminTab==='implementations'?renderAdminImpl():S.adminTab==='ams'?renderAdminAms():S.adminTab==='audit'?renderAdminAudit():renderAdminUsers()}
 </div>`;
 }
 
@@ -156,6 +156,71 @@ function renderAdminClients(){
 </div>`;
 }
 
+function screenLabel(s){
+  if(!s)return'—';
+  return s.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+function auditActionClass(action){
+  const a=(action||'').toLowerCase();
+  if(a.includes('failed')||a.includes('delete')||a.includes('force logout'))return'text-rose-700';
+  if(a.includes('login success')||a.includes('add')||a.includes('import'))return'text-emerald-700';
+  return'text-gray-800';
+}
+function renderAdminAudit(){
+  const users=S.usersForDropdown||[];
+  const rows=S.auditRows||[];
+  const totalPages=Math.max(1,Math.ceil((S.auditTotal||0)/S.auditPageSize));
+  return`<div>
+  <div class="flex items-end gap-3 mb-4 flex-wrap">
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">From</label>
+      <input type="date" data-act="audit-from" value="${esc(S.auditFrom)}" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">To</label>
+      <input type="date" data-act="audit-to" value="${esc(S.auditTo)}" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-gray-500 mb-1">User</label>
+      <select data-act="audit-user" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]">
+        <option value="">All users</option>
+        ${users.map(u=>`<option value="${esc(u.username)}"${S.auditUser===u.username?' selected':''}>${esc(u.name||u.username)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="flex-1 min-w-[180px]">
+      <label class="block text-xs font-semibold text-gray-500 mb-1">Search action</label>
+      <input type="text" id="audit-search-inp" data-act="audit-search" value="${esc(S.auditSearch)}" placeholder="e.g. delete, login, client name…" class="border border-gray-200 rounded-xl px-3.5 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+    </div>
+    <button data-act="audit-apply" class="btn-grad text-white text-sm font-semibold px-4 py-2 rounded-xl transition whitespace-nowrap">Apply Filters</button>
+    <button data-act="audit-clear" class="bg-gray-50 border border-gray-200 text-gray-600 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-gray-100 transition whitespace-nowrap">Clear</button>
+    <button data-act="audit-export" class="bg-green-50 border border-green-200 text-green-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-green-100 transition whitespace-nowrap">⬇ Export Excel</button>
+  </div>
+  <div class="text-xs text-gray-500 mb-2">${S.auditTotal||0} event${S.auditTotal===1?'':'s'} match${S.auditTotal===1?'es':''} current filters</div>
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="border-b border-gray-100 bg-gray-50 sticky-head"><tr>
+        ${['Timestamp','User','Role','Action','Screen','IP'].map(h=>`<th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">${h}</th>`).join('')}
+      </tr></thead>
+      <tbody class="divide-y divide-gray-50">
+        ${S.auditLoading?`<tr><td colspan="6" class="text-center py-8 text-gray-400 text-sm">Loading…</td></tr>`
+          :rows.length?rows.map(r=>`<tr class="hover:bg-gray-50/50 transition">
+          <td class="px-4 py-3 font-mono text-xs text-gray-700 whitespace-nowrap">${fmtDateTime(r.ts)}</td>
+          <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">${esc(r.username||'—')}</td>
+          <td class="px-4 py-3">${r.role?roleBadge(r.role):'—'}</td>
+          <td class="px-4 py-3 ${auditActionClass(r.action)}">${esc(r.action||'—')}</td>
+          <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">${esc(screenLabel(r.screen))}</td>
+          <td class="px-4 py-3 font-mono text-xs text-gray-400 whitespace-nowrap">${esc(r.ip||'—')}</td>
+        </tr>`).join(''):`<tr><td colspan="6" class="text-center py-8 text-gray-400 text-sm">No events match current filters</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+  <div class="flex items-center justify-between mt-4">
+    <button data-act="audit-prev" ${S.auditPage<=0?'disabled':''} class="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed">← Prev</button>
+    <span class="text-xs text-gray-500">Page ${S.auditPage+1} of ${totalPages}</span>
+    <button data-act="audit-next" ${S.auditPage+1>=totalPages?'disabled':''} class="text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed">Next →</button>
+  </div>
+</div>`;
+}
 function renderAdminUsers(){
   const q=S.adminSearch.toLowerCase();
   const filtered=q?S.users.filter(u=>u.name.toLowerCase().includes(q)||u.username.toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)):S.users;

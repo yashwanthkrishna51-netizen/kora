@@ -7,6 +7,7 @@
 // for a single user.
 
 const { validateToken } = require('./_auth');
+const { logAudit, clientIp } = require('./_audit');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -56,12 +57,17 @@ module.exports = async function handler(req, res) {
           })
         )
       );
+      await logAudit({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY }, {
+        actorId: check.payload.id, username: check.payload.username, role: check.payload.role,
+        action: `Force logout: all users (${users.length})`, entity: 'session', screen: 'admin',
+        ip: clientIp(req), userAgent: req.headers['user-agent'],
+      });
       return res.status(200).json({ ok: true, affected: users.length });
     }
 
     if (scope === 'user' && userId) {
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=token_version`,
+        `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=token_version,username`,
         { headers: sbHeaders }
       );
       if (!r.ok) return res.status(500).json({ error: 'Failed to read user' });
@@ -71,6 +77,11 @@ module.exports = async function handler(req, res) {
         method: 'PATCH',
         headers: sbHeaders,
         body: JSON.stringify({ token_version: (rows[0].token_version || 0) + 1 }),
+      });
+      await logAudit({ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY }, {
+        actorId: check.payload.id, username: check.payload.username, role: check.payload.role,
+        action: `Force logout: ${rows[0].username}`, entity: 'session', screen: 'admin',
+        ip: clientIp(req), userAgent: req.headers['user-agent'],
       });
       return res.status(200).json({ ok: true, affected: 1 });
     }

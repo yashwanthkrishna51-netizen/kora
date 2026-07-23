@@ -50,7 +50,12 @@ document.addEventListener('click',async e=>{
   if(act==='sort-dash-assignee'){const k=el.dataset.key;if(S.dashAssigneeSort.key===k){S.dashAssigneeSort.dir=S.dashAssigneeSort.dir==='asc'?'desc':'asc';}else{S.dashAssigneeSort={key:k,dir:'desc'};}render();return;}
   if(act==='dash-assignee-toggle'){const key=el.dataset.key;if(S.dashAssigneeExpanded.has(key))S.dashAssigneeExpanded.delete(key);else S.dashAssigneeExpanded.add(key);render();return;}
   if(act==='sort-dash-client'){const k=el.dataset.key;if(S.dashClientSort.key===k){S.dashClientSort.dir=S.dashClientSort.dir==='asc'?'desc':'asc';}else{S.dashClientSort={key:k,dir:'asc'};}render();return;}
-  if(act==='admin-tab'){S.adminTab=el.dataset.tab;S.adminSearch='';render();return;}
+  if(act==='admin-tab'){S.adminTab=el.dataset.tab;S.adminSearch='';render();if(el.dataset.tab==='audit'&&!S.auditLoaded)loadAuditLog();return;}
+  if(act==='audit-apply'){S.auditPage=0;loadAuditLog();return;}
+  if(act==='audit-clear'){S.auditFrom='';S.auditTo='';S.auditUser='';S.auditSearch='';S.auditPage=0;loadAuditLog();return;}
+  if(act==='audit-prev'){if(S.auditPage>0){S.auditPage--;loadAuditLog();}return;}
+  if(act==='audit-next'){S.auditPage++;loadAuditLog();return;}
+  if(act==='audit-export'){setBtnBusy(el,'Exporting…');try{const d=await fetchAuditLog({export:true});exportAuditExcel(d.rows);}catch(e){showToast(e.message||'Export failed','error');}finally{clearBtnBusy(el);}return;}
   if(act==='exp-pptx'){setBtnBusy(el,'Generating…');try{await exportPptx(el.dataset.id);}finally{clearBtnBusy(el);}return;}
   if(act==='exp-pdf'){setBtnBusy(el,'Generating…');try{await exportPdf(el.dataset.id);}finally{clearBtnBusy(el);}return;}
   if(act==='exp-impl-pdf'){setBtnBusy(el,'Generating…');try{exportImplPdf(el.dataset.cid);}finally{clearBtnBusy(el);}return;}
@@ -845,6 +850,9 @@ document.addEventListener('change',async e=>{
     catch(err){u.role=prev;showToast('Failed','error');render();}
     return;
   }
+  if(e.target.dataset?.act==='audit-from'){S.auditFrom=e.target.value;return;}
+  if(e.target.dataset?.act==='audit-to'){S.auditTo=e.target.value;return;}
+  if(e.target.dataset?.act==='audit-user'){S.auditUser=e.target.value;S.auditPage=0;loadAuditLog();return;}
   const rangeEl=e.target.closest('[data-act="ams-range"]');
   if(rangeEl){
     S.amsFrom=document.getElementById('ams-from')?.value||'';
@@ -908,6 +916,7 @@ document.addEventListener('input',e=>{
     clearTimeout(_adt);const v=e.target.value;
     _adt=setTimeout(()=>{S.adminSearch=v;render();setTimeout(()=>{const el=document.getElementById('admin-search-inp');if(el){el.focus();try{el.setSelectionRange(v.length,v.length);}catch{}}},10);},120);
   }
+  if(e.target.dataset?.act==='audit-search'){S.auditSearch=e.target.value;}
 });
 
 document.addEventListener('keydown',e=>{
