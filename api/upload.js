@@ -6,6 +6,7 @@
 const crypto = require('crypto');
 const { validateToken } = require('./_auth');
 const { applyCors } = require('./_cors');
+const { BUCKET, signPath } = require('./_storage');
 
 const ALLOWED_TYPES = new Set([
   'application/pdf',
@@ -21,7 +22,6 @@ const ALLOWED_TYPES = new Set([
 const ALLOWED_EXTS = new Set(['.pdf', '.xlsx', '.xls', '.jpg', '.jpeg', '.png', '.gif', '.webp']);
 
 const MAX_BYTES = 3 * 1024 * 1024; // 3MB
-const BUCKET = 'kora-attachments';
 
 module.exports = async function handler(req, res) {
   applyCors(req, res, 'POST, OPTIONS');
@@ -103,10 +103,16 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Return public URL + metadata
-    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${storagePath}`;
+    // Sign a URL for immediate use (e.g. preview right after upload, before
+    // the record is even saved). Generous 24h expiry here since this is a
+    // one-time link for the uploader's current session — every future page
+    // load re-signs a fresh short-lived link via read.js regardless.
+    const signedUrl = await signPath(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, storagePath, 24 * 60 * 60);
     return res.status(200).json({
-      url: publicUrl,
+      // Falls back to the bare storage path (not a working link) only if
+      // signing itself failed — read.js will still recover it correctly on
+      // the next data load, since it treats a bare path the same as a URL.
+      url: signedUrl || storagePath,
       fileName,
       mimeType,
       sizeBytes: buffer.length,

@@ -5,6 +5,7 @@
 
 const { validateToken } = require('./_auth');
 const { applyCors } = require('./_cors');
+const { refreshAttachmentUrls } = require('./_storage');
 
 module.exports = async function handler(req, res) {
   applyCors(req, res, 'GET, OPTIONS');
@@ -55,6 +56,11 @@ module.exports = async function handler(req, res) {
         return c;
       });
 
+      // Every attachment.url in phase updates was signed with a fresh,
+      // short-lived URL at whatever time it was last read/saved — regenerate
+      // fresh ones now so nothing served to the client is ever expired.
+      await refreshAttachmentUrls(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, clients);
+
       const content = Buffer.from(JSON.stringify(clients)).toString('base64');
       return res.status(200).json({ content, sha: 'supabase' });
     }
@@ -80,6 +86,9 @@ module.exports = async function handler(req, res) {
         role: row.role,
         passwordHash: row.password_hash,
         createdAt: row.created_at,
+        lockedUntil: row.locked_until,
+        failedAttempts: row.failed_attempts || 0,
+        lockoutLevel: row.lockout_level || 0,
       } : {
         id: row.id,
         username: row.username,

@@ -457,6 +457,10 @@ document.addEventListener('click',async e=>{
     if(!can('admin'))return;const u=S.users.find(x=>x.id===el.dataset.uid);if(!u)return;
     S.modal={type:'confirm',msg:`Force logout "${u.name}" (${u.username})? They'll need to sign in again.`,_act:'force-logout-user',_uid:u.id};render();return;
   }
+  if(act==='clear-lockout'){
+    if(!can('admin'))return;const u=S.users.find(x=>x.id===el.dataset.uid);if(!u)return;
+    S.modal={type:'confirm',msg:`Clear the login lockout for "${u.name}" (${u.username})? They'll be able to try logging in again immediately.`,_act:'clear-lockout',_uid:u.id};render();return;
+  }
   if(act==='modal-confirm'){
     const m=S.modal;if(!m||m.busy)return;
     if(m.type==='confirm'){
@@ -501,6 +505,15 @@ document.addEventListener('click',async e=>{
           const d=await r.json();
           if(!r.ok)throw new Error(d.error||'Force logout failed');
           S.modal=null;showToast('User logged out ✓');render();
+        }catch(err){S.modal=null;showToast('Failed: '+err.message,'error');render();}
+      }
+      else if(m._act==='clear-lockout'){
+        try{
+          const r=await fetch('/api/clear-lockout',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':S.sessionToken||''},body:JSON.stringify({userId:m._uid})});
+          const d=await r.json();
+          if(!r.ok)throw new Error(d.error||'Failed to clear lockout');
+          const u=S.users.find(x=>x.id===m._uid);if(u){u.lockedUntil=null;u.failedAttempts=0;u.lockoutLevel=0;}
+          S.modal=null;showToast('Lockout cleared ✓');render();
         }catch(err){S.modal=null;showToast('Failed: '+err.message,'error');render();}
       }
       else if(m._act==='delete-impl-client'){
@@ -612,32 +625,22 @@ document.addEventListener('click',async e=>{
       try{await saveClients(`Add ${name} to ${c.name}`);S.modal=null;showToast(`${name} added`);render();}
       catch(err){c.integrations.pop();S.modal=null;showToast('Failed: '+err.message,'error');render();}
     } else if(m.type==='my-profile'){
-      // NOT changed in this pass — still uses the old client-side sha256 compare.
-      // Fixing properly requires a small dedicated "verify current password"
-      // server endpoint; retrofitting it here risked breaking password-change
-      // for any user already lazily-migrated to bcrypt (a bcrypt hash can never
-      // equal a client-computed sha256 hash, which would permanently lock them
-      // out of changing their own password). Flagged as a follow-up, not fixed
-      // tonight rather than shipped half-working.
       const currPass=document.getElementById('pr-curr')?.value;
       const newPass=document.getElementById('pr-new')?.value;
       const confPass=document.getElementById('pr-conf')?.value;
       const newEmail=document.getElementById('pr-email')?.value.trim()||'';
       if(!currPass){showToast('Current password is required','error');return;}
-      const currHash=await sha256(currPass);
-      const me=S.users.find(x=>x.id===S.user?.id);
-      if(!me||me.passwordHash!==currHash){showToast('Current password is incorrect','error');return;}
       if(newPass&&newPass!==confPass){showToast('New passwords do not match','error');return;}
-      const snapshot={email:me.email,passwordHash:me.passwordHash};
-      me.email=newEmail;
-      if(newPass)me.passwordHash=await sha256(newPass);
+      if(newPass&&newPass.length<8){showToast('New password must be at least 8 characters','error');return;}
       S.modal={...m,busy:true};render();
       try{
-        await saveUsers('Update profile');
-        S.user.email=newEmail;persistSession(S.sessionToken,S.user);
-        S.usersForDropdown=S.users.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));
+        const r=await fetch('/api/change-password',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':S.sessionToken||''},body:JSON.stringify({currentPassword:currPass,newPassword:newPass||undefined,email:newEmail})});
+        const d=await r.json();
+        if(!r.ok)throw new Error(d.error||`Failed (${r.status})`);
+        S.sessionToken=d.token;S.user=d.user;persistSession(d.token,d.user);
+        const me=S.users.find(x=>x.id===d.user.id);if(me)me.email=d.user.email;
         S.modal=null;showToast(newPass?'Password changed ✓':'Profile updated ✓');render();
-      }catch(err){me.email=snapshot.email;me.passwordHash=snapshot.passwordHash;S.modal=null;showToast('Failed: '+err.message,'error');render();}
+      }catch(err){S.modal=null;showToast('Failed: '+err.message,'error');render();}
     } else if(m.type==='send-welcome'){
       if(!can('admin'))return;
       const appUrl=document.getElementById('sw-url')?.value.trim();

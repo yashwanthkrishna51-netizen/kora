@@ -251,7 +251,7 @@ function renderAdminUsers(){
       </tr></thead>
       <tbody class="divide-y divide-gray-50">
         ${filtered.length?filtered.map(u=>`<tr class="hover:bg-gray-50/50 transition">
-          <td class="px-4 py-3 font-mono text-xs text-gray-700">${esc(u.username)}</td>
+          <td class="px-4 py-3 font-mono text-xs text-gray-700">${esc(u.username)}${u.lockedUntil&&new Date(u.lockedUntil)>new Date()?`<span class="ml-2 inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-full px-2 py-0.5 normal-case">🔒 Locked</span>`:''}</td>
           <td class="px-4 py-3 font-medium text-gray-900">${esc(u.name)}</td>
           <td class="px-4 py-3 text-xs text-gray-500">${esc(u.email||'—')}</td>
           <td class="px-4 py-3">${can('admin')&&u.id!==S.user?.id
@@ -264,6 +264,7 @@ function renderAdminUsers(){
                 <button data-act="send-welcome-one" data-uid="${u.id}" class="w-7 h-7 flex items-center justify-center rounded-lg text-green-600 hover:bg-green-50 transition" title="Send welcome email">✉</button>
                 ${adminRowMenu([
                   {label:'Force Logout',act:'force-logout-user',extra:`data-uid="${u.id}"`},
+                  ...(u.lockedUntil&&new Date(u.lockedUntil)>new Date()?[{label:'Clear Lockout',act:'clear-lockout',extra:`data-uid="${u.id}"`}]:[]),
                   {label:'Delete User',act:'delete-user',extra:`data-uid="${u.id}"`,danger:true}
                 ])}
               </div>`
