@@ -1,6 +1,6 @@
 const KOGNOZ_LOGO="/kognoz_Iogo.png";
 // ─── STATE ────────────────────────────────────────────────────────
-const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'},dashAssigneeSort:{key:'total',dir:'desc'},dashAssigneeSearch:'',dashAssigneeExpanded:new Set(),dashAssigneeFilter:'all',adminSearch:'',auditRows:[],auditTotal:0,auditPage:0,auditPageSize:50,auditFrom:'',auditTo:'',auditUser:'',auditSearch:'',auditLoading:false,auditLoaded:false,snapshotHistory:[],snapshotChecked:false,snapshotHistoryFetched:false};
+const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'},dashAssigneeSort:{key:'total',dir:'desc'},dashAssigneeSearch:'',dashAssigneeExpanded:new Set(),dashAssigneeFilter:'all',adminSearch:'',auditRows:[],auditTotal:0,auditPage:0,auditPageSize:50,auditFrom:'',auditTo:'',auditUser:'',auditSearch:'',auditLoading:false,auditLoaded:false,snapshotHistory:[],snapshotChecked:false,snapshotHistoryFetched:false,pendingPath:null};
 
 try{S.sidebarCollapsed=localStorage.getItem('itk_sb_collapsed')==='1';}catch(e){}
 try{const r=localStorage.getItem('itk_recent');if(r)S.recentlyViewed=JSON.parse(r);}catch(e){}
@@ -33,7 +33,7 @@ function restoreSession(){try{const r=localStorage.getItem('itk_sess');return r?
 function persistView(view,params){try{if(view==='login')return;localStorage.setItem('itk_view',JSON.stringify({view,params}));}catch(e){}}
 function restoreView(){try{const r=localStorage.getItem('itk_view');return r?JSON.parse(r):null;}catch(e){return null;}}
 function validateView(view,params){
-  if(['dashboard','clients','impl','ams','admin'].includes(view))return true;
+  if(['dashboard','clients','impl-clients','ams-clients','admin'].includes(view))return true;
   if(view==='client-detail'||view==='impl-client-detail'||view==='ams-client-detail')return!!S.clients.find(x=>x.id===params.clientId);
   if(view==='integ-detail'){const c=S.clients.find(x=>x.id===params.clientId);return!!(c&&c.integrations.find(x=>x.id===params.integId));}
   if(view==='impl-phase-detail'){const c=S.clients.find(x=>x.id===params.clientId);if(!c)return false;const m=(c.modules||[]).find(x=>x.id===params.moduleId);return!!(m&&(m.phases||[]).find(p=>p.name===params.phase));}
@@ -131,11 +131,66 @@ function recordRecent(view,params){
   S.recentlyViewed=S.recentlyViewed.slice(0,8);
   try{localStorage.setItem('itk_recent',JSON.stringify(S.recentlyViewed));}catch(e){}
 }
-function navigate(view,params={}){
+// ─── URL routing — clean paths, no server routing changes needed ──
+// (Vercel rewrites every non-/api path to index.html; all real routing
+// logic lives here, client-side, same as the rest of this app.)
+function viewToPath(view,params={}){
+  const e=v=>encodeURIComponent(v??'');
+  switch(view){
+    case'dashboard':return'/dashboard';
+    case'clients':return'/integrations';
+    case'client-detail':return`/integrations/${e(params.clientId)}`;
+    case'integ-detail':return`/integrations/${e(params.clientId)}/${e(params.integId)}`;
+    case'impl-clients':return'/implementation';
+    case'impl-client-detail':return`/implementation/${e(params.clientId)}`;
+    case'impl-phase-detail':return`/implementation/${e(params.clientId)}/${e(params.moduleId)}/${e(params.phase)}`;
+    case'ams-clients':return'/ams';
+    case'ams-client-detail':return`/ams/${e(params.clientId)}`;
+    case'admin':return'/admin';
+    case'login':return'/login';
+    default:return'/dashboard';
+  }
+}
+function pathToView(pathname){
+  const d=v=>decodeURIComponent(v);
+  const seg=pathname.split('/').filter(Boolean);
+  if(!seg.length)return{view:'dashboard',params:{}};
+  const[root,...rest]=seg;
+  if(root==='dashboard')return{view:'dashboard',params:{}};
+  if(root==='integrations'){
+    if(rest.length===0)return{view:'clients',params:{}};
+    if(rest.length===1)return{view:'client-detail',params:{clientId:d(rest[0])}};
+    if(rest.length===2)return{view:'integ-detail',params:{clientId:d(rest[0]),integId:d(rest[1])}};
+  }
+  if(root==='implementation'){
+    if(rest.length===0)return{view:'impl-clients',params:{}};
+    if(rest.length===1)return{view:'impl-client-detail',params:{clientId:d(rest[0])}};
+    if(rest.length===3)return{view:'impl-phase-detail',params:{clientId:d(rest[0]),moduleId:d(rest[1]),phase:d(rest[2])}};
+  }
+  if(root==='ams'){
+    if(rest.length===0)return{view:'ams-clients',params:{}};
+    if(rest.length===1)return{view:'ams-client-detail',params:{clientId:d(rest[0])}};
+  }
+  if(root==='admin')return{view:'admin',params:{}};
+  if(root==='login')return{view:'login',params:{}};
+  return null; // unrecognized path
+}
+function navigate(view,params={},opts={}){
   const isRealNav=S.view!==view;
-  const go=()=>{S.view=view;S.params=params;S.filter='all';S.search='';S.modal=null;S.sort={key:'name',dir:'asc'};S.editingTimelineId=null;S.expandedHistory=new Set();S.bulkImplMode=false;S.bulkImplCid=null;S.bulkSelected=new Set();recordRecent(view,params);persistView(view,params);render();};
+  const go=()=>{S.view=view;S.params=params;S.filter='all';S.search='';S.modal=null;S.sort={key:'name',dir:'asc'};S.editingTimelineId=null;S.expandedHistory=new Set();S.bulkImplMode=false;S.bulkImplCid=null;S.bulkSelected=new Set();recordRecent(view,params);persistView(view,params);
+    if(!opts.fromPopState){
+      const path=viewToPath(view,params);
+      if(location.pathname!==path)history.pushState({view,params},'',path);
+    }
+    render();};
   if(isRealNav&&document.startViewTransition)document.startViewTransition(go);else go();
 }
+window.addEventListener('popstate',(e)=>{
+  if(!S.user)return; // not logged in — nothing meaningful to restore client-side
+  const resolved=e.state||pathToView(location.pathname);
+  if(resolved&&validateView(resolved.view,resolved.params||{}))navigate(resolved.view,resolved.params||{},{fromPopState:true});
+  else navigate('dashboard',{},{fromPopState:true});
+});
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function daysDiff(dateStr){if(!dateStr)return null;const d=new Date(dateStr+'T00:00:00');const t=new Date(todayStr()+'T00:00:00');return Math.round((t-d)/86400000);}
 function isOverdue(i){if(i.status==='Completed'||!i.dueDate)return false;return daysDiff(i.dueDate)>0;}

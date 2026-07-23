@@ -102,6 +102,38 @@ function renderAppSkeleton(){
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────
+function renderBreadcrumb(){
+  if(S.view==='dashboard'||S.view==='login')return'';
+  const crumbs=[{label:'Dashboard',act:'nav-dashboard'}];
+  const c=S.params.clientId?S.clients.find(x=>x.id===S.params.clientId):null;
+  if(['clients','client-detail','integ-detail'].includes(S.view)){
+    crumbs.push({label:'Integrations',act:'nav-clients'});
+    if(c)crumbs.push({label:c.name,act:'open-client',id:c.id});
+    if(S.view==='integ-detail'&&c){
+      const i=(c.integrations||[]).find(x=>x.id===S.params.integId);
+      if(i)crumbs.push({label:i.name});
+    }
+  } else if(['impl-clients','impl-client-detail','impl-phase-detail'].includes(S.view)){
+    crumbs.push({label:'Implementation',act:'nav-impl'});
+    if(c)crumbs.push({label:c.name,act:'open-impl-client',id:c.id});
+    if(S.view==='impl-phase-detail'&&c){
+      const m=(c.modules||[]).find(x=>x.id===S.params.moduleId);
+      if(m)crumbs.push({label:m.name,act:'open-impl-client',id:c.id});
+      crumbs.push({label:S.params.phase});
+    }
+  } else if(['ams-clients','ams-client-detail'].includes(S.view)){
+    crumbs.push({label:'AMS & Support',act:'nav-ams'});
+    if(c)crumbs.push({label:c.name});
+  } else if(S.view==='admin'){
+    crumbs.push({label:'Admin'});
+  }
+  return`<div class="k-crumbs" style="padding:16px 24px 0;">${crumbs.map((cr,idx)=>{
+    const isLast=idx===crumbs.length-1;
+    const sep=idx>0?'<span style="margin:0 6px;color:var(--mute-2);">/</span>':'';
+    if(isLast||!cr.act)return`${sep}<span style="color:var(--ink-3);font-weight:500;">${esc(cr.label)}</span>`;
+    return`${sep}<a data-act="${cr.act}"${cr.id?` data-id="${cr.id}"`:''} style="cursor:pointer;">${esc(cr.label)}</a>`;
+  }).join('')}</div>`;
+}
 function render(){
   const app=document.getElementById('app');
   if(S.view==='login'){app.innerHTML=renderLogin();return;}
@@ -118,7 +150,7 @@ function render(){
   else if(S.view==='admin')content=can('admin')?renderAdmin():`<div class="p-8 text-rose-500">Access denied</div>`;
   const isMobile=window.innerWidth<768;
   const sbw=isMobile?'0':(S.sidebarCollapsed?'56px':'232px');
-  app.innerHTML=`${S.offlineMode?`<div style="position:fixed;top:0;left:0;right:0;z-index:200;background:var(--red);color:#fff;font-size:12px;font-weight:500;text-align:center;padding:6px;letter-spacing:0.02em;">You appear to be offline — saves will fail until your connection is restored</div>`:''}${renderSidebar()}<main class="min-h-screen" style="margin-left:${sbw};transition:margin-left 200ms ease;${S.offlineMode?'padding-top:28px;':''}">${isMobile?`<div style="position:fixed;top:12px;left:12px;z-index:50;"><button data-act="toggle-sidebar" class="k-btn k-btn-secondary" style="width:36px;height:36px;padding:0;box-shadow:var(--shadow);"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg></button></div>`:''}${content}</main>${S.modal?renderModal():''}${S.cmdPaletteOpen?renderCmdPalette():''}${isMobile&&!S.sidebarCollapsed?`<div data-act="toggle-sidebar" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:30;"></div>`:''}`;
+  app.innerHTML=`${S.offlineMode?`<div style="position:fixed;top:0;left:0;right:0;z-index:200;background:var(--red);color:#fff;font-size:12px;font-weight:500;text-align:center;padding:6px;letter-spacing:0.02em;">You appear to be offline — saves will fail until your connection is restored</div>`:''}${renderSidebar()}<main class="min-h-screen" style="margin-left:${sbw};transition:margin-left 200ms ease;${S.offlineMode?'padding-top:28px;':''}">${isMobile?`<div style="position:fixed;top:12px;left:12px;z-index:50;"><button data-act="toggle-sidebar" class="k-btn k-btn-secondary" style="width:36px;height:36px;padding:0;box-shadow:var(--shadow);"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg></button></div>`:''}${renderBreadcrumb()}${content}</main>${S.modal?renderModal():''}${S.cmdPaletteOpen?renderCmdPalette():''}${isMobile&&!S.sidebarCollapsed?`<div data-act="toggle-sidebar" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:30;"></div>`:''}`;
 
 }
 

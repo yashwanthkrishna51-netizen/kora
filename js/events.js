@@ -24,7 +24,11 @@ document.addEventListener('click',async e=>{
     try{const ul=await apiRead('data/users.json');S.usersForDropdown=ul.content.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));if(can('admin')){S.users=ul.content;S.shas.users=ul.sha;}}
     catch(err){S.usersForDropdown=[{id:S.user.id,name:S.user.name||S.user.username,role:S.user.role,username:S.user.username}];}
     persistSession(S.sessionToken,S.user);
-    navigate('dashboard');return;
+    const resumed=S.pendingPath?pathToView(S.pendingPath):null;
+    S.pendingPath=null;
+    if(resumed&&validateView(resumed.view,resumed.params||{}))navigate(resumed.view,resumed.params||{});
+    else navigate('dashboard');
+    return;
   }
   if(act==='logout'){clearSession();S.user=null;S.clients=[];S.users=[];S.usersForDropdown=[];S.shas={clients:null,users:null};S.sessionToken=null;navigate('login');return;}
   if(act==='nav-dashboard'){navigate('dashboard');return;}
@@ -949,11 +953,18 @@ window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=se
       const cl=await apiRead('data/clients.json');S.clients=cl.content;S.shas.clients=cl.sha;
       try{const ul=await apiRead('data/users.json');S.usersForDropdown=ul.content.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));if(can('admin')){S.users=ul.content;S.shas.users=ul.sha;}}
       catch(e){S.usersForDropdown=[{id:S.user.id,name:S.user.name||S.user.username,role:S.user.role,username:S.user.username}];}
-      const rv=restoreView();
-      if(rv&&rv.view&&validateView(rv.view,rv.params||{})){navigate(rv.view,rv.params||{});}
-      else{navigate('dashboard');}
+      const fromUrl=location.pathname&&location.pathname!=='/'?pathToView(location.pathname):null;
+      if(fromUrl&&validateView(fromUrl.view,fromUrl.params||{})){navigate(fromUrl.view,fromUrl.params||{},{fromPopState:true});history.replaceState({view:fromUrl.view,params:fromUrl.params},'',viewToPath(fromUrl.view,fromUrl.params));}
+      else{
+        const rv=restoreView();
+        if(rv&&rv.view&&validateView(rv.view,rv.params||{})){navigate(rv.view,rv.params||{});}
+        else{navigate('dashboard');}
+      }
     }catch(e){
       clearSession();S.user=null;S.sessionToken=null;render();
     }
-  }else{render();}
+  }else{
+    if(location.pathname&&location.pathname!=='/'&&location.pathname!=='/login')S.pendingPath=location.pathname;
+    render();
+  }
 })();
