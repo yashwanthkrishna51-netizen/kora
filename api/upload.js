@@ -3,6 +3,7 @@
 // Accepts: PDF, Excel (.xlsx/.xls), images (JPG, PNG, GIF, WEBP)
 // Max size: 3MB
 
+const crypto = require('crypto');
 const { validateToken } = require('./_auth');
 const { applyCors } = require('./_cors');
 
