@@ -1,6 +1,6 @@
 const KOGNOZ_LOGO="/kognoz_Iogo.png";
 // ─── STATE ────────────────────────────────────────────────────────
-const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'},dashAssigneeSort:{key:'total',dir:'desc'},dashAssigneeSearch:'',dashAssigneeExpanded:new Set(),dashAssigneeFilter:'all',adminSearch:'',auditRows:[],auditTotal:0,auditPage:0,auditPageSize:50,auditFrom:'',auditTo:'',auditUser:'',auditSearch:'',auditLoading:false,auditLoaded:false};
+const S={user:null,clients:[],archivedClients:[],users:[],usersForDropdown:[],shas:{clients:null,users:null},sessionToken:null,view:'login',params:{},adminTab:'integrations',filter:'all',search:'',modal:null,toast:null,sidebarCollapsed:false,sidebarClientsOpen:false,sort:{key:'name',dir:'asc'},editingTimelineId:null,expandedHistory:new Set(),amsFrom:'',amsTo:'',amsQuick:'',editingAmsEntryId:null,expandedAmsHistory:new Set(),cmdPaletteOpen:false,cmdQuery:'',recentlyViewed:[],darkMode:false,bulkImplMode:false,bulkImplCid:null,bulkSelected:new Set(),offlineMode:false,bulkIntegMode:false,bulkIntegCid:null,bulkIntegSelected:new Set(),dashAttnSort:{key:'reason',dir:'desc'},dashClientSort:{key:'name',dir:'asc'},dashAssigneeSort:{key:'total',dir:'desc'},dashAssigneeSearch:'',dashAssigneeExpanded:new Set(),dashAssigneeFilter:'all',adminSearch:'',auditRows:[],auditTotal:0,auditPage:0,auditPageSize:50,auditFrom:'',auditTo:'',auditUser:'',auditSearch:'',auditLoading:false,auditLoaded:false,snapshotHistory:[],snapshotChecked:false,snapshotHistoryFetched:false};
 
 try{S.sidebarCollapsed=localStorage.getItem('itk_sb_collapsed')==='1';}catch(e){}
 try{const r=localStorage.getItem('itk_recent');if(r)S.recentlyViewed=JSON.parse(r);}catch(e){}
@@ -145,6 +145,81 @@ function isStale(i,days=7){if(i.status==='Completed')return false;const lu=lastU
 function overdueBadge(i){if(!isOverdue(i))return'';const d=daysOverdue(i);return`<span class="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">⏰ ${d}d overdue</span>`;}
 function healthColor(c){const ar=c.integrations.filter(i=>i.status==='At Risk').length;const od=c.integrations.filter(isOverdue).length;if(ar>0||od>0)return'bg-rose-500';const oh=c.integrations.filter(i=>i.status==='On Hold — Internal'||i.status==='On Hold — Client').length;if(oh>0)return'bg-violet-400';return'bg-green-500';}
 function healthVar(c){const cls=healthColor(c);if(cls==='bg-rose-500')return'var(--red)';if(cls==='bg-violet-400')return`#${VIOLET}`;return'var(--green)';}
+
+// Discrete Red/Amber/Green labels (not just CSS colors) — used by the
+// Portfolio Health Scorecard and snapshot capture to combine all three
+// domains into one glance per client.
+function integRagLabel(c){
+  if(!c.integrations?.length)return null;
+  const ar=c.integrations.filter(i=>i.status==='At Risk').length;
+  const od=c.integrations.filter(isOverdue).length;
+  if(ar>0||od>0)return'Red';
+  const stale=c.integrations.filter(i=>isStale(i,7)&&!isOverdue(i)).length;
+  if(stale>0)return'Amber';
+  return'Green';
+}
+function amsRagLabel(c){
+  const log=c.workLog||[];
+  if(!log.length)return null;
+  const open=log.filter(e=>e.entryStatus!=='Closed');
+  if(open.some(e=>e.ragStatus==='Red'||(e.queryLevel||'').includes('L4')))return'Red';
+  const t=amsTotals(c,'','');
+  if(t.hasBucket&&t.balanceAvailable!==null&&t.balanceAvailable<=Math.max(2,t.totalAvailableHours*0.15))return'Red';
+  if(open.some(e=>e.ragStatus==='Amber'||(e.queryLevel||'').includes('L3')))return'Amber';
+  return'Green';
+}
+function overallRagLabel(...rags){
+  const present=rags.filter(Boolean);
+  if(!present.length)return null;
+  if(present.includes('Red'))return'Red';
+  if(present.includes('Amber'))return'Amber';
+  return'Green';
+}
+const RAG_HEX={Red:'var(--red)',Amber:'var(--amber)',Green:'var(--green)'};
+
+// Snapshot capture — fire-and-forget, once per browser session per day.
+// Idempotent server-side (upsert on date+client), so calling this more than
+// once (multiple tabs, multiple people opening Dashboard the same day) is safe.
+async function ensureSnapshotCaptured(){
+  const today=todayStr();
+  if(S.snapshotChecked)return;
+  S.snapshotChecked=true;
+  try{
+    const rows=S.clients.map(c=>{
+      const integTotal=c.integrations?.length||0;
+      const integAtRisk=(c.integrations||[]).filter(i=>i.status==='At Risk').length;
+      const integInProgress=(c.integrations||[]).filter(i=>i.status==='In Progress').length;
+      const integCompleted=(c.integrations||[]).filter(i=>i.status==='Completed').length;
+      const isImpl=c.modules!==undefined;
+      const implRag=isImpl?implAutoRag(c):null;
+      const pr=isImpl?implProgress(c):{completed:0,total:0};
+      const isAms=c.workLog!==undefined;
+      const amsRag=isAms?amsRagLabel(c):null;
+      const openEntries=(c.workLog||[]).filter(e=>e.entryStatus!=='Closed');
+      const amsOpenL3L4=openEntries.filter(e=>{const q=e.queryLevel||'';return q.includes('L3')||q.includes('L4');}).length;
+      const monthStart=new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10);
+      const amsHoursMonth=isAms?amsTotals(c,monthStart,todayStr()).totalHours:0;
+      const overallRag=overallRagLabel(integRagLabel(c),implRag,amsRag);
+      return{clientId:c.id,clientName:c.name,integTotal,integAtRisk,integInProgress,integCompleted,
+        implRag,implTotalPhases:pr.total,implCompletedPhases:pr.completed,
+        amsRag,amsOpenEntries:openEntries.length,amsOpenL3L4,amsHoursMonth,overallRag};
+    });
+    if(!rows.length)return;
+    await fetch('/api/snapshot',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':S.sessionToken||''},body:JSON.stringify({rows})});
+  }catch(e){/* never let snapshot capture break the dashboard */}
+}
+async function fetchSnapshotHistory(days=14){
+  if(S.snapshotHistoryFetched)return;
+  S.snapshotHistoryFetched=true;
+  try{
+    const from=new Date(Date.now()-days*86400000).toISOString().slice(0,10);
+    const r=await fetch(`/api/snapshot?from=${from}`,{headers:{'x-session-token':S.sessionToken||''}});
+    if(!r.ok)return;
+    const d=await r.json();
+    S.snapshotHistory=d.rows||[];
+    render();
+  }catch(e){/* trend is a nice-to-have, never block on it */}
+}
 // Shared card visual for Integration + Implementation client-list cards —
 // a small progress ring (health % + color) paired with a metric strip below.
 // Keeping this in one place means both domains' cards can never drift apart
