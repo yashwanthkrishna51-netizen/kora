@@ -144,6 +144,23 @@ function lastUpdateDate(i){return i.timeline?.[0]?.date||null;}
 function isStale(i,days=7){if(i.status==='Completed')return false;const lu=lastUpdateDate(i);if(!lu)return true;return daysDiff(lu)>=days;}
 function overdueBadge(i){if(!isOverdue(i))return'';const d=daysOverdue(i);return`<span class="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">⏰ ${d}d overdue</span>`;}
 function healthColor(c){const ar=c.integrations.filter(i=>i.status==='At Risk').length;const od=c.integrations.filter(isOverdue).length;if(ar>0||od>0)return'bg-rose-500';const oh=c.integrations.filter(i=>i.status==='On Hold — Internal'||i.status==='On Hold — Client').length;if(oh>0)return'bg-violet-400';return'bg-green-500';}
+function healthVar(c){const cls=healthColor(c);if(cls==='bg-rose-500')return'var(--red)';if(cls==='bg-violet-400')return`#${VIOLET}`;return'var(--green)';}
+// Shared card visual for Integration + Implementation client-list cards —
+// a small progress ring (health % + color) paired with a metric strip below.
+// Keeping this in one place means both domains' cards can never drift apart
+// again the way the old bespoke card markup did.
+function ringSvg(pct,color,size=48){
+  const p=Math.max(0,Math.min(100,Math.round(pct||0)));
+  const r=(size-10)/2,circ=2*Math.PI*r,off=circ-(p/100)*circ;
+  return`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="shrink-0">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" stroke-linecap="round" transform="rotate(-90 ${size/2} ${size/2})"/>
+    <text x="${size/2}" y="${size/2+4}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">${p}%</text>
+  </svg>`;
+}
+function miniStat(value,label,color){
+  return`<div><div class="text-base font-semibold text-gray-900"${color?` style="color:${color}"`:''}>${value}</div><div class="text-[11px] text-gray-400">${esc(label)}</div></div>`;
+}
 function emptyIcon(type){const icons={search:'🔍',inbox:'📭',clock:'🕐',chart:'📊',doc:'📄',hours:'⏱️',team:'👥'};return`<div class="text-3xl mb-2 opacity-30">${icons[type]||'📭'}</div>`;}
 
 let _tt;

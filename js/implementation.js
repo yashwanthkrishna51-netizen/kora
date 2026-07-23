@@ -22,15 +22,21 @@ function renderImplClientList(){
       const mods=c.modules||[];
       const pr=implProgress(c);
       const rag=implAutoRag(c);
-      const barColor=rag==='Red'?'bg-rose-500':rag==='Amber'?'bg-amber-500':'bg-green-500';
-      return`<div data-act="open-impl-client" data-id="${c.id}" style="animation-delay:${Math.min(idx*35,400)}ms" class="row-in card-hover bg-white rounded-2xl border border-gray-100 p-5 hover:border-[#0e7490]/30 transition cursor-pointer relative overflow-hidden">
-        <div class="absolute left-0 top-0 bottom-0 w-1 ${barColor}"></div>
-        <div class="flex items-start justify-between mb-2 pl-1.5">
-          <div class="flex-1 min-w-0 pr-2"><div class="font-semibold text-gray-900" title="${esc(c.name)}">${esc(c.name)}</div>${c.description?`<div class="text-xs text-gray-400 mt-0.5 truncate" title="${esc(c.description)}">${esc(c.description)}</div>`:''}</div>
-          ${rag?ragBadge(rag):''}
+      const ringColor=rag==='Red'?'var(--red)':rag==='Amber'?'var(--amber)':'var(--green)';
+      const atRiskPhases=mods.reduce((a,m)=>a+(m.phases||[]).filter(ph=>ph.status==='At Risk').length,0);
+      return`<div data-act="open-impl-client" data-id="${c.id}" style="animation-delay:${Math.min(idx*35,400)}ms" class="row-in card-hover bg-white rounded-2xl border border-gray-100 p-5 hover:border-[#0e7490]/30 transition cursor-pointer">
+        <div class="flex items-center gap-3.5">
+          ${ringSvg(pr.pct,ringColor)}
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-gray-900 truncate" title="${esc(c.name)}">${esc(c.name)}</div>
+            <div class="text-xs text-gray-400 mt-0.5 truncate">${c.description?esc(c.description):`${mods.length} module${mods.length!==1?'s':''}`}</div>
+          </div>
         </div>
-        <div class="text-xs text-gray-400 pl-1.5">${mods.length} module${mods.length!==1?'s':''} · ${pr.completed}/${pr.total} phases</div>
-        ${pr.total>0?`<div class="h-1 bg-gray-100 rounded-full overflow-hidden mt-2 pl-0"><div class="h-full rounded-full ${barColor==='bg-rose-500'?'bg-rose-400':barColor==='bg-amber-500'?'bg-amber-400':'bg-[#0e7490]'}" style="width:${pr.pct}%"></div></div>`:''}
+        <div class="flex gap-5 mt-3.5 pt-3 border-t border-gray-100">
+          ${miniStat(mods.length,'modules')}
+          ${miniStat(`${pr.completed}/${pr.total}`,'phases')}
+          ${miniStat(atRiskPhases,'at risk',atRiskPhases>0?'var(--red)':undefined)}
+        </div>
       </div>`;
     }).join(''):`<div class="col-span-3 text-center py-16 text-gray-400">${emptyIcon('inbox')}No implementation clients yet. Add one to get started.</div>`}
   </div>
