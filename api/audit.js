@@ -59,7 +59,10 @@ module.exports = async function handler(req, res) {
     ].join('&');
 
     const r = await fetch(`${SUPABASE_URL}/rest/v1/audit_log?${qs}`, { headers: sbHeaders });
-    if (!r.ok) return res.status(r.status).json({ error: 'Supabase read error' });
+    if (!r.ok) {
+      const detail = await r.text().catch(() => '');
+      return res.status(r.status).json({ error: 'Supabase read error', detail });
+    }
     const rows = await r.json();
 
     // Supabase returns total count in Content-Range: "0-49/1234"
