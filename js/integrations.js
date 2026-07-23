@@ -93,10 +93,9 @@ function renderClientDetail(clientId){
     <button data-act="modal-open" data-modal="add-integ" data-cid="${c.id}" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 ml-auto">+ Add Integration</button>
   </div>
   ${S.bulkIntegMode&&S.bulkIntegCid===c.id?`<div class="flex items-center gap-3 mb-3 px-4 py-2.5 bg-rose-50 border border-rose-200 rounded-xl">
-    <span class="text-sm text-rose-700 font-medium">${S.bulkIntegSelected.size} selected</span>
-    <button data-act="bulk-delete-integ" data-cid="${c.id}" class="text-sm font-medium text-rose-600 hover:text-rose-800 ${S.bulkIntegSelected.size?'':'opacity-40 pointer-events-none'}">🗑 Delete Selected</button>
+    <span class="text-sm text-rose-700 font-medium">Select integrations to delete</span>
   </div>`:''}
-  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden${S.bulkIntegMode&&S.bulkIntegCid===c.id?' ring-2 ring-rose-300':''}">
     <table class="w-full text-sm">
       <thead class="border-b border-gray-100 bg-gray-50 sticky-head">
         <tr>${S.bulkIntegMode&&S.bulkIntegCid===c.id?`<th class="px-4 py-3 w-10"><input type="checkbox" data-act="toggle-bulk-integ-all" data-cid="${c.id}" ${sorted.length&&sorted.every(i=>S.bulkIntegSelected.has(i.id))?'checked':''} class="rounded"/></th>`:''}${cols.map(([k,l])=>`<th data-act="sort" data-key="${k}" data-sort class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer transition select-none">${l} ${sortArrow(k)}</th>`).join('')}</tr>
@@ -116,6 +115,22 @@ function renderClientDetail(clientId){
       </tbody>
     </table>
   </div>
+  ${S.bulkIntegMode&&S.bulkIntegCid===c.id?`<div class="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-xl px-6 py-4 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center text-sm font-bold text-rose-700">${S.bulkIntegSelected.size}</div>
+      <div>
+        <div class="font-semibold text-gray-900 text-sm">${S.bulkIntegSelected.size===0?'No integrations selected':S.bulkIntegSelected.size===1?'1 integration selected':`${S.bulkIntegSelected.size} integrations selected`}</div>
+        <div class="text-xs text-gray-400">This cannot be undone</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button data-act="toggle-bulk-integ" data-cid="${c.id}" class="text-sm text-gray-500 border border-gray-200 px-4 py-2 rounded-xl hover:bg-gray-50 transition">Cancel</button>
+      <button data-act="bulk-delete-integ" data-cid="${c.id}" ${S.bulkIntegSelected.size===0?'disabled class="bg-gray-100 text-gray-400 text-sm font-semibold px-5 py-2 rounded-xl cursor-not-allowed"':'class="bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-5 py-2 rounded-xl transition"'}>
+        🗑 Delete ${S.bulkIntegSelected.size||''} Selected
+      </button>
+    </div>
+  </div>
+  <div class="h-20"></div>`:''}
 </div>`;
 }
 
@@ -156,54 +171,70 @@ function renderIntegDetail(clientId,integId){
           ${can('edit')?`<textarea id="f-next" rows="2" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(i.nextAction||'')}</textarea>`:
           `<p class="text-sm text-gray-700">${esc(i.nextAction||'—')}</p>`}
         </div>
-        ${can('edit')?`<button data-act="save-integ" data-cid="${c.id}" data-iid="${i.id}" class="w-full btn-grad text-white font-semibold rounded-xl py-2.5 text-sm transition">Save Changes</button>`:''}
+        ${can('edit')?`<button data-act="save-integ" data-cid="${c.id}" data-iid="${i.id}" class="w-full btn-grad text-white font-semibold rounded-xl py-2.5 text-sm transition">Save Details</button>`:''}
         ${can('edit')&&i.status!=='Completed'?`<button data-act="mark-complete" data-cid="${c.id}" data-iid="${i.id}" class="w-full text-green-700 bg-green-50 hover:bg-green-100 font-medium rounded-xl py-2 text-xs transition">✓ Mark as Complete</button>`:''}
         ${can('admin')?`<button data-act="delete-integ" data-cid="${c.id}" data-iid="${i.id}" class="w-full text-rose-400 hover:text-rose-600 text-xs py-1 transition">Delete Integration</button>`:''}
       </div>
     </div>
     <div class="bg-white rounded-2xl border border-gray-100 p-6">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-semibold text-gray-900 text-sm">Timeline <span class="text-gray-400 font-normal">(${i.timeline?.length||0})</span></h3>
+        <h3 class="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-[#0e7490]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          Activity <span class="text-gray-400 font-normal">(${i.timeline?.length||0})</span>
+        </h3>
       </div>
-      ${can('edit')?`<div class="mb-4">
-        <textarea id="tl-input" rows="3" placeholder="What happened? Current status?" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none mb-2"></textarea>
-        <button data-act="add-timeline" data-cid="${c.id}" data-iid="${i.id}" class="w-full text-sm font-medium bg-gray-50 hover:bg-[#0e7490]/10 hover:text-[#0e7490] text-gray-700 border border-gray-200 rounded-xl py-2 transition">+ Add Update</button>
+      ${can('edit')?`<div class="flex gap-2.5 mb-4">
+        ${avatarChip(S.user?.name)}
+        <div class="flex-1 min-w-0">
+          <div class="bg-gray-50 rounded-2xl rounded-tl-md px-3.5 py-2.5">
+            <textarea id="tl-input" rows="2" placeholder="Post an update…" class="w-full bg-transparent text-sm resize-none outline-none"></textarea>
+          </div>
+          <div class="flex items-center gap-3 mt-1.5 pl-1">
+            <span class="text-[11px] text-gray-400">Posts immediately — no need to Save Details</span>
+            <div class="flex-1"></div>
+            <button data-act="add-timeline" data-cid="${c.id}" data-iid="${i.id}" title="Post update" class="w-8 h-8 rounded-full bg-[#0e7490] hover:bg-[#0d3d4f] flex items-center justify-center transition shrink-0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
+        </div>
       </div>`:''}
-      <div class="space-y-3 max-h-[440px] overflow-y-auto pr-1">
+      <div class="space-y-4 max-h-[440px] overflow-y-auto pr-1">
         ${!(i.timeline?.length)?`<div class="text-sm text-gray-400 text-center py-8">${emptyIcon('clock')}No updates yet</div>`:
         i.timeline.map((t,idx,arr)=>{
           const isEditing=S.editingTimelineId===t.id;
           const hasHistory=t.edits&&t.edits.length>0;
           const isExpanded=S.expandedHistory.has(t.id);
           if(isEditing){
-            return`<div class="relative pl-5 ${idx<arr.length-1?'pb-3 border-l-2 border-gray-100':''}">
-              <div class="absolute -left-[5px] top-1 w-2.5 h-2.5 bg-[#0e7490] rounded-full border-2 border-white ring-1 ring-[#0e7490]/30"></div>
-              <div class="text-xs font-semibold text-[#0e7490] mb-1">${esc(t.date)} · ${esc(t.addedBy||'')}</div>
-              <textarea id="edit-tl-${t.id}" rows="3" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(t.update)}</textarea>
-              <div class="flex gap-2 mt-2">
-                <button data-act="cancel-edit-timeline" class="flex-1 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg py-1.5 hover:bg-gray-50 transition">Cancel</button>
-                <button data-act="save-edit-timeline" data-cid="${c.id}" data-iid="${i.id}" data-tid="${t.id}" class="flex-1 text-xs font-semibold text-white bg-[#0e7490] rounded-lg py-1.5 hover:bg-[#0d3d4f] transition">Save Edit</button>
+            return`<div class="flex gap-2.5">
+              ${avatarChip(t.addedBy)}
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-semibold text-[#0e7490] mb-1">${esc(t.date)} · ${esc(t.addedBy||'')}</div>
+                <textarea id="edit-tl-${t.id}" rows="3" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(t.update)}</textarea>
+                <div class="flex gap-2 mt-2">
+                  <button data-act="cancel-edit-timeline" class="flex-1 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg py-1.5 hover:bg-gray-50 transition">Cancel</button>
+                  <button data-act="save-edit-timeline" data-cid="${c.id}" data-iid="${i.id}" data-tid="${t.id}" class="flex-1 text-xs font-semibold text-white bg-[#0e7490] rounded-lg py-1.5 hover:bg-[#0d3d4f] transition">Save Edit</button>
+                </div>
               </div>
             </div>`;
           }
-          return`<div class="relative pl-5 ${idx<arr.length-1?'pb-3 border-l-2 border-gray-100':''}">
-          <div class="absolute -left-[5px] top-1 w-2.5 h-2.5 bg-[#0e7490] rounded-full border-2 border-white ring-1 ring-[#0e7490]/30"></div>
-          <div class="flex items-start justify-between gap-2">
-            <div class="text-xs font-semibold text-[#0e7490] mb-1">${esc(t.date)} · ${esc(t.addedBy||'')}</div>
-            <div class="flex items-center gap-2 shrink-0">
-              ${can('edit')?`<button data-act="edit-timeline" data-tid="${t.id}" class="text-[10px] text-gray-300 hover:text-[#0e7490]">Edit</button>`:''}
-              ${can('admin')?`<button data-act="delete-timeline-entry" data-cid="${c.id}" data-iid="${i.id}" data-tid="${t.id}" class="text-[10px] text-gray-300 hover:text-rose-500">Delete</button>`:''}
-              <button data-act="copy-update" data-text="${esc(t.update)}" class="text-[10px] text-gray-300 hover:text-[#0e7490]">Copy</button>
+          return`<div class="flex gap-2.5">
+          ${avatarChip(t.addedBy)}
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline gap-2 flex-wrap">
+              <span class="text-sm font-medium text-gray-900">${esc(t.addedBy||'Unknown')}</span>
+              <span class="text-xs text-gray-400">${esc(t.date)}${t.addedAt?` · ${fmtDate(t.addedAt)}`:''}</span>
+              ${hasHistory?`<button data-act="toggle-history" data-tid="${t.id}" class="text-xs text-amber-600 hover:text-amber-700 font-medium">edited${t.edits.length>1?` (${t.edits.length}×)`:''} — ${isExpanded?'hide':'view'}</button>`:''}
             </div>
+            <div class="bg-gray-50 rounded-2xl rounded-tl-md px-3.5 py-2.5 mt-1 text-sm text-gray-700 leading-relaxed">${esc(t.update)}</div>
+            <div class="flex items-center gap-3 mt-1.5 pl-1">
+              ${can('edit')?`<button data-act="edit-timeline" data-tid="${t.id}" class="text-[11px] text-gray-400 hover:text-[#0e7490]">Edit</button>`:''}
+              ${can('admin')?`<button data-act="delete-timeline-entry" data-cid="${c.id}" data-iid="${i.id}" data-tid="${t.id}" class="text-[11px] text-gray-400 hover:text-rose-500">Delete</button>`:''}
+              <button data-act="copy-update" data-text="${esc(t.update)}" class="text-[11px] text-gray-400 hover:text-[#0e7490]">Copy</button>
+            </div>
+            ${isExpanded&&hasHistory?`<div class="mt-2 pl-3 border-l-2 border-amber-200 space-y-2">
+              ${[...t.edits].reverse().map(e=>`<div class="text-xs"><div class="text-gray-400 mb-0.5">${fmtDate(e.editedAt)} · ${esc(e.editedBy||'')} changed it from:</div><div class="text-gray-500">${esc(e.text)}</div></div>`).join('')}
+            </div>`:''}
           </div>
-          <p class="text-sm text-gray-700 leading-relaxed">${esc(t.update)}</p>
-          <div class="flex items-center gap-3 mt-1 flex-wrap">
-            ${t.addedAt?`<span class="text-xs text-gray-400">${fmtDate(t.addedAt)}</span>`:''}
-            ${hasHistory?`<button data-act="toggle-history" data-tid="${t.id}" class="text-xs text-amber-600 hover:text-amber-700 font-medium">✎ edited${t.edits.length>1?` (${t.edits.length}×)`:''} — ${isExpanded?'hide':'view'} history</button>`:''}
-          </div>
-          ${isExpanded&&hasHistory?`<div class="mt-2 pl-3 border-l-2 border-amber-200 space-y-2">
-            ${[...t.edits].reverse().map(e=>`<div class="text-xs"><div class="text-gray-400 mb-0.5">${fmtDate(e.editedAt)} · ${esc(e.editedBy||'')} changed it from:</div><div class="text-gray-500">${esc(e.text)}</div></div>`).join('')}
-          </div>`:''}
         </div>`;
         }).join('')}
       </div>

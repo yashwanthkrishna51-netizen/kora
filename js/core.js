@@ -162,6 +162,15 @@ function miniStat(value,label,color){
   return`<div><div class="text-base font-semibold text-gray-900"${color?` style="color:${color}"`:''}>${value}</div><div class="text-[11px] text-gray-400">${esc(label)}</div></div>`;
 }
 function emptyIcon(type){const icons={search:'🔍',inbox:'📭',clock:'🕐',chart:'📊',doc:'📄',hours:'⏱️',team:'👥'};return`<div class="text-3xl mb-2 opacity-30">${icons[type]||'📭'}</div>`;}
+// Deterministic avatar color per person, used in the Activity feed (chat-style
+// update entries) — same person always gets the same color across renders.
+const AVATAR_PALETTE=[['#dbeafe','#1e40af'],['#dcfce7','#166534'],['#fef3c7','#92400e'],['#fce7f3','#9d174d'],['#ede9fe','#5b21b6'],['#e0f2fe','#0369a1']];
+function initials(name){const p=(name||'?').trim().split(/\s+/);return((p[0]?.[0]||'')+(p[1]?.[0]||'')).toUpperCase()||'?';}
+function avatarChip(name,size=32){
+  let h=0;for(const ch of(name||'?'))h=(h+ch.charCodeAt(0))|0;
+  const[bg,fg]=AVATAR_PALETTE[Math.abs(h)%AVATAR_PALETTE.length];
+  return`<div class="rounded-full flex items-center justify-center font-semibold shrink-0" style="width:${size}px;height:${size}px;background:${bg};color:${fg};font-size:${Math.round(size*0.38)}px">${esc(initials(name))}</div>`;
+}
 
 let _tt;
 function showToast(msg,type='success',duration=3500,action=null){

@@ -181,87 +181,102 @@ function renderImplPhaseDetail(clientId,moduleId,phaseName){
           ${can('edit')?`<textarea id="ip-next" rows="2" placeholder="What is the next planned step?" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(ph.nextAction||'')}</textarea>`:
           `<p class="text-sm text-gray-700">${esc(ph.nextAction||'—')}</p>`}
         </div>
-        ${can('edit')?`<button data-act="save-impl-phase" data-cid="${c.id}" data-mid="${mod.id}" data-phase="${esc(phaseName)}" class="w-full btn-grad text-white font-semibold rounded-xl py-2.5 text-sm transition">Save Changes</button>`:''}
+        ${can('edit')?`<button data-act="save-impl-phase" data-cid="${c.id}" data-mid="${mod.id}" data-phase="${esc(phaseName)}" class="w-full btn-grad text-white font-semibold rounded-xl py-2.5 text-sm transition">Save Details</button>`:''}
       </div>
     </div>
     <div class="bg-white rounded-2xl border border-gray-100 p-6">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-semibold text-gray-900 text-sm">Updates <span class="text-gray-400 font-normal">(${ph.updates.length})</span></h3>
+        <h3 class="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-[#0e7490]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          Activity <span class="text-gray-400 font-normal">(${ph.updates.length})</span>
+        </h3>
       </div>
-      ${can('edit')?`<div class="mb-4">
-        <textarea id="ip-update-input" rows="3" placeholder="What happened? Current status?" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none mb-2"></textarea>
-        <div class="flex gap-2 mb-2">
-          <input id="ip-attach-label" type="text" placeholder="File label e.g. Signoff Mail (optional)" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
-          <label class="cursor-pointer flex items-center gap-1.5 text-xs font-medium text-[#0e7490] bg-[#0e7490]/8 border border-[#0e7490]/30 px-3 py-2 rounded-xl hover:bg-[#0e7490]/15 transition whitespace-nowrap shrink-0">
-            📎 Attach File
-            <input id="ip-attach-file" type="file" class="hidden" accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp"/>
-          </label>
+      ${can('edit')?`<div class="flex gap-2.5 mb-4">
+        ${avatarChip(S.user?.name)}
+        <div class="flex-1 min-w-0">
+          <div class="bg-gray-50 rounded-2xl rounded-tl-md px-3.5 py-2.5">
+            <textarea id="ip-update-input" rows="2" placeholder="Post an update…" class="w-full bg-transparent text-sm resize-none outline-none"></textarea>
+          </div>
+          <div class="flex gap-2 mt-2">
+            <input id="ip-attach-label" type="text" placeholder="File label e.g. Signoff Mail (optional)" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+            <label class="cursor-pointer flex items-center gap-1.5 text-xs font-medium text-[#0e7490] bg-[#0e7490]/8 border border-[#0e7490]/30 px-3 py-2 rounded-xl hover:bg-[#0e7490]/15 transition whitespace-nowrap shrink-0">
+              📎 Attach File
+              <input id="ip-attach-file" type="file" class="hidden" accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp"/>
+            </label>
+          </div>
+          <div id="ip-attach-preview" class="hidden mt-2 text-xs text-[#0e7490] bg-[#0e7490]/8 px-2.5 py-1.5 rounded-xl flex items-center gap-2">
+            <span id="ip-attach-icon">📎</span><span id="ip-attach-name" class="flex-1 truncate"></span>
+            <button data-act="clear-attach" data-prefix="ip" class="text-gray-400 hover:text-rose-500 shrink-0">✕</button>
+          </div>
+          <input id="ip-attach-url" type="hidden" value=""/>
+          <input id="ip-attach-mimetype" type="hidden" value=""/>
+          <input id="ip-attach-filename" type="hidden" value=""/>
+          <div class="flex items-center gap-3 mt-2 pl-1">
+            <span class="text-[11px] text-gray-400">PDF, Excel or image, max 3MB · posts immediately</span>
+            <div class="flex-1"></div>
+            <button data-act="add-impl-update" data-cid="${c.id}" data-mid="${mod.id}" data-phase="${esc(phaseName)}" title="Post update" class="w-8 h-8 rounded-full bg-[#0e7490] hover:bg-[#0d3d4f] flex items-center justify-center transition shrink-0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
         </div>
-        <div id="ip-attach-preview" class="hidden mb-2 text-xs text-[#0e7490] bg-[#0e7490]/8 px-2.5 py-1.5 rounded-xl flex items-center gap-2">
-          <span id="ip-attach-icon">📎</span><span id="ip-attach-name" class="flex-1 truncate"></span>
-          <button data-act="clear-attach" data-prefix="ip" class="text-gray-400 hover:text-rose-500 shrink-0">✕</button>
-        </div>
-        <div class="text-[10px] text-gray-400 mb-2">PDF, Excel (.xlsx/.xls) or image · max 3MB</div>
-        <input id="ip-attach-url" type="hidden" value=""/>
-        <input id="ip-attach-mimetype" type="hidden" value=""/>
-        <input id="ip-attach-filename" type="hidden" value=""/>
-        <button data-act="add-impl-update" data-cid="${c.id}" data-mid="${mod.id}" data-phase="${esc(phaseName)}" class="w-full text-sm font-medium bg-gray-50 hover:bg-[#0e7490]/10 hover:text-[#0e7490] text-gray-700 border border-gray-200 rounded-xl py-2 transition">+ Add Update</button>
       </div>`:''}
-      <div class="space-y-3 max-h-[440px] overflow-y-auto pr-1">
+      <div class="space-y-4 max-h-[440px] overflow-y-auto pr-1">
         ${!ph.updates.length?`<div class="text-sm text-gray-400 text-center py-8">${emptyIcon('clock')}No updates yet</div>`:
         ph.updates.map((t,idx,arr)=>{
           const isEditing=S.editingTimelineId===t.id;
           const hasHistory=t.edits&&t.edits.length>0;
           const isExpanded=S.expandedHistory.has(t.id);
           if(isEditing){
-            return`<div class="relative pl-5 ${idx<arr.length-1?'pb-3 border-l-2 border-gray-100':''}">
-              <div class="absolute -left-[5px] top-1 w-2.5 h-2.5 bg-[#0e7490] rounded-full border-2 border-white ring-1 ring-[#0e7490]/30"></div>
-              <div class="text-xs font-semibold text-[#0e7490] mb-1">${esc(t.date)} · ${esc(t.addedBy||'')}</div>
-              <textarea id="edit-tl-${t.id}" rows="3" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none mb-2">${esc(t.update)}</textarea>
-              <div class="flex gap-2 mb-1">
-                <input id="eat-label-${t.id}" type="text" placeholder="File label (optional)" value="${esc(t.attachment?.label||t.attachment?.fileName||'')}" class="flex-1 border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
-                <label class="cursor-pointer flex items-center gap-1 text-xs font-medium text-[#0e7490] bg-[#0e7490]/8 border border-[#0e7490]/30 px-2.5 py-1.5 rounded-xl hover:bg-[#0e7490]/15 transition whitespace-nowrap shrink-0">
-                  📎 ${t.attachment?.url?'Replace':'Attach'}
-                  <input id="eat-file-${t.id}" type="file" class="hidden" accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp" data-tid="${t.id}"/>
-                </label>
-              </div>
-              ${t.attachment?.url?`<div id="eat-preview-${t.id}" class="mb-1 text-xs text-[#0e7490] bg-[#0e7490]/8 px-2 py-1 rounded-xl flex items-center gap-2">
-                <span>${fileIcon(t.attachment.url,t.attachment.mimeType||'')}</span>
-                <span class="flex-1 truncate" id="eat-name-${t.id}">${esc(t.attachment.fileName||t.attachment.label||'Attachment')}</span>
-                <button data-act="clear-attach" data-prefix="eat" data-tid="${t.id}" class="text-gray-400 hover:text-rose-500 shrink-0">✕</button>
-              </div>`:`<div id="eat-preview-${t.id}" class="hidden mb-1 text-xs text-[#0e7490] bg-[#0e7490]/8 px-2 py-1 rounded-xl flex items-center gap-2">
-                <span id="eat-icon-${t.id}">📎</span>
-                <span class="flex-1 truncate" id="eat-name-${t.id}"></span>
-                <button data-act="clear-attach" data-prefix="eat" data-tid="${t.id}" class="text-gray-400 hover:text-rose-500 shrink-0">✕</button>
-              </div>`}
-              <input id="eat-url-${t.id}" type="hidden" value="${esc(t.attachment?.url||'')}"/>
-              <input id="eat-mimetype-${t.id}" type="hidden" value="${esc(t.attachment?.mimeType||'')}"/>
-              <input id="eat-filename-${t.id}" type="hidden" value="${esc(t.attachment?.fileName||'')}"/>
-              <div class="flex gap-2 mt-2">
-                <button data-act="cancel-edit-timeline" class="flex-1 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg py-1.5 hover:bg-gray-50 transition">Cancel</button>
-                <button data-act="save-edit-impl-update" data-cid="${c.id}" data-mid="${mod.id}" data-phase="${esc(phaseName)}" data-tid="${t.id}" class="flex-1 text-xs font-semibold text-white bg-[#0e7490] rounded-lg py-1.5 hover:bg-[#0d3d4f] transition">Save Edit</button>
+            return`<div class="flex gap-2.5">
+              ${avatarChip(t.addedBy)}
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-semibold text-[#0e7490] mb-1">${esc(t.date)} · ${esc(t.addedBy||'')}</div>
+                <textarea id="edit-tl-${t.id}" rows="3" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none mb-2">${esc(t.update)}</textarea>
+                <div class="flex gap-2 mb-1">
+                  <input id="eat-label-${t.id}" type="text" placeholder="File label (optional)" value="${esc(t.attachment?.label||t.attachment?.fileName||'')}" class="flex-1 border border-gray-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+                  <label class="cursor-pointer flex items-center gap-1 text-xs font-medium text-[#0e7490] bg-[#0e7490]/8 border border-[#0e7490]/30 px-2.5 py-1.5 rounded-xl hover:bg-[#0e7490]/15 transition whitespace-nowrap shrink-0">
+                    📎 ${t.attachment?.url?'Replace':'Attach'}
+                    <input id="eat-file-${t.id}" type="file" class="hidden" accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp" data-tid="${t.id}"/>
+                  </label>
+                </div>
+                ${t.attachment?.url?`<div id="eat-preview-${t.id}" class="mb-1 text-xs text-[#0e7490] bg-[#0e7490]/8 px-2 py-1 rounded-xl flex items-center gap-2">
+                  <span>${fileIcon(t.attachment.url,t.attachment.mimeType||'')}</span>
+                  <span class="flex-1 truncate" id="eat-name-${t.id}">${esc(t.attachment.fileName||t.attachment.label||'Attachment')}</span>
+                  <button data-act="clear-attach" data-prefix="eat" data-tid="${t.id}" class="text-gray-400 hover:text-rose-500 shrink-0">✕</button>
+                </div>`:`<div id="eat-preview-${t.id}" class="hidden mb-1 text-xs text-[#0e7490] bg-[#0e7490]/8 px-2 py-1 rounded-xl flex items-center gap-2">
+                  <span id="eat-icon-${t.id}">📎</span>
+                  <span class="flex-1 truncate" id="eat-name-${t.id}"></span>
+                  <button data-act="clear-attach" data-prefix="eat" data-tid="${t.id}" class="text-gray-400 hover:text-rose-500 shrink-0">✕</button>
+                </div>`}
+                <input id="eat-url-${t.id}" type="hidden" value="${esc(t.attachment?.url||'')}"/>
+                <input id="eat-mimetype-${t.id}" type="hidden" value="${esc(t.attachment?.mimeType||'')}"/>
+                <input id="eat-filename-${t.id}" type="hidden" value="${esc(t.attachment?.fileName||'')}"/>
+                <div class="flex gap-2 mt-2">
+                  <button data-act="cancel-edit-timeline" class="flex-1 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg py-1.5 hover:bg-gray-50 transition">Cancel</button>
+                  <button data-act="save-edit-impl-update" data-cid="${c.id}" data-mid="${mod.id}" data-phase="${esc(phaseName)}" data-tid="${t.id}" class="flex-1 text-xs font-semibold text-white bg-[#0e7490] rounded-lg py-1.5 hover:bg-[#0d3d4f] transition">Save Edit</button>
+                </div>
               </div>
             </div>`;
           }
-          return`<div class="relative pl-5 ${idx<arr.length-1?'pb-3 border-l-2 border-gray-100':''}">
-          <div class="absolute -left-[5px] top-1 w-2.5 h-2.5 bg-[#0e7490] rounded-full border-2 border-white ring-1 ring-[#0e7490]/30"></div>
-          <div class="flex items-start justify-between gap-2">
-            <div class="text-xs font-semibold text-[#0e7490] mb-1">${esc(t.date)} · ${esc(t.addedBy||'')}</div>
-            <div class="flex items-center gap-2 shrink-0">
-              ${can('edit')?`<button data-act="edit-timeline" data-tid="${t.id}" class="text-[10px] text-gray-300 hover:text-[#0e7490]">Edit</button>`:''}
-              ${can('admin')?`<button data-act="delete-impl-update" data-cid="${c.id}" data-mid="${mod.id}" data-phase="${esc(phaseName)}" data-tid="${t.id}" class="text-[10px] text-gray-300 hover:text-rose-500">Delete</button>`:''}
-              <button data-act="copy-update" data-text="${esc(t.update)}" class="text-[10px] text-gray-300 hover:text-[#0e7490]">Copy</button>
+          return`<div class="flex gap-2.5">
+          ${avatarChip(t.addedBy)}
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline gap-2 flex-wrap">
+              <span class="text-sm font-medium text-gray-900">${esc(t.addedBy||'Unknown')}</span>
+              <span class="text-xs text-gray-400">${esc(t.date)}${t.addedAt?` · ${fmtDate(t.addedAt)}`:''}</span>
+              ${hasHistory?`<button data-act="toggle-history" data-tid="${t.id}" class="text-xs text-amber-600 hover:text-amber-700 font-medium">edited${t.edits.length>1?` (${t.edits.length}×)`:''} — ${isExpanded?'hide':'view'}</button>`:''}
             </div>
+            <div class="bg-gray-50 rounded-2xl rounded-tl-md px-3.5 py-2.5 mt-1 text-sm text-gray-700 leading-relaxed">${esc(t.update)}</div>
+            ${t.attachment?.url?attachmentChip(t.attachment):''}
+            <div class="flex items-center gap-3 mt-1.5 pl-1">
+              ${can('edit')?`<button data-act="edit-timeline" data-tid="${t.id}" class="text-[11px] text-gray-400 hover:text-[#0e7490]">Edit</button>`:''}
+              ${can('admin')?`<button data-act="delete-impl-update" data-cid="${c.id}" data-mid="${mod.id}" data-phase="${esc(phaseName)}" data-tid="${t.id}" class="text-[11px] text-gray-400 hover:text-rose-500">Delete</button>`:''}
+              <button data-act="copy-update" data-text="${esc(t.update)}" class="text-[11px] text-gray-400 hover:text-[#0e7490]">Copy</button>
+            </div>
+            ${isExpanded&&hasHistory?`<div class="mt-2 pl-3 border-l-2 border-amber-200 space-y-2">
+              ${[...t.edits].reverse().map(e=>`<div class="text-xs"><div class="text-gray-400 mb-0.5">${fmtDate(e.editedAt)} · ${esc(e.editedBy||'')} changed it from:</div><div class="text-gray-500">${esc(e.text)}</div></div>`).join('')}
+            </div>`:''}
           </div>
-          <p class="text-sm text-gray-700 leading-relaxed">${esc(t.update)}</p>
-          ${t.attachment?.url?attachmentChip(t.attachment):''}
-          <div class="flex items-center gap-3 mt-1 flex-wrap">
-            ${t.addedAt?`<span class="text-xs text-gray-400">${fmtDate(t.addedAt)}</span>`:''}
-            ${hasHistory?`<button data-act="toggle-history" data-tid="${t.id}" class="text-xs text-amber-600 hover:text-amber-700 font-medium">✎ edited${t.edits.length>1?` (${t.edits.length}×)`:''} — ${isExpanded?'hide':'view'} history</button>`:''}
-          </div>
-          ${isExpanded&&hasHistory?`<div class="mt-2 pl-3 border-l-2 border-amber-200 space-y-2">
-            ${[...t.edits].reverse().map(e=>`<div class="text-xs"><div class="text-gray-400 mb-0.5">${fmtDate(e.editedAt)} · ${esc(e.editedBy||'')} changed it from:</div><div class="text-gray-500">${esc(e.text)}</div></div>`).join('')}
-          </div>`:''}
         </div>`;
         }).join('')}
       </div>

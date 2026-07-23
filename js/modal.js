@@ -35,7 +35,7 @@ function renderModal(){
         <select id="m4" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${ROLES.map(r=>`<option>${r}</option>`).join('')}</select></div>
     </div>`;
   } else if(m.type==='my-profile'){
-    title='My Profile';btnLabel='Save Changes';
+    title='My Profile';btnLabel='Save Profile';
     body=`<div class="space-y-4">
       <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
         <div class="w-10 h-10 rounded-full bg-[#0e7490] text-white flex items-center justify-center text-sm font-bold shrink-0">${esc((S.user?.name||'?')[0])}</div>
@@ -72,7 +72,7 @@ function renderModal(){
       <p class="text-xs text-gray-400 mt-1">This becomes their login password immediately. Tell them to change it after first login via My Profile.</p></div>
     </div>`;
   } else if(m.type==='edit-user'){
-    title='Edit User';btnLabel='Save Changes';
+    title='Edit User';btnLabel='Save User';
     body=`<div class="space-y-3">
       <div><label class="block text-xs font-medium text-gray-500 mb-1">Username</label><div class="px-3 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 font-mono">${esc(m.username||'')}</div></div>
       <div><label class="block text-xs font-medium text-gray-500 mb-1">Full Name *</label><input id="eu-name" type="text" value="${esc(m.uname||'')}" autocomplete="off" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
@@ -148,7 +148,7 @@ function renderModal(){
     btnLabel='Save';
   } else if(m.type==='add-ams-entry'||m.type==='edit-ams-entry'){
     const isEdit=m.type==='edit-ams-entry';
-    title=isEdit?'Edit Entry':'Add AMS Entry';btnLabel=isEdit?'Save Changes':'Add Entry';
+    title=isEdit?'Edit Entry':'Add AMS Entry';btnLabel=isEdit?'Save Entry':'Add Entry';
     const fg=(id,label,el,hint='')=>`<div><label class="block text-xs font-medium text-gray-500 mb-1">${label}${hint?`<span class="text-gray-400 font-normal ml-1">${hint}</span>`:''}</label>${el}</div>`;
     const inp=(id,type,val='',ph='',extra='')=>`<input id="${id}" type="${type}" value="${esc(val)}" placeholder="${ph}" ${extra} class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>`;
     const sel=(id,opts,cur='')=>`<select id="${id}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${opts.map(o=>`<option${o===cur?' selected':''}>${o}</option>`).join('')}</select>`;
@@ -205,7 +205,7 @@ function renderModal(){
     </div>`;
   } else if(m.type==='add-milestone'||m.type==='edit-milestone'){
     const isEdit=m.type==='edit-milestone';
-    title=isEdit?'Edit Milestone':'Add Milestone';btnLabel=isEdit?'Save Changes':'Add Milestone';
+    title=isEdit?'Edit Milestone':'Add Milestone';btnLabel=isEdit?'Save Milestone':'Add Milestone';
     body=`<div class="space-y-3">
       <div><label class="block text-xs font-medium text-gray-500 mb-1">Milestone Name *</label><input id="ms-name" type="text" value="${esc(m.msName||'')}" placeholder="e.g. API spec agreed, Signoff received" autocomplete="off" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
       <div class="grid grid-cols-2 gap-3">
