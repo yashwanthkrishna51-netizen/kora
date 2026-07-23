@@ -4,19 +4,8 @@
 // Frontend interface unchanged: POST with { path, content, sha, message }
 // sha is accepted but ignored.
 
-const crypto = require('crypto');
-
-function isValidToken(token, secret) {
-  if (!token || !secret) return false;
-  const dot = token.lastIndexOf('.');
-  if (dot === -1) return false;
-  const payload = token.slice(0, dot);
-  const sig = token.slice(dot + 1);
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-  const a = Buffer.from(expected, 'hex');
-  const b = Buffer.from(sig.length === expected.length ? sig : expected, 'hex');
-  return crypto.timingSafeEqual(a, b) && sig.length === expected.length;
-}
+const bcrypt = require('bcryptjs');
+const { validateToken } = require('./_auth');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -28,8 +17,9 @@ module.exports = async function handler(req, res) {
   const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, INTEGTRACK_SECRET } = process.env;
 
   const token = req.headers['x-session-token'];
-  if (!isValidToken(token, INTEGTRACK_SECRET)) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const check = await validateToken(token, INTEGTRACK_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  if (!check.valid) {
+    return res.status(401).json({ error: 'Unauthorized', reason: check.reason });
   }
 
   const { path, content } = req.body || {};
@@ -102,15 +92,22 @@ module.exports = async function handler(req, res) {
     }
 
     if (path === 'data/users.json') {
-      const rows = data.map(u => ({
+      // Each incoming user row has EITHER:
+      //   - a plaintext `password` field (this user's password is being set/changed
+      //     right now) — must be bcrypt-hashed here, server-side, never trust a
+      //     client-computed hash
+      //   - or an existing `passwordHash` field (untouched from a previous read,
+      //     already hashed in whatever scheme it's currently in) — passed through
+      //     as-is, not re-hashed
+      const rows = await Promise.all(data.map(async u => ({
         id: u.id,
         username: u.username,
         name: u.name,
         email: u.email || '',
         role: u.role,
-        password_hash: u.passwordHash,
+        password_hash: u.password ? await bcrypt.hash(u.password, 10) : u.passwordHash,
         created_at: u.createdAt || new Date().toISOString(),
-      }));
+      })));
 
       if (rows.length > 0) {
         const upsertRes = await fetch(`${SUPABASE_URL}/rest/v1/users`, {

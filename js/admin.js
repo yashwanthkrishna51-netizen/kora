@@ -173,6 +173,7 @@ function renderAdminUsers(){
   <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
     ${adminSearchBar('Search name, username, or email…')}
     <div class="flex gap-2">
+      <button data-act="force-logout-all" class="bg-rose-50 border border-rose-200 text-rose-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-rose-100 transition whitespace-nowrap">🔒 Force Logout All</button>
       <button data-act="send-welcome-all" class="bg-green-50 border border-green-200 text-green-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-green-100 transition whitespace-nowrap">✉ Send Welcome to All</button>
       <button data-act="modal-open" data-modal="bulk-import-users" class="bg-amber-50 border border-amber-200 text-amber-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-amber-100 transition whitespace-nowrap">⬆ Import (CSV)</button>
       <button data-act="modal-open" data-modal="add-user" class="btn-grad text-white text-sm font-semibold px-4 py-2 rounded-xl transition whitespace-nowrap">+ Add User</button>
@@ -196,7 +197,10 @@ function renderAdminUsers(){
             ?`<div class="flex items-center justify-end gap-1">
                 <button data-act="edit-user" data-uid="${u.id}" class="w-7 h-7 flex items-center justify-center rounded-lg text-[#0e7490] hover:bg-[#0e7490]/10 transition" title="Edit user">✎</button>
                 <button data-act="send-welcome-one" data-uid="${u.id}" class="w-7 h-7 flex items-center justify-center rounded-lg text-green-600 hover:bg-green-50 transition" title="Send welcome email">✉</button>
-                ${adminRowMenu([{label:'Delete User',act:'delete-user',extra:`data-uid="${u.id}"`,danger:true}])}
+                ${adminRowMenu([
+                  {label:'Force Logout',act:'force-logout-user',extra:`data-uid="${u.id}"`},
+                  {label:'Delete User',act:'delete-user',extra:`data-uid="${u.id}"`,danger:true}
+                ])}
               </div>`
             :`<span class="text-xs text-gray-300">current user</span>`}</td>
         </tr>`).join(''):`<tr><td colspan="5" class="text-center py-8 text-gray-400 text-sm">${q?'No users match your search':'No users yet'}</td></tr>`}

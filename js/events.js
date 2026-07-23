@@ -11,10 +11,9 @@ document.addEventListener('click',async e=>{
     if(!u||!p){if(errEl){errEl.textContent='Enter username and password';errEl.classList.remove('hidden');}return;}
     setBtnBusy(el,'Signing in…');
     if(errEl)errEl.classList.add('hidden');
-    const hash=await sha256(p);
     let ld;
     try{
-      const lr=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,passwordHash:hash})});
+      const lr=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
       ld=await lr.json();
       if(!lr.ok){clearBtnBusy(el);const e2=document.getElementById('lerr');if(e2){e2.textContent=ld.error||'Login failed';e2.classList.remove('hidden');}return;}
     }catch(err){clearBtnBusy(el);const e2=document.getElementById('lerr');if(e2){e2.textContent='Connection failed. Check repo/env setup.';e2.classList.remove('hidden');}return;}
@@ -445,6 +444,14 @@ document.addEventListener('click',async e=>{
     if(!can('admin'))return;const u=S.users.find(x=>x.id===el.dataset.uid);if(!u||u.id===S.user?.id)return;
     S.modal={type:'confirm',msg:`Delete user "${u.name}" (${u.username})?`,_act:'delete-user',_uid:u.id};render();return;
   }
+  if(act==='force-logout-all'){
+    if(!can('admin'))return;
+    S.modal={type:'confirm',msg:'Force logout every user, including yourself? Everyone will need to sign in again.',_act:'force-logout-all'};render();return;
+  }
+  if(act==='force-logout-user'){
+    if(!can('admin'))return;const u=S.users.find(x=>x.id===el.dataset.uid);if(!u)return;
+    S.modal={type:'confirm',msg:`Force logout "${u.name}" (${u.username})? They'll need to sign in again.`,_act:'force-logout-user',_uid:u.id};render();return;
+  }
   if(act==='modal-confirm'){
     const m=S.modal;if(!m||m.busy)return;
     if(m.type==='confirm'){
@@ -473,6 +480,23 @@ document.addEventListener('click',async e=>{
         scheduleUndo(`${rem.name} removed`,async()=>{S.users.splice(idx,0,rem);await saveUsers(`Restore ${rem.username}`);render();});
         try{await saveUsers(`Delete ${rem.username}`);}
         catch(err){S.users.splice(idx,0,rem);showToast('Failed: '+err.message,'error');render();}
+      }
+      else if(m._act==='force-logout-all'){
+        try{
+          const r=await fetch('/api/force-logout',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':S.sessionToken||''},body:JSON.stringify({scope:'all'})});
+          const d=await r.json();
+          if(!r.ok)throw new Error(d.error||'Force logout failed');
+          S.modal=null;showToast(`${d.affected} user${d.affected!==1?'s':''} logged out — including you`);
+          clearSession();S.user=null;S.clients=[];S.users=[];S.usersForDropdown=[];S.shas={clients:null,users:null};S.sessionToken=null;navigate('login');
+        }catch(err){S.modal=null;showToast('Failed: '+err.message,'error');render();}
+      }
+      else if(m._act==='force-logout-user'){
+        try{
+          const r=await fetch('/api/force-logout',{method:'POST',headers:{'Content-Type':'application/json','x-session-token':S.sessionToken||''},body:JSON.stringify({scope:'user',userId:m._uid})});
+          const d=await r.json();
+          if(!r.ok)throw new Error(d.error||'Force logout failed');
+          S.modal=null;showToast('User logged out ✓');render();
+        }catch(err){S.modal=null;showToast('Failed: '+err.message,'error');render();}
       }
       else if(m._act==='delete-impl-client'){
         const idx=S.clients.findIndex(x=>x.id===m._id);if(idx<0){S.modal=null;render();return;}
@@ -583,6 +607,13 @@ document.addEventListener('click',async e=>{
       try{await saveClients(`Add ${name} to ${c.name}`);S.modal=null;showToast(`${name} added`);render();}
       catch(err){c.integrations.pop();S.modal=null;showToast('Failed: '+err.message,'error');render();}
     } else if(m.type==='my-profile'){
+      // NOT changed in this pass — still uses the old client-side sha256 compare.
+      // Fixing properly requires a small dedicated "verify current password"
+      // server endpoint; retrofitting it here risked breaking password-change
+      // for any user already lazily-migrated to bcrypt (a bcrypt hash can never
+      // equal a client-computed sha256 hash, which would permanently lock them
+      // out of changing their own password). Flagged as a follow-up, not fixed
+      // tonight rather than shipped half-working.
       const currPass=document.getElementById('pr-curr')?.value;
       const newPass=document.getElementById('pr-new')?.value;
       const confPass=document.getElementById('pr-conf')?.value;
@@ -610,10 +641,9 @@ document.addEventListener('click',async e=>{
       const targets=(m.targets||[]).filter(u=>u.email);
       if(!targets.length){showToast('No recipients have an email address set','error');return;}
       S.modal={...m,busy:true};render();
-      // Hash and update passwords for all recipients
-      const passHash=await sha256(pass);
-      targets.forEach(t=>{const u=S.users.find(x=>x.id===t.id);if(u)u.passwordHash=passHash;});
-      try{await saveUsers('Set passwords for welcome email');}catch(e){targets.forEach(t=>{const u=S.users.find(x=>x.id===t.id);if(u)u.passwordHash='';});S.modal=null;showToast('Failed to update passwords','error');render();return;}
+      // Set passwords for all recipients — sent plaintext, hashed server-side (bcrypt)
+      targets.forEach(t=>{const u=S.users.find(x=>x.id===t.id);if(u){u.password=pass;delete u.passwordHash;}});
+      try{await saveUsers('Set passwords for welcome email');targets.forEach(t=>{const u=S.users.find(x=>x.id===t.id);if(u)delete u.password;});}catch(e){targets.forEach(t=>{const u=S.users.find(x=>x.id===t.id);if(u)delete u.password;});S.modal=null;showToast('Failed to update passwords','error');render();return;}
       // Send emails
       let sent=0,failed=0;
       await Promise.all(targets.map(async t=>{
@@ -635,32 +665,32 @@ document.addEventListener('click',async e=>{
       const snapshot={name:u.name,email:u.email,passwordHash:u.passwordHash};
       u.name=newName;u.email=newEmail;
       S.modal={...m,busy:true};render();
-      if(newPass){u.passwordHash=await sha256(newPass);}
+      if(newPass){u.password=newPass;delete u.passwordHash;}
       try{
         await saveUsers(`Edit user: ${u.username}`);
+        delete u.password;
         // refresh dropdown with updated name
         S.usersForDropdown=S.users.map(x=>({id:x.id,name:x.name||x.username,role:x.role,username:x.username}));
         // if editing self, update session
         if(u.id===S.user?.id){S.user.name=newName;persistSession(S.sessionToken,S.user);}
         S.modal=null;showToast(`${newName} updated ✓`);render();
-      }catch(err){u.name=snapshot.name;u.email=snapshot.email;u.passwordHash=snapshot.passwordHash;S.modal=null;showToast('Failed: '+err.message,'error');render();}
+      }catch(err){u.name=snapshot.name;u.email=snapshot.email;u.passwordHash=snapshot.passwordHash;delete u.password;S.modal=null;showToast('Failed: '+err.message,'error');render();}
     } else if(m.type==='add-user'){
       const username=document.getElementById('m1')?.value.trim(),name=document.getElementById('m2')?.value.trim(),password=document.getElementById('m3')?.value,role=document.getElementById('m4')?.value,email=document.getElementById('m5')?.value.trim()||'';
       if(!username||!name||!password){showToast('Username, name and password are required','error');return;}
       if(S.users.find(x=>x.username===username)){showToast('Username taken','error');return;}
       S.modal={...m,busy:true};render();
-      const hash=await sha256(password);
-      const nu={id:uid(),username,name,email,passwordHash:hash,role};S.users.push(nu);
-      try{await saveUsers(`Add ${username}`);S.usersForDropdown=S.users.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));S.modal=null;showToast(`${name} added`);render();}
+      const nu={id:uid(),username,name,email,password,role};S.users.push(nu);
+      try{await saveUsers(`Add ${username}`);delete nu.password;S.usersForDropdown=S.users.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));S.modal=null;showToast(`${name} added`);render();}
       catch(err){S.users.pop();S.modal=null;showToast('Failed: '+err.message,'error');render();}
     } else if(m.type==='bulk-import-users'){
       const valid=(m.csvRows||[]).filter(r=>!r.error);
       if(!valid.length){showToast('No valid rows to import','error');return;}
       S.modal={...m,busy:true};render();
-      const newUsers=await Promise.all(valid.map(async r=>({id:uid(),username:r.username,name:r.name,email:r.email||'',passwordHash:await sha256(r.password),role:r.role})));
+      const newUsers=valid.map(r=>({id:uid(),username:r.username,name:r.name,email:r.email||'',password:r.password,role:r.role}));
       const prev=JSON.parse(JSON.stringify(S.users));
       S.users=[...S.users,...newUsers];
-      try{await saveUsers(`Bulk import ${newUsers.length} users`);S.usersForDropdown=S.users.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));S.modal=null;showToast(`${newUsers.length} user${newUsers.length!==1?'s':''} imported ✓`);render();}
+      try{await saveUsers(`Bulk import ${newUsers.length} users`);newUsers.forEach(u=>delete u.password);S.usersForDropdown=S.users.map(u=>({id:u.id,name:u.name||u.username,role:u.role,username:u.username}));S.modal=null;showToast(`${newUsers.length} user${newUsers.length!==1?'s':''} imported ✓`);render();}
       catch(err){S.users=prev;S.modal=null;showToast('Import failed: '+err.message,'error');render();}
     } else if(m.type==='rename-client'){
       const c=S.clients.find(x=>x.id===m.cid);if(!c)return;
