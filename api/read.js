@@ -4,11 +4,10 @@
 // Frontend needs zero changes.
 
 const { validateToken } = require('./_auth');
+const { applyCors } = require('./_cors');
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-session-token');
+  applyCors(req, res, 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
 
@@ -68,7 +67,12 @@ module.exports = async function handler(req, res) {
       if (!r.ok) return res.status(r.status).json({ error: 'Supabase read error' });
       const rows = await r.json();
 
-      const users = rows.map(row => ({
+      // Only admins get the full record (needed for the Admin > Users panel,
+      // including passwordHash so it can be passed through unchanged on save).
+      // Non-admins only need id/name/role/username for assignee dropdowns —
+      // no email, no password hash, no created_at should ever reach them.
+      const isAdmin = check.payload.role === 'admin';
+      const users = rows.map(row => isAdmin ? {
         id: row.id,
         username: row.username,
         name: row.name,
@@ -76,7 +80,12 @@ module.exports = async function handler(req, res) {
         role: row.role,
         passwordHash: row.password_hash,
         createdAt: row.created_at,
-      }));
+      } : {
+        id: row.id,
+        username: row.username,
+        name: row.name,
+        role: row.role,
+      });
 
       const content = Buffer.from(JSON.stringify(users)).toString('base64');
       return res.status(200).json({ content, sha: 'supabase' });

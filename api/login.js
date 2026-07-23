@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { signToken } = require('./_auth');
 const { logAudit, clientIp } = require('./_audit');
+const { applyCors } = require('./_cors');
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS_BEFORE_LOCK = 5;
@@ -27,9 +28,7 @@ function isBcryptHash(hash) {
 }
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  applyCors(req, res, 'POST, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 

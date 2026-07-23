@@ -7,15 +7,14 @@
 //   export        '1' -> returns up to 5000 matching rows, unpaginated, for client-side download
 
 const { validateToken } = require('./_auth');
+const { applyCors } = require('./_cors');
 
 const EXPORT_CAP = 5000;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-session-token');
+  applyCors(req, res, 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
 

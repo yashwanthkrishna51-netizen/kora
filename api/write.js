@@ -7,11 +7,10 @@
 const bcrypt = require('bcryptjs');
 const { validateToken } = require('./_auth');
 const { logAudit, clientIp } = require('./_audit');
+const { applyCors } = require('./_cors');
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-session-token');
+  applyCors(req, res, 'POST, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
@@ -26,6 +25,20 @@ module.exports = async function handler(req, res) {
   const { path, content, message, screen } = req.body || {};
   if (!path || content === undefined) {
     return res.status(400).json({ error: 'path and content required' });
+  }
+
+  // Server-side role enforcement — mirrors the UI's permission model instead
+  // of just trusting the UI to hide buttons. Before this, any authenticated
+  // user of ANY role (including viewer) could write anything by calling this
+  // endpoint directly, bypassing the frontend entirely.
+  //   - viewers can never write anything
+  //   - only admins can write users.json (user management is admin-only in the UI)
+  //   - editors and admins can write clients.json
+  if (check.payload.role === 'viewer') {
+    return res.status(403).json({ error: 'Viewers cannot make changes' });
+  }
+  if (path === 'data/users.json' && check.payload.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin only' });
   }
 
   const auditBase = {
