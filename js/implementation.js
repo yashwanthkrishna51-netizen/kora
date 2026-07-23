@@ -51,10 +51,6 @@ function renderImplClientDetail(clientId){
   const sel=S.bulkSelected;
   const selCount=sel.size;
   return`<div class="k-page fade">
-  <div class="flex items-center gap-2 text-sm text-gray-400 mb-4">
-    <button data-act="nav-impl" class="hover:text-[#0e7490]">Implementations</button><span>›</span>
-    <span class="text-gray-900 font-medium">${esc(c.name)}</span>
-  </div>
   <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
     <div>
       <div class="flex items-center gap-3 flex-wrap">
@@ -146,11 +142,6 @@ function renderImplPhaseDetail(clientId,moduleId,phaseName){
   if(!c||!mod||!ph)return`<div class="p-8 text-gray-400">Not found</div>`;
   if(!ph.updates)ph.updates=[];
   return`<div class="max-w-6xl mx-auto px-6 py-7 fade">
-  <div class="flex items-center gap-2 text-sm text-gray-400 mb-4 flex-wrap">
-    <button data-act="nav-impl" class="hover:text-[#0e7490]">Implementations</button><span>›</span>
-    <button data-act="open-impl-client" data-id="${c.id}" class="hover:text-[#0e7490]">${esc(c.name)}</button><span>›</span>
-    <span class="text-gray-900 font-medium truncate max-w-xs" title="${esc(mod.name)} · ${esc(phaseName)}">${esc(mod.name)} · ${esc(phaseName)}</span>
-  </div>
   <div class="flex items-center gap-3 mb-2 flex-wrap">
     <h1 class="text-xl font-bold text-gray-900">${esc(mod.name)} — ${esc(phaseName)}</h1>${sbadge(ph.status)}
   </div>

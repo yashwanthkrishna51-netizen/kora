@@ -65,10 +65,6 @@ function renderClientDetail(clientId){
   const sorted=sortIntegs(fl);
   const cols=[['name','Integration'],['status','Status'],['assignee','Assignee'],['due','Due Date'],['lastUpdate','Last Update']];
   return`<div class="k-page fade">
-  <div class="flex items-center gap-2 text-sm text-gray-400 mb-4">
-    <button data-act="nav-clients" class="hover:text-[#0e7490]">Clients</button><span>›</span>
-    <span class="text-gray-900 font-medium">${esc(c.name)}</span>
-  </div>
   <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
     <div><h1 class="text-xl font-bold text-gray-900">${esc(c.name)}</h1>${c.description?`<p class="text-sm text-gray-400 mt-0.5">${esc(c.description)}</p>`:''}</div>
     <div class="flex items-center gap-2">
@@ -140,11 +136,6 @@ function renderIntegDetail(clientId,integId){
   const i=c?.integrations.find(x=>x.id===integId);
   if(!c||!i)return`<div class="p-8 text-gray-400">Not found</div>`;
   return`<div class="max-w-6xl mx-auto px-6 py-7 fade">
-  <div class="flex items-center gap-2 text-sm text-gray-400 mb-4">
-    <button data-act="nav-clients" class="hover:text-[#0e7490]">Clients</button><span>›</span>
-    <button data-act="open-client" data-id="${c.id}" class="hover:text-[#0e7490]">${esc(c.name)}</button><span>›</span>
-    <span class="text-gray-900 font-medium truncate max-w-xs" title="${esc(i.name)}">${esc(i.name)}</span>
-  </div>
   <div class="flex items-center gap-3 mb-2 flex-wrap">
     <h1 class="text-xl font-bold text-gray-900">${esc(i.name)}</h1>${sbadge(i.status)}${overdueBadge(i)}
   </div>

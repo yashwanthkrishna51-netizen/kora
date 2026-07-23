@@ -85,10 +85,6 @@ function renderAmsClientDetail(clientId){
   const sorted=[...t.log].sort((a,b)=>entryDate(b).localeCompare(entryDate(a)));
   const COLS=['#','Date Raised','Due Date','Raised / Attended By','Module / Meeting','Project','Description','Type','Query Level','Dependencies','Status','RAG','Solution Discussed','Mode of Support','Hours'];
   return`<div class="max-w-full mx-auto px-6 py-7 fade">
-  <div class="flex items-center gap-2 text-sm text-gray-400 mb-4">
-    <button data-act="nav-ams" class="hover:text-[#0e7490]">AMS</button><span>›</span>
-    <span class="text-gray-900 font-medium">${esc(c.name)}</span>
-  </div>
   <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
     <div>
       <div class="flex items-center gap-3 mb-0.5"><h1 class="text-xl font-bold text-gray-900">${esc(c.name)}</h1>${(()=>{const r=amsClientRag(c);return r?ragBadge(r):''})()}</div>
