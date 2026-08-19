@@ -5,7 +5,9 @@ function renderModal() {
   if (m.type === 'add-client') {
     title = 'Add Client';
     body = `<div class="space-y-3">
-      <div><label class="block text-xs font-medium text-gray-500 mb-1">Client Name *</label><input id="m1" type="text" placeholder="e.g. HDFC Bank" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      ${clientPickerHtml(() => false)}
+      <p class="text-xs text-gray-400 text-center">— or create a new client —</p>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">New Client Name</label><input id="m1" type="text" placeholder="e.g. HDFC Bank" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
       <div><label class="block text-xs font-medium text-gray-500 mb-1">Description</label><textarea id="m2" rows="2" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none"></textarea></div>
     </div>`;
   } else if (m.type === 'add-integ') {

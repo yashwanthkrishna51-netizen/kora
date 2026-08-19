@@ -867,9 +867,21 @@ document.addEventListener('click', async e => {
       S.modal = null; render();
       exportConsolidatedPdf(selected, sections);
     } else if (m.type === 'add-client') {
+      const existingId = document.getElementById('m0')?.value;
+      if (existingId) {
+        const c = S.clients.find(x => x.id === existingId); if (!c) return;
+        // Unlike Implementation/AMS, Integrations isn't opt-in — every
+        // client already has `integrations: []` from the moment they're
+        // created (see the "new client" branch below), so there's nothing
+        // to enable here. Picking an existing client just takes you to
+        // them, replacing what used to be a hard "already exists" error
+        // if you typed their name instead.
+        S.modal = null; showToast(`${c.name} already has Integrations — opening their page`); navigate('client-detail', { clientId: c.id });
+        return;
+      }
       const name = document.getElementById('m1')?.value.trim(), desc = document.getElementById('m2')?.value.trim();
-      if (!name) { showToast('Name required', 'error'); return; }
-      if (S.clients.find(x => x.name.toLowerCase() === name.toLowerCase())) { showToast(`"${name}" already exists as a client`, 'error'); return; }
+      if (!name) { showToast('Pick a client above or enter a new name', 'error'); return; }
+      if (S.clients.find(x => x.name.toLowerCase() === name.toLowerCase())) { showToast(`"${name}" already exists — select it above instead`, 'error'); return; }
       const nc = { id: uid(), name, description: desc || '', createdAt: new Date().toISOString(), integrations: [] };
       S.clients.push(nc); S.modal = { ...m, busy: true }; render();
       try { await saveClients(`Add ${name}`, [nc.id]); S.modal = null; showToast(`${name} added`); render(); }
