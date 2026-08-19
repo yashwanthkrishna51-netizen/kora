@@ -102,10 +102,14 @@ function renderClientDetail(clientId) {
   ])}
     </div>
   </div>
-  <div class="flex gap-2 overflow-x-auto pb-1 mb-4 items-center">
-    ${['all', ...STATUSES].map(st => `<button data-act="filter" data-filter="${st}" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition ${S.filter === st ? 'bg-[#0e7490] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#0e7490]/40'}">${st === 'all' ? `All (${c.integrations.length})` : esc(st) + ` (${c.integrations.filter(i => i.status === st).length})`}</button>`).join('')}
-    <button data-act="toggle-integ-mine" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition ${S.integMineOnly ? 'bg-[#0e7490] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#0e7490]/40'}">👤 Mine</button>
-    <button data-act="modal-open" data-modal="add-integ" data-cid="${esc(c.id)}" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 ml-auto">+ Add Integration</button>
+  <div class="flex gap-2 items-center mb-4">
+    <div class="flex gap-2 overflow-x-auto pb-1 flex-1 min-w-0">
+      ${['all', ...STATUSES].map(st => `<button data-act="filter" data-filter="${st}" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition ${S.filter === st ? 'bg-[#0e7490] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#0e7490]/40'}">${st === 'all' ? `All (${c.integrations.length})` : esc(st) + ` (${c.integrations.filter(i => i.status === st).length})`}</button>`).join('')}
+    </div>
+    <div class="flex gap-2 items-center shrink-0">
+      <button data-act="toggle-integ-mine" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full transition ${S.integMineOnly ? 'bg-[#0e7490] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#0e7490]/40'}">👤 Mine</button>
+      <button data-act="modal-open" data-modal="add-integ" data-cid="${esc(c.id)}" class="whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-700 hover:bg-green-100">+ Add Integration</button>
+    </div>
   </div>
   ${S.bulkIntegMode && S.bulkIntegCid === c.id ? `<div class="flex items-center gap-3 mb-3 px-4 py-2.5 bg-rose-50 border border-rose-200 rounded-xl">
     <span class="text-sm text-rose-700 font-medium">Select integrations to delete</span>
