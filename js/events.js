@@ -155,8 +155,8 @@ document.addEventListener('click', async e => {
     S.modal = {
       type: 'client-email', cid: c.id, clientName: c.name,
       to: '', cc: '',
-      subject: `Integration Status Report — ${c.name}`,
-      bodyText: `Hi,\n\nPlease find attached the latest integration status report for ${c.name}.\n\nDo let us know if you have any questions.\n\nBest regards,\nKognoz Consulting`,
+      subject: `Integration Status Report - ${c.name} - ${fmtDate(todayStr())}`,
+      bodyText: `Hi,\n\nPlease find attached the latest integration status report for ${c.name}.\n\nDo let us know if you have any questions.\n\nBest regards,\n${S.user?.name || S.user?.username || ''}\nKognoz Consulting`,
       attachmentReady: false, attachmentBase64: null, attachmentName: null,
     };
     render();

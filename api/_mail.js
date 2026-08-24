@@ -182,15 +182,27 @@ function buildDigestEmailHtml({ greeting, intro, sections }) {
 // teal-header shell so it looks consistent and professional. `bodyText` is
 // plain text from a textarea — newlines become <br>, and it's escaped so a
 // stray < or & can't break the markup or inject anything.
-function buildClientEmailHtml({ bodyText }) {
+//
+// Logo: referenced by absolute URL (KORA_APP_URL + /kognoz_Iogo.png), NOT a
+// relative path — a client's inbox can't resolve a relative path. Many mail
+// clients (Outlook especially) block remote images until the recipient
+// allows them, so this degrades gracefully: the header still reads
+// "Kognoz Consulting" in text, and the fully-branded PDF is attached
+// regardless. appUrl is passed in from the caller (it already resolves
+// KORA_APP_URL there).
+function buildClientEmailHtml({ bodyText, appUrl }) {
   const safeBody = escHtml(bodyText || '').replace(/\r?\n/g, '<br>');
+  const logoUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/kognoz_Iogo.png` : '';
+  const logoImg = logoUrl
+    ? `<img src="${logoUrl}" alt="Kognoz" height="28" style="height:28px;width:auto;display:block;" />`
+    : `<div style="font-size:16px;font-weight:700;color:#ffffff;">Kognoz Consulting</div>`;
   return `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 0;">
     <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
         <tr><td style="background:#0e7490;padding:18px 24px;">
-          <div style="font-size:16px;font-weight:700;color:#ffffff;">Kognoz Consulting</div>
+          ${logoImg}
         </td></tr>
         <tr><td style="padding:24px;">
           <div style="font-size:14px;color:#0f172a;line-height:1.7;">${safeBody}</div>

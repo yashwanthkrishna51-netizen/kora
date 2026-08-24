@@ -250,11 +250,12 @@ async function handleSendClientEmail(req, res, env, check) {
   }
 
   try {
+    const appUrl = process.env.KORA_APP_URL || 'https://kora-eight-black.vercel.app';
     await sendMail(process.env, {
       to: String(to).trim(),
       cc: ccList,
       subject: String(subject).trim(),
-      html: buildClientEmailHtml({ bodyText }),
+      html: buildClientEmailHtml({ bodyText, appUrl }),
       attachments,
     });
 
