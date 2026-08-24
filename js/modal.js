@@ -2,7 +2,20 @@
 function renderModal() {
   const m = S.modal; if (!m) return '';
   let title = '', body = '', btnLabel = 'Create', btnCls = 'btn-grad';
-  if (m.type === 'add-client') {
+  if (m.type === 'client-email') {
+    title = 'Email Report to Client'; btnLabel = m.busy ? 'Sending…' : 'Send Email';
+    const attachReady = !!m.attachmentReady;
+    body = `<div class="space-y-3">
+      <div class="bg-[#0e7490]/8 border border-[#0e7490]/20 rounded-xl p-3 text-xs text-[#0d3d4f] leading-relaxed">Sends from your configured Kognoz mailbox with the Integration Report PDF attached. Test by sending to yourself first — if the body looks right, send it to the client.</div>
+      <div class="flex items-center gap-2 text-xs ${attachReady ? 'text-green-700' : 'text-amber-600'}">
+        ${attachReady ? `📎 <span>${esc(m.attachmentName || 'Integration_Report.pdf')} attached</span>` : '⏳ <span>Generating PDF attachment…</span>'}
+      </div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">To *</label><input id="ce-to" type="email" value="${esc(m.to || '')}" placeholder="client.contact@company.com" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Cc <span class="text-gray-400">(comma-separated, optional)</span></label><input id="ce-cc" type="text" value="${esc(m.cc || '')}" placeholder="manager@company.com, pmo@kognoz.com" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Subject *</label><input id="ce-subject" type="text" value="${esc(m.subject || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Message *</label><textarea id="ce-body" rows="8" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(m.bodyText || '')}</textarea></div>
+    </div>`;
+  } else if (m.type === 'add-client') {
     title = 'Add Client';
     body = `<div class="space-y-3">
       ${clientPickerHtml(() => false)}

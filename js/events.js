@@ -145,6 +145,35 @@ document.addEventListener('click', async e => {
   if (act === 'audit-export') { setBtnBusy(el, 'Exporting…'); try { const d = await fetchAuditLog({ export: true }); exportAuditExcel(d.rows); } catch (e) { showToast(e.message || 'Export failed', 'error'); } finally { clearBtnBusy(el); } return; }
   if (act === 'exp-pptx') { setBtnBusy(el, 'Generating…'); try { await exportPptx(el.dataset.cid); } finally { clearBtnBusy(el); } return; }
   if (act === 'exp-pdf') { setBtnBusy(el, 'Generating…'); try { await exportPdf(el.dataset.cid); } finally { clearBtnBusy(el); } return; }
+  if (act === 'open-client-email') {
+    if (!can('editor')) return;
+    const c = S.clients.find(x => x.id === el.dataset.cid); if (!c) return;
+    S.openExportMenu = null;
+    // Open the modal immediately with a sensible default subject/body, then
+    // generate the PDF in the background and mark it ready — so the person can
+    // start composing while the (potentially slow) PDF renders.
+    S.modal = {
+      type: 'client-email', cid: c.id, clientName: c.name,
+      to: '', cc: '',
+      subject: `Integration Status Report — ${c.name}`,
+      bodyText: `Hi,\n\nPlease find attached the latest integration status report for ${c.name}.\n\nDo let us know if you have any questions.\n\nBest regards,\nKognoz Consulting`,
+      attachmentReady: false, attachmentBase64: null, attachmentName: null,
+    };
+    render();
+    setTimeout(() => {
+      const result = exportPdf(c.id, { returnDoc: true });
+      if (result && S.modal && S.modal.type === 'client-email' && S.modal.cid === c.id) {
+        S.modal.attachmentBase64 = result.base64;
+        S.modal.attachmentName = result.filename;
+        S.modal.attachmentReady = true;
+        render();
+      } else if (!result) {
+        showToast('Could not generate the PDF attachment', 'error');
+      }
+    }, 50);
+    setTimeout(() => document.getElementById('ce-to')?.focus(), 80);
+    return;
+  }
   if (act === 'exp-impl-pdf') { setBtnBusy(el, 'Generating…'); try { exportImplPdf(el.dataset.cid); } finally { clearBtnBusy(el); } return; }
   if (act === 'exp-ams-invoice') { if (!can('admin')) return; setBtnBusy(el, 'Generating…'); try { exportAmsInvoicePdf(el.dataset.cid); } finally { clearBtnBusy(el); } return; }
   if (act === 'copy-update') { try { await navigator.clipboard.writeText(el.dataset.text); showToast('Copied ✓'); } catch (e) { showToast('Copy failed', 'error'); } return; }
@@ -869,6 +898,38 @@ document.addEventListener('click', async e => {
       if (!sections.length) { showToast('Select at least one section', 'error'); return; }
       S.modal = null; render();
       exportConsolidatedPdf(selected, sections);
+    } else if (m.type === 'client-email') {
+      if (!can('editor')) return;
+      const to = document.getElementById('ce-to')?.value.trim();
+      const cc = document.getElementById('ce-cc')?.value.trim();
+      const subject = document.getElementById('ce-subject')?.value.trim();
+      const bodyText = document.getElementById('ce-body')?.value;
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!to || !EMAIL_RE.test(to)) { showToast('Enter a valid recipient email', 'error'); return; }
+      if (!subject) { showToast('Subject is required', 'error'); return; }
+      if (!bodyText || !bodyText.trim()) { showToast('Message body is required', 'error'); return; }
+      if (!m.attachmentReady || !m.attachmentBase64) { showToast('PDF is still generating — give it a moment', 'warn'); return; }
+      // Preserve the typed values across the busy re-render.
+      S.modal = { ...m, to, cc, subject, bodyText, busy: true }; render();
+      try {
+        const r = await fetch('/api/ops?op=send-client-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' },
+          body: JSON.stringify({
+            to, cc, subject, bodyText, clientName: m.clientName,
+            attachment: { name: m.attachmentName, contentBytes: m.attachmentBase64 },
+          }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { S.modal = { ...S.modal, busy: false }; showToast('Failed: ' + (d.detail || d.error || 'send error'), 'error'); render(); return; }
+        S.modal = null;
+        showToast(`Email sent to ${to} ✓`);
+        render();
+      } catch (err) {
+        S.modal = { ...S.modal, busy: false };
+        showToast('Failed to send: ' + err.message, 'error');
+        render();
+      }
     } else if (m.type === 'add-client') {
       const existingId = document.getElementById('m0')?.value;
       if (existingId) {

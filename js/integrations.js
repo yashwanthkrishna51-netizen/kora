@@ -96,6 +96,7 @@ function renderClientDetail(clientId) {
     ${exportMenuButton(`integ-${c.id}`, [
     { label: '📊 PowerPoint', act: 'exp-pptx', data: { cid: c.id } },
     { label: '📄 PDF', act: 'exp-pdf', data: { cid: c.id } },
+    { label: '✉ Email PDF to Client', act: 'open-client-email', data: { cid: c.id } },
     { label: '📋 Excel (Integrations)', act: 'exp-excel', data: { etype: 'integrations', cid: c.id } },
     { label: '🎯 Excel (Milestones)', act: 'exp-excel', data: { etype: 'milestones', cid: c.id } },
     { label: '⬆ Import Integrations (CSV)', act: 'open-import-integ', data: { cid: c.id } },

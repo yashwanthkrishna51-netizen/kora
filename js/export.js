@@ -226,10 +226,13 @@ function drawRagBanner(doc, x, y, w, ragInfo) {
 }
 
 // ─── EXPORT: PDF (Kognoz branded) ──────────────────────────────────
-function exportPdf(clientId) {
-  if (typeof window.jspdf === 'undefined') { showToast('PDF export library failed to load — check your connection and refresh', 'error'); return; }
-  const c = S.clients.find(x => x.id === clientId); if (!c) return;
-  showToast('Generating PDF…', 'info');
+// opts.returnDoc: when true, returns { base64, filename } instead of triggering
+// a download — used by the "Email Report to Client" feature so it attaches the
+// byte-for-byte identical PDF rather than regenerating it a second way.
+function exportPdf(clientId, opts = {}) {
+  if (typeof window.jspdf === 'undefined') { showToast('PDF export library failed to load — check your connection and refresh', 'error'); return null; }
+  const c = S.clients.find(x => x.id === clientId); if (!c) return null;
+  if (!opts.returnDoc) showToast('Generating PDF…', 'info');
   try {
     const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', format: 'a4', unit: 'mm' });
     const W = 297, H = 210, NV = [14, 116, 144], MG = [37, 99, 235]; // app's live teal #0e7490 + blue #2563eb, not the old navy/magenta
@@ -453,8 +456,15 @@ function exportPdf(clientId) {
     doc.setFillColor(...MG); doc.rect(W / 2 - 10, H / 2, 20, 1, 'F');
     addLogoToDoc(doc, W / 2 - 30, H / 2 + 16.5, 18);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(13); doc.setTextColor(125, 211, 232); doc.text('Kognoz · HR Transformation & Consulting', W / 2, H / 2 + 10, { align: 'center' });
-    doc.save(exportFilename(c.name, 'Integration_Report', 'pdf')); showToast('PDF downloaded ✓');
-  } catch (e) { console.error(e); showToast('PDF failed: ' + e.message, 'error'); }
+    const filename = exportFilename(c.name, 'Integration_Report', 'pdf');
+    if (opts.returnDoc) {
+      // datauristring → strip the "data:application/pdf;filename=...;base64," prefix, keep raw base64
+      const dataUri = doc.output('datauristring');
+      const base64 = dataUri.substring(dataUri.indexOf(',') + 1);
+      return { base64, filename };
+    }
+    doc.save(filename); showToast('PDF downloaded ✓');
+  } catch (e) { console.error(e); showToast('PDF failed: ' + e.message, 'error'); if (opts.returnDoc) return null; }
 }
 
 // ─── EXPORT: Implementation Module Progress (PDF) ──────────────────

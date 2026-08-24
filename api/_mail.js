@@ -64,40 +64,43 @@ async function getGraphToken(env) {
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-// Sends one email. `to` is a string or array of strings (all placed in "To").
-//
-// Outlook enforces roughly 4 concurrent operations PER MAILBOX. Every email
-// this app sends goes through the one mailbox in AZURE_MAIL_SENDER, so a
-// burst of sends can trip this even well below Graph's general rate limits —
-// observed in practice as a mix of 429 ApplicationThrottled and even 403
-// ErrorAccessDenied on the contending requests (Graph's behavior under
-// mailbox contention isn't a clean, uniform 429 for every excess request).
-// Retries with backoff on 429, respecting Retry-After when Graph sends one.
-async function sendMail(env, { to, subject, html }, attempt = 1) {
+// Sends one email. `to`/`cc` are string or array of strings. `attachments`
+// is an optional array of { name, contentType, contentBytes } where
+// contentBytes is base64 (no data: prefix) — Graph's fileAttachment shape.
+async function sendMail(env, { to, cc, subject, html, attachments }, attempt = 1) {
   const { AZURE_MAIL_SENDER } = env;
   if (!AZURE_MAIL_SENDER) throw new Error('AZURE_MAIL_SENDER env var not set — no mailbox configured to send from');
   const toList = (Array.isArray(to) ? to : [to]).filter(Boolean);
   if (!toList.length) throw new Error('No recipients');
+  const ccList = (Array.isArray(cc) ? cc : (cc ? [cc] : [])).filter(Boolean);
+
+  const message = {
+    subject,
+    body: { contentType: 'HTML', content: html },
+    toRecipients: toList.map(email => ({ emailAddress: { address: email } })),
+  };
+  if (ccList.length) message.ccRecipients = ccList.map(email => ({ emailAddress: { address: email } }));
+  if (attachments && attachments.length) {
+    message.attachments = attachments.map(a => ({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: a.name,
+      contentType: a.contentType || 'application/octet-stream',
+      contentBytes: a.contentBytes,
+    }));
+  }
 
   const token = await getGraphToken(env);
   const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(AZURE_MAIL_SENDER)}/sendMail`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: {
-        subject,
-        body: { contentType: 'HTML', content: html },
-        toRecipients: toList.map(email => ({ emailAddress: { address: email } })),
-      },
-      saveToSentItems: false,
-    }),
+    body: JSON.stringify({ message, saveToSentItems: true }), // client-facing mail: keep a copy in Sent, unlike the automated digest
   });
 
   if (r.status === 429 && attempt <= 3) {
     const retryAfterHeader = r.headers.get('retry-after');
     const waitMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : 1000 * attempt;
     await sleep(waitMs);
-    return sendMail(env, { to, subject, html }, attempt + 1);
+    return sendMail(env, { to, cc, subject, html, attachments }, attempt + 1);
   }
 
   if (!r.ok) {
@@ -115,23 +118,39 @@ function escHtml(s = '') {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function itemRowHtml(item) {
-  const dueStyle = item.overdue ? 'color:#be123c;font-weight:600;' : 'color:#64748b;';
+function itemRowHtml(item, muted = false) {
+  const dueStyle = muted ? 'color:#94a3b8;' : (item.overdue ? 'color:#be123c;font-weight:600;' : 'color:#64748b;');
+  const nameColor = muted ? '#64748b' : '#0f172a';
+  const metaColor = muted ? '#94a3b8' : '#64748b';
+  const linkColor = muted ? '#94a3b8' : '#0e7490';
   return `
   <tr>
     <td style="padding:14px 16px;border-bottom:1px solid #e5e7eb;">
-      <div style="font-size:14px;font-weight:600;color:#0f172a;">${escHtml(item.name)}</div>
-      <div style="font-size:12px;color:#64748b;margin-top:2px;">${escHtml(item.client)} &middot; ${escHtml(item.domain)} &middot; ${escHtml(item.status)}</div>
+      <div style="font-size:14px;font-weight:600;color:${nameColor};">${escHtml(item.name)}${muted ? ' <span style="font-size:11px;font-weight:500;color:#94a3b8;">&middot; not started yet</span>' : ''}</div>
+      <div style="font-size:12px;color:${metaColor};margin-top:2px;">${escHtml(item.client)} &middot; ${escHtml(item.domain)} &middot; ${escHtml(item.status)}</div>
       ${item.dueLabel ? `<div style="font-size:12px;${dueStyle}margin-top:4px;">${escHtml(item.dueLabel)}</div>` : ''}
-      ${item.nextAction ? `<div style="font-size:13px;color:#0f172a;margin-top:6px;"><span style="color:#64748b;">Next action:</span> ${escHtml(item.nextAction)}</div>` : ''}
-      ${item.description ? `<div style="font-size:12px;color:#64748b;margin-top:4px;">${escHtml(item.description)}</div>` : ''}
-      <div style="margin-top:8px;"><a href="${escHtml(item.link)}" style="font-size:12px;color:#0e7490;text-decoration:none;font-weight:600;">Open in Kora &rarr;</a></div>
+      ${item.nextAction ? `<div style="font-size:13px;color:${muted ? '#94a3b8' : '#0f172a'};margin-top:6px;"><span style="color:${metaColor};">Next action:</span> ${escHtml(item.nextAction)}</div>` : ''}
+      ${item.description ? `<div style="font-size:12px;color:${metaColor};margin-top:4px;">${escHtml(item.description)}</div>` : ''}
+      <div style="margin-top:8px;"><a href="${escHtml(item.link)}" style="font-size:12px;color:${linkColor};text-decoration:none;font-weight:600;">Open in Kora &rarr;</a></div>
     </td>
   </tr>`;
 }
 
-// { greeting, intro, items: [...] } -> full HTML document string
-function buildDigestEmailHtml({ greeting, intro, items }) {
+// { greeting, intro, sections: [{ heading, muted?, items }] } -> full HTML document string.
+// Sections let one email hold multiple logically-distinct groups — a
+// person's own items, per-client "as Master Assignee" groups, and the
+// fallback's active-vs-not-started split — all in one coherent digest email
+// instead of firing separate emails per grouping.
+function buildDigestEmailHtml({ greeting, intro, sections }) {
+  const sectionsHtml = sections.filter(s => s.items && s.items.length).map(s => `
+    <tr><td style="padding:18px 16px 6px 16px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:${s.muted ? '#94a3b8' : '#0e7490'};">${escHtml(s.heading)}</div>
+    </td></tr>
+    <tr><td style="padding:0 16px 8px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        ${s.items.map(item => itemRowHtml(item, !!s.muted)).join('')}
+      </table>
+    </td></tr>`).join('');
   return `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 0;">
@@ -144,9 +163,9 @@ function buildDigestEmailHtml({ greeting, intro, items }) {
           <div style="font-size:15px;color:#0f172a;">${escHtml(greeting)}</div>
           <div style="font-size:13px;color:#64748b;margin-top:6px;">${escHtml(intro)}</div>
         </td></tr>
-        <tr><td style="padding:8px 16px 20px 16px;">
+        <tr><td style="padding:8px 0 20px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-            ${items.map(itemRowHtml).join('')}
+            ${sectionsHtml}
           </table>
         </td></tr>
         <tr><td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e5e7eb;">
@@ -158,4 +177,31 @@ function buildDigestEmailHtml({ greeting, intro, items }) {
 </body></html>`;
 }
 
-module.exports = { getGraphToken, sendMail, buildDigestEmailHtml, escHtml, sleep };
+// Simple branded wrapper for a manually-composed client email (not the
+// digest). The person writes the body text; this just wraps it in the same
+// teal-header shell so it looks consistent and professional. `bodyText` is
+// plain text from a textarea — newlines become <br>, and it's escaped so a
+// stray < or & can't break the markup or inject anything.
+function buildClientEmailHtml({ bodyText }) {
+  const safeBody = escHtml(bodyText || '').replace(/\r?\n/g, '<br>');
+  return `<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
+        <tr><td style="background:#0e7490;padding:18px 24px;">
+          <div style="font-size:16px;font-weight:700;color:#ffffff;">Kognoz Consulting</div>
+        </td></tr>
+        <tr><td style="padding:24px;">
+          <div style="font-size:14px;color:#0f172a;line-height:1.7;">${safeBody}</div>
+        </td></tr>
+        <tr><td style="padding:14px 24px;background:#f8fafc;border-top:1px solid #e5e7eb;">
+          <div style="font-size:11px;color:#94a3b8;">Sent from Kora · Kognoz HR Transformation &amp; Consulting</div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+module.exports = { getGraphToken, sendMail, buildDigestEmailHtml, buildClientEmailHtml, escHtml, sleep };

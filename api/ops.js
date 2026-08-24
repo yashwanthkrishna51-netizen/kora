@@ -20,6 +20,7 @@ const { applyCors } = require('./_cors');
 const { logAudit, clientIp } = require('./_audit');
 const { serverError } = require('./_errors');
 const { dualWriteClient } = require('./_dualwrite');
+const { sendMail, buildClientEmailHtml } = require('./_mail');
 
 // ─── op=audit — verbatim from the old api/audit.js ─────────────────────
 const AUDIT_EXPORT_CAP = 5000;
@@ -208,6 +209,72 @@ async function handleBackfill(req, res, env, check) {
   }
 }
 
+// ─── op=send-client-email — manually-composed client email with the
+//     exported report PDF attached, sent via Microsoft Graph (api/_mail.js).
+//     Distinct from the automated digest: a human writes the subject/body/cc
+//     and attaches the PDF the frontend generated. Editor+ only.
+//
+//     Payload: { to, cc?, subject, bodyText, attachment: { name, contentBytes } }
+//       - to:            one recipient email string (the client contact)
+//       - cc:            optional comma/array of cc emails
+//       - subject:       email subject line
+//       - bodyText:      plain text body (wrapped in the branded shell)
+//       - attachment:    the exported PDF as base64 (contentBytes), + filename
+const MAX_ATTACHMENT_B64 = 12 * 1024 * 1024; // ~9MB decoded — Graph's simple sendMail caps attachments around here; larger needs the upload-session API, out of scope
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function handleSendClientEmail(req, res, env, check) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  if (check.payload.role === 'viewer') return res.status(403).json({ error: 'Viewers cannot send emails' });
+
+  const { to, cc, subject, bodyText, attachment, clientName } = req.body || {};
+
+  if (!to || !EMAIL_RE.test(String(to).trim())) return res.status(400).json({ error: 'A valid recipient email is required' });
+  const ccList = (Array.isArray(cc) ? cc : String(cc || '').split(',')).map(s => s.trim()).filter(Boolean);
+  for (const e of ccList) {
+    if (!EMAIL_RE.test(e)) return res.status(400).json({ error: `Invalid cc address: ${e}` });
+  }
+  if (!subject || !String(subject).trim()) return res.status(400).json({ error: 'A subject is required' });
+  if (!bodyText || !String(bodyText).trim()) return res.status(400).json({ error: 'An email body is required' });
+
+  let attachments;
+  if (attachment && attachment.contentBytes) {
+    if (attachment.contentBytes.length > MAX_ATTACHMENT_B64) {
+      return res.status(413).json({ error: 'Attachment too large to email (over ~9MB). Try exporting without heavy images, or share a link instead.' });
+    }
+    attachments = [{
+      name: attachment.name || 'Report.pdf',
+      contentType: 'application/pdf',
+      contentBytes: attachment.contentBytes,
+    }];
+  }
+
+  try {
+    await sendMail(process.env, {
+      to: String(to).trim(),
+      cc: ccList,
+      subject: String(subject).trim(),
+      html: buildClientEmailHtml({ bodyText }),
+      attachments,
+    });
+
+    await logAudit(env, {
+      actorId: check.payload.id, username: check.payload.username, role: check.payload.role,
+      action: `Sent client email: "${String(subject).trim().slice(0, 80)}" to ${String(to).trim()}${clientName ? ` (${clientName})` : ''}`,
+      entity: 'client_email', screen: 'integrations',
+      ip: clientIp(req), userAgent: req.headers['user-agent'],
+    });
+
+    return res.status(200).json({ ok: true, sentTo: String(to).trim(), cc: ccList, hadAttachment: !!attachments });
+  } catch (err) {
+    // Graph errors are safe to surface here (they're operational, not internal
+    // leakage) and genuinely useful while the person is testing — e.g. a bad
+    // address or a not-yet-granted Mail.Send shows up plainly instead of a
+    // generic "something went wrong."
+    return res.status(502).json({ error: 'Email failed to send', detail: err.message });
+  }
+}
+
 // ─── dispatcher ─────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
   applyCors(req, res, 'GET, POST, OPTIONS');
@@ -228,5 +295,6 @@ module.exports = async function handler(req, res) {
   if (op === 'audit') return handleAudit(req, res, env, check);
   if (op === 'settings') return handleSettings(req, res, env, check);
   if (op === 'backfill') return handleBackfill(req, res, env, check);
-  return res.status(400).json({ error: 'Unknown or missing ?op= (expected audit, settings, or backfill)' });
+  if (op === 'send-client-email') return handleSendClientEmail(req, res, env, check);
+  return res.status(400).json({ error: 'Unknown or missing ?op= (expected audit, settings, backfill, or send-client-email)' });
 };
