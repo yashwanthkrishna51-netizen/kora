@@ -352,15 +352,15 @@ function renderLogin() {
         <div style="font-size:22px;font-weight:700;letter-spacing:-0.01em;color:var(--ink);">Sign in to Kora</div>
         <p style="font-size:13px;color:var(--mute);margin-top:6px;">Enter your credentials to continue</p>
       </div>
-      <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;flex-direction:column;gap:18px;">
         <div>
-          <label style="display:block;margin-bottom:6px;">Username</label>
-          <input id="lu" type="text" autocomplete="username" placeholder="username"/>
+          <label style="display:block;margin-bottom:6px;font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);">Username</label>
+          <input id="lu" type="text" autocomplete="username" placeholder="preview_admin" class="k-input" style="width:100%;height:40px;padding:0 12px;font-size:14px;box-sizing:border-box;"/>
         </div>
         <div>
-          <label style="display:block;margin-bottom:6px;">Password</label>
-          <div style="position:relative;">
-            <input id="lp" type="password" autocomplete="current-password" placeholder="••••••••" style="padding-right:34px;"/>
+          <label style="display:block;margin-bottom:6px;font-size:11px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--mute);">Password</label>
+          <div style="position:relative;width:100%;">
+            <input id="lp" type="password" autocomplete="current-password" placeholder="••••••••" class="k-input" style="width:100%;height:40px;padding:0 38px 0 12px;font-size:14px;box-sizing:border-box;"/>
             ${pwdToggleBtn('lp')}
           </div>
         </div>

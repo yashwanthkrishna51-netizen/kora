@@ -339,8 +339,9 @@ h3,
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 select,
 textarea {
-  min-height: 32px;
-  padding: 0 9px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
   font-size: 13px;
   font-family: var(--font);
   background: var(--paper);
