@@ -645,16 +645,19 @@ document.addEventListener('click', async e => {
   if (act === 'open-profile') {
     S.modal = { type: 'my-profile' }; render(); setTimeout(() => document.getElementById('pr-curr')?.focus(), 50); return;
   }
-  if (act === 'send-welcome-all') {
+  if (act === 'open-digest-recipients') {
     if (!can('admin')) return;
-    const targets = S.users.filter(u => u.id !== S.user?.id).map(u => ({ id: u.id, name: u.name, username: u.username, email: u.email || '' }));
-    if (!targets.length) { showToast('No other users to send to', 'warn'); return; }
-    S.modal = { type: 'send-welcome', targets }; render(); setTimeout(() => document.getElementById('sw-pass')?.focus(), 50); return;
+    await fetchDigestRecipients();
+    S.modal = { type: 'digest-recipients', emails: [...(S.digestRecipients.emails || [])] };
+    render(); return;
   }
-  if (act === 'send-welcome-one') {
-    if (!can('admin')) return;
-    const u = S.users.find(x => x.id === el.dataset.uid); if (!u) return;
-    S.modal = { type: 'send-welcome', targets: [{ id: u.id, name: u.name, username: u.username, email: u.email || '' }] }; render(); setTimeout(() => document.getElementById('sw-pass')?.focus(), 50); return;
+  if (act === 'digest-recipient-add') {
+    S.modal = { ...S.modal, emails: [...(S.modal.emails || []), ''] }; render();
+    setTimeout(() => { const inputs = document.querySelectorAll('.dr-email'); inputs[inputs.length - 1]?.focus(); }, 50); return;
+  }
+  if (act === 'digest-recipient-remove') {
+    const idx = parseInt(el.dataset.idx, 10);
+    S.modal = { ...S.modal, emails: (S.modal.emails || []).filter((_, i) => i !== idx) }; render(); return;
   }
   if (act === 'edit-user') {
     if (!can('admin')) return;
@@ -911,28 +914,17 @@ document.addEventListener('click', async e => {
         const me = S.users.find(x => x.id === d.user.id); if (me) me.email = d.user.email;
         S.modal = null; showToast(newPass ? 'Password changed ✓' : 'Profile updated ✓'); render();
       } catch (err) { S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
-    } else if (m.type === 'send-welcome') {
+    } else if (m.type === 'digest-recipients') {
       if (!can('admin')) return;
-      const appUrl = document.getElementById('sw-url')?.value.trim();
-      const pass = document.getElementById('sw-pass')?.value.trim();
-      if (!appUrl || !pass) { showToast('App URL and password are required', 'error'); return; }
-      const targets = (m.targets || []).filter(u => u.email);
-      if (!targets.length) { showToast('No recipients have an email address set', 'error'); return; }
+      const emails = [...document.querySelectorAll('.dr-email')].map(inp => inp.value.trim()).filter(Boolean);
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const bad = emails.find(e => !EMAIL_RE.test(e));
+      if (bad) { showToast(`Invalid email: ${bad}`, 'error'); return; }
+      if (emails.length > 25) { showToast('Max 25 recipients', 'error'); return; }
+      const prev = S.digestRecipients;
       S.modal = { ...m, busy: true }; render();
-      // Set passwords for all recipients — sent plaintext, hashed server-side (bcrypt)
-      targets.forEach(t => { const u = S.users.find(x => x.id === t.id); if (u) { u.password = pass; delete u.passwordHash; } });
-      try { await saveUsers('Set passwords for welcome email', targets.map(t => t.id)); targets.forEach(t => { const u = S.users.find(x => x.id === t.id); if (u) delete u.password; }); } catch (e) { targets.forEach(t => { const u = S.users.find(x => x.id === t.id); if (u) delete u.password; }); S.modal = null; showToast('Failed to update passwords', 'error'); render(); return; }
-      // Send emails
-      let sent = 0, failed = 0;
-      await Promise.all(targets.map(async t => {
-        try {
-          const r = await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ to: t.email, name: t.name, username: t.username, password: pass, appUrl }) });
-          if (r.ok) sent++; else failed++;
-        } catch (e) { failed++; }
-      }));
-      S.modal = null;
-      showToast(failed ? `${sent} sent, ${failed} failed — check Resend dashboard` : `Welcome emails sent to ${sent} user${sent === 1 ? '' : 's'} ✓`);
-      render();
+      try { await saveDigestRecipients({ emails }); S.modal = null; showToast('Digest recipients updated ✓'); render(); }
+      catch (err) { S.digestRecipients = prev; S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
     } else if (m.type === 'edit-user') {
       if (!can('admin')) return;
       const u = S.users.find(x => x.id === m.uid); if (!u) return;

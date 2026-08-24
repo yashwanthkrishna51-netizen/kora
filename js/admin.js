@@ -251,7 +251,7 @@ function renderAdminUsers(){
     <h3 class="text-sm font-bold text-gray-900 mb-1">System Maintenance</h3>
     <p class="text-xs text-gray-400 mb-3">One-time or repair tasks. Safe to re-run anytime — none of these touch your live records, only their backing/derived data.</p>
     <div class="flex flex-wrap gap-2">
-      <button data-act="modal-open" data-modal="admin-task-runner" data-task-label="Resync V2 Tables" data-task-endpoint="/api/backfill-v2" data-task-description="Re-syncs every client into the new normalized v2 tables — catches up anything created before dual-write existed, or anything a save silently failed to sync." class="text-xs font-medium px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:border-[#0e7490] hover:text-[#0e7490] transition">🔄 Resync V2 Tables</button>
+      <button data-act="modal-open" data-modal="admin-task-runner" data-task-label="Resync V2 Tables" data-task-endpoint="/api/ops?op=backfill" data-task-description="Re-syncs every client into the new normalized v2 tables — catches up anything created before dual-write existed, or anything a save silently failed to sync." class="text-xs font-medium px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:border-[#0e7490] hover:text-[#0e7490] transition">🔄 Resync V2 Tables</button>
       <button data-act="recompute-snapshot-now" class="text-xs font-medium px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:border-[#0e7490] hover:text-[#0e7490] transition">📸 Recompute Snapshot Now</button>
     </div>
   </div>
@@ -271,7 +271,7 @@ function renderAdminUsers(){
     <div class="flex gap-2">
       <button data-act="toggle-bulk-users" class="whitespace-nowrap text-sm font-medium px-4 py-2 rounded-xl transition border ${S.bulkUserMode ? 'bg-rose-50 border-rose-200 text-rose-600' : 'border-gray-200 text-gray-600 hover:border-gray-300'}">${S.bulkUserMode ? '✕ Cancel' : '☑ Bulk Role'}</button>
       <button data-act="force-logout-all" class="bg-rose-50 border border-rose-200 text-rose-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-rose-100 transition whitespace-nowrap">🔒 Force Logout All</button>
-      <button data-act="send-welcome-all" class="bg-green-50 border border-green-200 text-green-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-green-100 transition whitespace-nowrap">✉ Send Welcome to All</button>
+      <button data-act="open-digest-recipients" class="bg-green-50 border border-green-200 text-green-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-green-100 transition whitespace-nowrap">✉ Digest Recipients</button>
       <button data-act="modal-open" data-modal="bulk-import-users" class="bg-amber-50 border border-amber-200 text-amber-700 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-amber-100 transition whitespace-nowrap">⬆ Import (CSV)</button>
       <button data-act="modal-open" data-modal="add-user" class="btn-grad text-white text-sm font-semibold px-4 py-2 rounded-xl transition whitespace-nowrap">+ Add User</button>
     </div>
@@ -294,7 +294,6 @@ function renderAdminUsers(){
           <td class="px-4 py-3">${u.id!==S.user?.id
             ?`<div class="flex items-center justify-end gap-1">
                 <button data-act="edit-user" data-uid="${esc(u.id)}" class="w-7 h-7 flex items-center justify-center rounded-lg text-[#0e7490] hover:bg-[#0e7490]/10 transition" title="Edit user">✎</button>
-                <button data-act="send-welcome-one" data-uid="${esc(u.id)}" class="w-7 h-7 flex items-center justify-center rounded-lg text-green-600 hover:bg-green-50 transition" title="Send welcome email">✉</button>
                 ${adminRowMenu([
                   {label:'Force Logout',act:'force-logout-user',extra:`data-uid="${esc(u.id)}"`},
                   ...(u.lockedUntil&&new Date(u.lockedUntil)>new Date()?[{label:'Clear Lockout',act:'clear-lockout',extra:`data-uid="${esc(u.id)}"`}]:[]),

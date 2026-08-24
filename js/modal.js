@@ -65,20 +65,17 @@ function renderModal() {
         </div>
       </div>
     </div>`;
-  } else if (m.type === 'send-welcome') {
-    title = 'Send Welcome Email';
-    const emailUsers = (m.targets || []).filter(u => u.email);
-    btnLabel = `Send to ${emailUsers.length} User${emailUsers.length === 1 ? '' : 's'}`;
+  } else if (m.type === 'digest-recipients') {
+    title = 'Daily Digest — Fallback Recipients'; btnLabel = 'Save';
+    const emails = m.emails || [];
     body = `<div class="space-y-3">
-      <div class="bg-[#0e7490]/8 border border-[#0e7490]/20 rounded-xl p-3 text-xs text-[#0d3d4f] leading-relaxed">Sends a branded welcome email to each recipient with the app URL, their username, and the password you set below. Their password is also updated to match so login works immediately.</div>
-      <div><label class="block text-xs font-medium text-gray-500 mb-1">Recipients (${(m.targets || []).length} selected)</label>
-        <div class="bg-gray-50 rounded-xl px-3 py-2 text-xs text-gray-600 max-h-28 overflow-y-auto space-y-0.5">
-          ${(m.targets || []).map(u => `<div class="${u.email ? '' : 'text-amber-600'}">${esc(u.name)} <span class="text-gray-400">(${esc(u.username)})</span> ${u.email ? `<span class="text-gray-400">${esc(u.email)}</span>` : '<span class="text-amber-500 font-medium">— no email set, will skip</span>'}</div>`).join('')}
+      <div class="bg-[#0e7490]/8 border border-[#0e7490]/20 rounded-xl p-3 text-xs text-[#0d3d4f] leading-relaxed">Every day at ~9am, Kora emails each assignee their open Integration items and Implementation phases. Items with no assignee — or an assignee name that doesn't match a user account — go to the people listed here instead, so nothing gets missed.</div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Recipient emails (${emails.length}/25)</label>
+        <div id="dr-list" class="space-y-1.5 max-h-48 overflow-y-auto">
+          ${emails.map((e, idx) => `<div class="flex items-center gap-2"><input type="email" value="${esc(e)}" data-dr-idx="${idx}" class="dr-email flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/><button type="button" data-act="digest-recipient-remove" data-idx="${idx}" class="w-7 h-7 flex items-center justify-center rounded-lg text-rose-500 hover:bg-rose-50 transition shrink-0">✕</button></div>`).join('') || '<p class="text-xs text-gray-400">No fallback recipients configured yet — unassigned items will go unsent until at least one is added.</p>'}
         </div>
       </div>
-      <div><label class="block text-xs font-medium text-gray-500 mb-1">Application URL *</label><input id="sw-url" type="url" value="${esc(window?.location?.origin || 'https://your-app.vercel.app')}" placeholder="https://your-app.vercel.app" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
-      <div><label class="block text-xs font-medium text-gray-500 mb-1">Password to send & set *</label><input id="sw-pass" type="text" placeholder="Temporary password (min 8 chars)" autocomplete="off" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
-      <p class="text-xs text-gray-400 mt-1">This becomes their login password immediately. Tell them to change it after first login via My Profile.</p></div>
+      <button type="button" data-act="digest-recipient-add" class="text-xs font-medium text-[#0e7490] hover:underline">+ Add email</button>
     </div>`;
   } else if (m.type === 'edit-user') {
     title = 'Edit User'; btnLabel = 'Save User';
