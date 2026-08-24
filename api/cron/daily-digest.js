@@ -163,18 +163,23 @@ module.exports = async function handler(req, res) {
     }
 
     let fallbackSent = false;
+    let fallbackError = null;
     if (fallbackItems.length && fallbackEmails.length) {
       const html = buildDigestEmailHtml({
         greeting: 'Unassigned / unmatched items',
         intro: `${fallbackItems.length} open item${fallbackItems.length === 1 ? '' : 's'} have no assignee, or an assignee name that doesn't match a Kora user account with an email on file. Routing here so nothing gets missed:`,
         items: fallbackItems,
       });
-      await sendMail(process.env, {
-        to: fallbackEmails,
-        subject: `Kora — ${fallbackItems.length} unassigned item${fallbackItems.length === 1 ? '' : 's'} need an owner`,
-        html,
-      });
-      fallbackSent = true;
+      try {
+        await sendMail(process.env, {
+          to: fallbackEmails,
+          subject: `Kora — ${fallbackItems.length} unassigned item${fallbackItems.length === 1 ? '' : 's'} need an owner`,
+          html,
+        });
+        fallbackSent = true;
+      } catch (err) {
+        fallbackError = err.message;
+      }
     }
 
     const sent = results.filter(r => r.status === 'fulfilled').length;
@@ -188,6 +193,7 @@ module.exports = async function handler(req, res) {
       failedDetail,
       fallbackItemCount: fallbackItems.length,
       fallbackSent,
+      fallbackError,
       fallbackRecipientCount: fallbackEmails.length,
       unmatchedAssigneeCount,
     });
