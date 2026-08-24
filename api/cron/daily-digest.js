@@ -23,7 +23,7 @@
 // 9:00 and 9:59am IST," not the exact minute. Pro gives per-minute precision
 // if that's ever needed.
 
-const { sendMail, buildDigestEmailHtml } = require('../_mail');
+const { sendMail, buildDigestEmailHtml, sleep } = require('../_mail');
 
 const SKIP_STATUSES = new Set(['Completed', 'Cancelled']); // nothing left to do on these
 
@@ -132,22 +132,35 @@ module.exports = async function handler(req, res) {
       perAssignee.get(match.email).items.push(item);
     }
 
-    // Promise.allSettled so one bad address doesn't stop everyone else's digest.
-    const results = await Promise.allSettled(
-      [...perAssignee.entries()].map(async ([email, { name, items: personItems }]) => {
-        const overdueCount = personItems.filter(i => i.overdue).length;
-        const html = buildDigestEmailHtml({
-          greeting: `Hi ${name},`,
-          intro: `You have ${personItems.length} open item${personItems.length === 1 ? '' : 's'}${overdueCount ? ` (${overdueCount} overdue)` : ''}. Here's what's outstanding:`,
-          items: personItems,
-        });
+    // Sequential, not parallel — every email (per-assignee AND fallback) goes
+    // through the SAME one mailbox (AZURE_MAIL_SENDER). Outlook enforces
+    // roughly 4 concurrent operations per mailbox; firing sends in parallel
+    // trips that almost immediately, surfacing as a mix of 429
+    // ApplicationThrottled and 403 ErrorAccessDenied. A small pause between
+    // each send keeps every request well under that ceiling. Vercel's
+    // default function duration (300s on Hobby with fluid compute) gives
+    // ample headroom even for a large recipient list at this pace.
+    const SEND_PACING_MS = 350;
+    const results = [];
+    for (const [email, { name, items: personItems }] of perAssignee.entries()) {
+      const overdueCount = personItems.filter(i => i.overdue).length;
+      const html = buildDigestEmailHtml({
+        greeting: `Hi ${name},`,
+        intro: `You have ${personItems.length} open item${personItems.length === 1 ? '' : 's'}${overdueCount ? ` (${overdueCount} overdue)` : ''}. Here's what's outstanding:`,
+        items: personItems,
+      });
+      try {
         await sendMail(process.env, {
           to: email,
           subject: `Kora — ${personItems.length} open item${personItems.length === 1 ? '' : 's'} for you today`,
           html,
         });
-      })
-    );
+        results.push({ status: 'fulfilled' });
+      } catch (err) {
+        results.push({ status: 'rejected', reason: err });
+      }
+      await sleep(SEND_PACING_MS);
+    }
 
     let fallbackSent = false;
     if (fallbackItems.length && fallbackEmails.length) {

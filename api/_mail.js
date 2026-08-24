@@ -62,8 +62,18 @@ async function getGraphToken(env) {
   return _cachedToken.token;
 }
 
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
 // Sends one email. `to` is a string or array of strings (all placed in "To").
-async function sendMail(env, { to, subject, html }) {
+//
+// Outlook enforces roughly 4 concurrent operations PER MAILBOX. Every email
+// this app sends goes through the one mailbox in AZURE_MAIL_SENDER, so a
+// burst of sends can trip this even well below Graph's general rate limits —
+// observed in practice as a mix of 429 ApplicationThrottled and even 403
+// ErrorAccessDenied on the contending requests (Graph's behavior under
+// mailbox contention isn't a clean, uniform 429 for every excess request).
+// Retries with backoff on 429, respecting Retry-After when Graph sends one.
+async function sendMail(env, { to, subject, html }, attempt = 1) {
   const { AZURE_MAIL_SENDER } = env;
   if (!AZURE_MAIL_SENDER) throw new Error('AZURE_MAIL_SENDER env var not set — no mailbox configured to send from');
   const toList = (Array.isArray(to) ? to : [to]).filter(Boolean);
@@ -82,6 +92,14 @@ async function sendMail(env, { to, subject, html }) {
       saveToSentItems: false,
     }),
   });
+
+  if (r.status === 429 && attempt <= 3) {
+    const retryAfterHeader = r.headers.get('retry-after');
+    const waitMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : 1000 * attempt;
+    await sleep(waitMs);
+    return sendMail(env, { to, subject, html }, attempt + 1);
+  }
+
   if (!r.ok) {
     const body = await r.text().catch(() => '');
     throw new Error(`Graph sendMail failed: ${r.status} ${body}`);
@@ -140,4 +158,4 @@ function buildDigestEmailHtml({ greeting, intro, items }) {
 </body></html>`;
 }
 
-module.exports = { getGraphToken, sendMail, buildDigestEmailHtml, escHtml };
+module.exports = { getGraphToken, sendMail, buildDigestEmailHtml, escHtml, sleep };
