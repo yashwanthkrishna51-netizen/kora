@@ -160,8 +160,18 @@ document.addEventListener('click', async e => {
       attachmentReady: false, attachmentBase64: null, attachmentName: null,
     };
     render();
-    setTimeout(() => {
-      const result = exportPdf(c.id, { returnDoc: true });
+    // Small delay so the modal actually paints before the (synchronous,
+    // potentially slow) PDF-building work runs — exportPdf itself is async
+    // now (see export.js), so this is properly awaited rather than assuming
+    // a synchronous return.
+    setTimeout(async () => {
+      let result = null;
+      try {
+        result = await exportPdf(c.id, { returnDoc: true });
+      } catch (err) {
+        console.error(err);
+        showToast('Could not generate the PDF attachment: ' + err.message, 'error');
+      }
       if (result && S.modal && S.modal.type === 'client-email' && S.modal.cid === c.id) {
         S.modal.attachmentBase64 = result.base64;
         S.modal.attachmentName = result.filename;

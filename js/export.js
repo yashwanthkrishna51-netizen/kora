@@ -229,7 +229,17 @@ function drawRagBanner(doc, x, y, w, ragInfo) {
 // opts.returnDoc: when true, returns { base64, filename } instead of triggering
 // a download — used by the "Email Report to Client" feature so it attaches the
 // byte-for-byte identical PDF rather than regenerating it a second way.
-function exportPdf(clientId, opts = {}) {
+//
+// Async because the returnDoc path uses doc.output('blob') + FileReader
+// instead of doc.output('datauristring'). datauristring internally calls the
+// browser's btoa(), which throws "characters outside the Latin1 range" on
+// jsPDF documents containing embedded raster images (this report embeds the
+// Kognoz logo + a canvas-rendered donut chart via addImage) — a known jsPDF
+// limitation, not something specific to any one client's data. .save() (the
+// normal Export ▾ → PDF button) was never affected because it takes a
+// different internal code path that doesn't go through datauristring/btoa.
+// blob-based output avoids btoa entirely, sidestepping the issue.
+async function exportPdf(clientId, opts = {}) {
   if (typeof window.jspdf === 'undefined') { showToast('PDF export library failed to load — check your connection and refresh', 'error'); return null; }
   const c = S.clients.find(x => x.id === clientId); if (!c) return null;
   if (!opts.returnDoc) showToast('Generating PDF…', 'info');
@@ -458,13 +468,26 @@ function exportPdf(clientId, opts = {}) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(13); doc.setTextColor(125, 211, 232); doc.text('Kognoz · HR Transformation & Consulting', W / 2, H / 2 + 10, { align: 'center' });
     const filename = exportFilename(c.name, 'Integration_Report', 'pdf');
     if (opts.returnDoc) {
-      // datauristring → strip the "data:application/pdf;filename=...;base64," prefix, keep raw base64
-      const dataUri = doc.output('datauristring');
-      const base64 = dataUri.substring(dataUri.indexOf(',') + 1);
+      const blob = doc.output('blob'); // avoids btoa() entirely, unlike 'datauristring'
+      const base64 = await blobToBase64(blob);
       return { base64, filename };
     }
     doc.save(filename); showToast('PDF downloaded ✓');
   } catch (e) { console.error(e); showToast('PDF failed: ' + e.message, 'error'); if (opts.returnDoc) return null; }
+}
+
+// Blob -> raw base64 string (no "data:...;base64," prefix), via FileReader.
+// Deliberately not btoa()-based — see exportPdf's comment for why.
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result;
+      resolve(dataUrl.substring(dataUrl.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(new Error('Could not read the generated PDF'));
+    reader.readAsDataURL(blob);
+  });
 }
 
 // ─── EXPORT: Implementation Module Progress (PDF) ──────────────────
