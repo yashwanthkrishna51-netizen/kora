@@ -38,7 +38,7 @@ function restoreSession() { try { const r = localStorage.getItem('itk_sess'); re
 function persistView(view, params) { try { if (view === 'login') return; localStorage.setItem('itk_view', JSON.stringify({ view, params })); } catch (e) { } }
 function restoreView() { try { const r = localStorage.getItem('itk_view'); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
 function validateView(view, params) {
-  if (['dashboard', 'clients', 'impl-clients', 'ams-clients', 'admin'].includes(view)) return true;
+  if (['dashboard', 'pipeline', 'clients', 'impl-clients', 'ams-clients', 'admin'].includes(view)) return true;
   if (view === 'client-detail' || view === 'impl-client-detail' || view === 'ams-client-detail') return !!S.clients.find(x => x.id === params.clientId);
   if (view === 'integ-detail') { const c = S.clients.find(x => x.id === params.clientId); return !!(c && c.integrations.find(x => x.id === params.integId)); }
   if (view === 'impl-phase-detail') { const c = S.clients.find(x => x.id === params.clientId); if (!c) return false; const m = (c.modules || []).find(x => x.id === params.moduleId); return !!(m && (m.phases || []).find(p => p.name === params.phase)); }
@@ -177,6 +177,7 @@ function viewToPath(view, params = {}) {
   const e = v => encodeURIComponent(v ?? '');
   switch (view) {
     case 'dashboard': return '/dashboard';
+    case 'pipeline': return '/pipeline';
     case 'clients': return '/integrations';
     case 'client-detail': return `/integrations/${e(params.clientId)}`;
     case 'integ-detail': return `/integrations/${e(params.clientId)}/${e(params.integId)}`;
@@ -196,6 +197,7 @@ function pathToView(pathname) {
   if (!seg.length) return { view: 'dashboard', params: {} };
   const [root, ...rest] = seg;
   if (root === 'dashboard') return { view: 'dashboard', params: {} };
+  if (root === 'pipeline') return { view: 'pipeline', params: {} };
   if (root === 'integrations') {
     if (rest.length === 0) return { view: 'clients', params: {} };
     if (rest.length === 1) return { view: 'client-detail', params: { clientId: d(rest[0]) } };
@@ -217,7 +219,7 @@ function pathToView(pathname) {
 function navigate(view, params = {}, opts = {}) {
   const isRealNav = S.view !== view;
   const go = () => {
-    S.view = view; S.params = params; S.filter = 'all'; S.search = ''; S.modal = null; S.sort = { key: 'name', dir: 'asc' }; S.editingTimelineId = null; S.expandedHistory = new Set(); S.bulkImplMode = false; S.bulkImplCid = null; S.bulkSelected = new Set(); S.selectedAmsEntryId = null; S.selectedIntegId = null; S.openExportMenu = null; recordRecent(view, params); persistView(view, params);
+    S.view = view; S.params = params; S.filter = 'all'; S.search = ''; S.modal = null; S.sort = { key: 'name', dir: 'asc' }; S.editingTimelineId = null; S.expandedHistory = new Set(); S.bulkImplMode = false; S.bulkImplCid = null; S.bulkSelected = new Set(); S.selectedAmsEntryId = null; S.selectedIntegId = null; S.selectedPipelineId = null; S.openExportMenu = null; recordRecent(view, params); persistView(view, params);
     if (!opts.fromPopState) {
       const path = viewToPath(view, params);
       if (location.pathname !== path) history.pushState({ view, params }, '', path);
