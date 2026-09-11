@@ -151,6 +151,10 @@ function renderBreadcrumb() {
   } else if (['ams-clients', 'ams-client-detail'].includes(S.view)) {
     crumbs.push({ label: 'AMS & Support', act: 'nav-ams' });
     if (c) crumbs.push({ label: c.name });
+  } else if (S.view === 'pipeline') {
+    crumbs.push({ label: 'Sales Pipeline', act: S.selectedPipelineId ? 'nav-pipeline' : undefined });
+    const e = S.selectedPipelineId ? S.pipelineEntries.find(x => x.id === S.selectedPipelineId) : null;
+    if (e) crumbs.push({ label: e.name });
   } else if (S.view === 'admin') {
     crumbs.push({ label: 'Admin' });
   }
@@ -167,6 +171,7 @@ function render() {
   if (!S.user || S.view === 'login') { app.innerHTML = renderLogin(); return; }
   let content = '';
   if (S.view === 'dashboard') content = renderDashboard();
+  else if (S.view === 'pipeline') content = renderPipeline();
   else if (S.view === 'clients') content = renderClientDetail(S.params.clientId);
   else if (S.view === 'client-detail') content = renderClientDetail(S.params.clientId);
   else if (S.view === 'integ-detail') content = renderIntegDetail(S.params.clientId, S.params.integId);
@@ -200,6 +205,7 @@ function renderSidebar() {
     return S.view === v;
   };
   const ico = {
+    pipeline: `<svg class="k-side-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12l-4.5 6v4l-3 1.5v-5.5L2 3z" stroke-linejoin="round"/></svg>`,
     dash: `<svg class="k-side-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`,
     integ: `<svg class="k-side-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 2L3 9h4l-1 5 5-7H7l1-5z" stroke-linejoin="round"/></svg>`,
     impl: `<svg class="k-side-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="3" height="10" rx="0.5"/><rect x="6.5" y="3" width="3" height="10" rx="0.5"/><rect x="11" y="3" width="3" height="10" rx="0.5"/></svg>`,
@@ -236,6 +242,7 @@ function renderSidebar() {
     ${!collapsed ? '<div class="k-side-group" style="margin-top:8px;">Main</div>' : ''}
     ${navItem('dashboard', 'Dashboard', ico.dash)}
     ${grp('Trackers')}
+    ${navItem('pipeline', 'Sales Pipeline', ico.pipeline)}
     ${navItem('clients', 'Integrations', ico.integ)}
     ${navItem('impl', 'Implementations', ico.impl)}
     ${navItem('ams', 'AMS & Support', ico.ams)}

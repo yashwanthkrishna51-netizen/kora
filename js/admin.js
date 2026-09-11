@@ -3,9 +3,9 @@ function renderAdmin(){
   return`<div class="k-page fade">
   <h1 class="text-xl font-bold text-gray-900 mb-5">Admin</h1>
   <div class="flex border-b border-gray-200 mb-6 gap-1 overflow-x-auto">
-    ${[['integrations','Integrations'],['implementations','Implementations'],['ams','AMS & Support'],['users','Users'],['audit','Audit Log']].map(([t,l])=>`<button data-act="admin-tab" data-tab="${t}" class="whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition ${S.adminTab===t?'border-[#0e7490] text-[#0e7490]':'border-transparent text-gray-500 hover:text-gray-800'}">${l}</button>`).join('')}
+    ${[['integrations','Integrations'],['implementations','Implementations'],['ams','AMS & Support'],['pipeline','Pipeline'],['users','Users'],['audit','Audit Log']].map(([t,l])=>`<button data-act="admin-tab" data-tab="${t}" class="whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition ${S.adminTab===t?'border-[#0e7490] text-[#0e7490]':'border-transparent text-gray-500 hover:text-gray-800'}">${l}</button>`).join('')}
   </div>
-  ${S.adminTab==='integrations'?renderAdminClients():S.adminTab==='implementations'?renderAdminImpl():S.adminTab==='ams'?renderAdminAms():S.adminTab==='audit'?renderAdminAudit():renderAdminUsers()}
+  ${S.adminTab==='integrations'?renderAdminClients():S.adminTab==='implementations'?renderAdminImpl():S.adminTab==='ams'?renderAdminAms():S.adminTab==='pipeline'?renderAdminPipeline():S.adminTab==='audit'?renderAdminAudit():renderAdminUsers()}
 </div>`;
 }
 
@@ -175,6 +175,43 @@ function auditActionClass(action){
   if(a.includes('login success')||a.includes('add')||a.includes('import'))return'text-emerald-700';
   return'text-gray-800';
 }
+function renderAdminPipeline(){
+  fetchPipelineStats();
+  fetchPipelineStageWeights();
+  const stats = S.pipelineStats;
+  const weights = S.pipelineStageWeights || {};
+  return `<div class="space-y-5">
+    <div>
+      <h2 class="text-base font-bold text-gray-900 mb-1">Pipeline Funnel</h2>
+      <p class="text-xs text-gray-500 mb-4">Stage counts and conversion, computed live from every tracked opportunity.</p>
+      ${!stats ? `<div class="text-sm text-gray-400 py-8 text-center">Loading…</div>` : `
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div class="bg-white rounded-2xl border border-gray-100 p-4"><div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Win Rate</div><div class="text-xl font-extrabold text-gray-900">${stats.winRate === null ? '—' : stats.winRate + '%'}</div></div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-4"><div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Weighted Value (Open)</div><div class="text-xl font-extrabold text-gray-900">₹${Number(stats.weightedValue || 0).toLocaleString('en-IN')}</div></div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-4"><div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Avg. Days to Close</div><div class="text-xl font-extrabold text-gray-900">${stats.avgDaysToClose === null ? '—' : stats.avgDaysToClose + 'd'}</div></div>
+        <div class="bg-white rounded-2xl border border-gray-100 p-4"><div class="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Open Opportunities</div><div class="text-xl font-extrabold text-gray-900">${stats.totalOpen}</div></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
+        <div class="text-xs font-semibold text-gray-600 mb-3">Stage Breakdown</div>
+        <div class="space-y-2">
+          ${stats.funnel.map(f => `<div class="flex items-center gap-3"><span class="text-xs text-gray-500 w-28 shrink-0">${esc(f.stage)}</span><div class="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden"><div class="h-2 rounded-full" style="width:${stats.funnel[0].count ? Math.round(f.count / Math.max(1, Math.max(...stats.funnel.map(x=>x.count))) * 100) : 0}%;background:#${PIPELINE_STAGE_HEX[f.stage] || '94a3b8'};"></div></div><span class="text-xs font-semibold text-gray-700 w-6 text-right">${f.count}</span></div>`).join('')}
+        </div>
+      </div>`}
+    </div>
+
+    <div>
+      <h2 class="text-base font-bold text-gray-900 mb-1">Stage Win Probabilities</h2>
+      <p class="text-xs text-gray-500 mb-4">Default probability % applied when an opportunity moves to each stage — feeds the weighted pipeline value. Editable per-deal too.</p>
+      <div class="bg-white rounded-2xl border border-gray-100 p-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+          ${PIPELINE_STAGES.map(s => `<div><label class="block text-xs font-medium text-gray-500 mb-1">${esc(s)}</label><div class="relative"><input id="psw-${esc(s)}" type="number" min="0" max="100" value="${weights[s] ?? 0}" class="w-full border border-gray-200 rounded-xl px-3 py-2 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/><span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span></div></div>`).join('')}
+        </div>
+        <button data-act="save-pipeline-weights" class="text-sm font-semibold px-4 py-2 rounded-xl bg-[#0e7490] text-white hover:bg-[#0d3d4f]">Save Stage Weights</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderAdminAudit(){
   const users=S.usersForDropdown||[];
   const rows=S.auditRows||[];

@@ -2,7 +2,55 @@
 function renderModal() {
   const m = S.modal; if (!m) return '';
   let title = '', body = '', btnLabel = 'Create', btnCls = 'btn-grad';
-  if (m.type === 'client-email') {
+  if (m.type === 'add-pipeline-entry' || m.type === 'edit-pipeline-entry') {
+    const isEdit = m.type === 'edit-pipeline-entry';
+    const e = isEdit ? (S.pipelineEntries.find(x => x.id === m.id) || {}) : {};
+    title = isEdit ? 'Edit Opportunity' : 'New Opportunity'; btnLabel = isEdit ? 'Save' : 'Create';
+    body = `<div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Opportunity Name *</label><input id="pe-name" type="text" value="${esc(e.name || '')}" placeholder="e.g. Acme — Q4 SSO rollout" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Existing Client</label>
+        <select id="pe-client" ${isEdit ? 'disabled' : ''} class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] ${isEdit ? 'bg-gray-50 text-gray-400' : ''}"><option value="">— New prospect (type name below) —</option>${S.clients.map(c => `<option value="${esc(c.id)}"${c.id === e.clientId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">New Prospect Name <span class="text-gray-400">(if not an existing client)</span></label><input id="pe-prospect" type="text" value="${esc(e.prospectName || '')}" ${isEdit ? 'disabled' : ''} placeholder="Company name" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] ${isEdit ? 'bg-gray-50 text-gray-400' : ''}"/></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">Stage</label><select id="pe-stage" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${PIPELINE_STAGES.filter(s => s !== 'Won' && s !== 'Lost').map(s => `<option value="${esc(s)}"${s === (e.stage || 'Lead') ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">Owner</label>${assigneeSelect('pe-owner', e.owner || '')}</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">Est. Hours</label><input id="pe-hours" type="number" min="0" value="${e.estimatedHours ?? ''}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">Quoted Value (₹)</label><input id="pe-value" type="number" min="0" value="${e.quotedValue ?? ''}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">Lead Source</label><select id="pe-source" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"><option value="">—</option>${PIPELINE_LEAD_SOURCES.map(s => `<option value="${esc(s)}"${s === e.leadSource ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></div>
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">If Won, becomes</label><select id="pe-domain" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"><option value="">—</option>${PIPELINE_TARGET_DOMAINS.map(d => `<option value="${esc(d)}"${d === e.targetDomain ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Expected Close Date</label><input id="pe-close" type="date" value="${esc(e.expectedCloseDate || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Next Action</label><input id="pe-next" type="text" value="${esc(e.nextAction || '')}" placeholder="e.g. Send proposal by Friday" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Notes</label><textarea id="pe-notes" rows="3" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(e.notes || '')}</textarea></div>
+    </div>`;
+  } else if (m.type === 'move-pipeline-entry') {
+    const e = S.pipelineEntries.find(x => x.id === m.id) || {};
+    title = 'Move to Delivery'; btnLabel = m.busy ? 'Moving…' : 'Move & Mark Won';
+    const domain = m.targetDomain || e.targetDomain || 'Integration';
+    body = `<div class="space-y-3">
+      <div class="bg-[#0e7490]/8 border border-[#0e7490]/20 rounded-xl p-3 text-xs text-[#0d3d4f] leading-relaxed">Creates the real delivery item(s) and marks this opportunity Won. The pipeline entry stays as history — it's never deleted.</div>
+      ${!e.clientId ? `<div><label class="block text-xs font-medium text-gray-500 mb-1">New Client Name *</label><input id="mv-clientname" type="text" value="${esc(m.newClientName !== undefined ? m.newClientName : (e.prospectName || e.name || ''))}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/><p class="text-xs text-gray-400 mt-1">This prospect has no client record yet — one will be created with this name.</p></div>` : `<div class="text-sm text-gray-600">Client: <span class="font-medium text-gray-800">${esc(pipelineEntryClientName(e))}</span></div>`}
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Move To *</label>
+        <div class="flex gap-2">
+          ${PIPELINE_TARGET_DOMAINS.map(d => `<button type="button" data-act="pipeline-move-domain" data-domain="${esc(d)}" class="flex-1 text-xs font-semibold px-3 py-2 rounded-xl border transition ${domain === d ? 'bg-[#0e7490] text-white border-[#0e7490]' : 'bg-white border-gray-200 text-gray-600 hover:border-[#0e7490]/40'}">${esc(d)}</button>`).join('')}
+        </div>
+      </div>
+      ${domain === 'Integration' || domain === 'Both' ? `<div><label class="block text-xs font-medium text-gray-500 mb-1">Integration Item Name</label><input id="mv-integname" type="text" value="${esc(m.mvIntegName !== undefined ? m.mvIntegName : (e.name || ''))}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>` : ''}
+      ${domain === 'Implementation' || domain === 'Both' ? `<div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-500 mb-1">Module Name</label><input id="mv-modname" type="text" value="${esc(m.mvModName !== undefined ? m.mvModName : (e.name || ''))}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div><div><label class="block text-xs font-medium text-gray-500 mb-1">First Phase Name</label><input id="mv-phasename" type="text" value="${esc(m.mvPhaseName !== undefined ? m.mvPhaseName : 'Kickoff')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div></div>` : ''}
+    </div>`;
+  } else if (m.type === 'mark-pipeline-lost') {
+    const e = S.pipelineEntries.find(x => x.id === m.id) || {};
+    title = 'Mark Lost'; btnLabel = m.busy ? 'Saving…' : 'Mark Lost'; btnCls = 'bg-rose-600 hover:bg-rose-700 text-white';
+    body = `<div class="space-y-3">
+      <p class="text-sm text-gray-600">Marking <span class="font-semibold text-gray-800">${esc(e.name || '')}</span> as Lost. It stays visible in Pipeline history — nothing is deleted.</p>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Reason <span class="text-gray-400">(optional, but useful later)</span></label><textarea id="pl-reason" rows="3" placeholder="e.g. Lost to competitor on price" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(e.winLossReason || '')}</textarea></div>
+    </div>`;
+  } else if (m.type === 'client-email') {
     title = 'Email Report to Client'; btnLabel = m.busy ? 'Sending…' : 'Send Email';
     const attachReady = !!m.attachmentReady;
     body = `<div class="space-y-3">

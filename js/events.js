@@ -84,6 +84,7 @@ document.addEventListener('click', async e => {
   }
   if (act === 'logout') { clearInterval(_bgRefreshTimer); _bgRefreshTimer = null; clearSession(); S.user = null; S.clients = []; S.users = []; S.usersForDropdown = []; S.shas = { clients: null, users: null }; S.sessionToken = null; S.viewAsRole = null; S.lastActiveMap = {}; S.lastActiveFetched = false; S.bulkUserMode = false; S.bulkUserSelected = new Set(); navigate('login', {}, { skipTransition: true }); return; }
   if (act === 'nav-dashboard') { S.mobileSidebarOpen = false; navigate('dashboard'); return; }
+  if (act === 'nav-pipeline') { S.mobileSidebarOpen = false; navigate('pipeline'); fetchPipelineEntries(); return; }
   if (act === 'nav-clients') { S.mobileSidebarOpen = false; navigate('clients'); return; }
   if (act === 'nav-impl') { S.mobileSidebarOpen = false; navigate('impl-clients'); return; }
   if (act === 'nav-ams') { S.mobileSidebarOpen = false; navigate('ams-clients'); return; }
@@ -121,6 +122,20 @@ document.addEventListener('click', async e => {
   if (act === 'open-impl-client') { navigate('impl-client-detail', { clientId: el.dataset.id }); return; }
   if (act === 'open-ams-client') { navigate('ams-client-detail', { clientId: el.dataset.id }); return; }
   if (act === 'filter') { S.filter = el.dataset.filter; render(); return; }
+  if (act === 'pipeline-filter') { S.pipelineFilter = el.dataset.filter; render(); return; }
+  if (act === 'select-pipeline-entry') { S.selectedPipelineId = el.dataset.id; render(); return; }
+  if (act === 'deselect-pipeline-entry') { S.selectedPipelineId = null; render(); return; }
+  if (act === 'pipeline-move-domain') {
+    // Capture whatever's currently typed before this re-renders the modal —
+    // otherwise switching Integration/Implementation/Both mid-fill would
+    // silently discard anything already entered in the fields being hidden.
+    const captured = {};
+    const cn = document.getElementById('mv-clientname'); if (cn) captured.newClientName = cn.value;
+    const inm = document.getElementById('mv-integname'); if (inm) captured.mvIntegName = inm.value;
+    const mdn = document.getElementById('mv-modname'); if (mdn) captured.mvModName = mdn.value;
+    const phn = document.getElementById('mv-phasename'); if (phn) captured.mvPhaseName = phn.value;
+    S.modal = { ...S.modal, ...captured, targetDomain: el.dataset.domain }; render(); return;
+  }
   if (act === 'sort') { const k = el.dataset.key; if (S.sort.key === k) { S.sort.dir = S.sort.dir === 'asc' ? 'desc' : 'asc'; } else { S.sort = { key: k, dir: 'asc' }; } render(); return; }
   if (act === 'sort-dash-attn') { const k = el.dataset.key; if (S.dashAttnSort.key === k) { S.dashAttnSort.dir = S.dashAttnSort.dir === 'asc' ? 'desc' : 'asc'; } else { S.dashAttnSort = { key: k, dir: 'asc' }; } render(); return; }
   if (act === 'dash-assignee-filter') { S.dashAssigneeFilter = el.dataset.key; render(); return; }
@@ -130,6 +145,20 @@ document.addEventListener('click', async e => {
   if (act === 'dash-capacity-toggle') { const key = el.dataset.key; if (S.dashCapacityExpanded.has(key)) S.dashCapacityExpanded.delete(key); else S.dashCapacityExpanded.add(key); render(); return; }
   if (act === 'sort-dash-client') { const k = el.dataset.key; if (S.dashClientSort.key === k) { S.dashClientSort.dir = S.dashClientSort.dir === 'asc' ? 'desc' : 'asc'; } else { S.dashClientSort = { key: k, dir: 'asc' }; } render(); return; }
   if (act === 'admin-tab') { S.adminTab = el.dataset.tab; S.adminSearch = ''; render(); if (el.dataset.tab === 'audit' && !S.auditLoaded) loadAuditLog(); if (el.dataset.tab === 'users' && !S.lastActiveFetched) loadLastActive(); return; }
+  if (act === 'save-pipeline-weights') {
+    if (!can('admin')) return;
+    const newWeights = {};
+    for (const s of PIPELINE_STAGES) {
+      const v = Number(document.getElementById(`psw-${s}`)?.value);
+      if (!Number.isFinite(v) || v < 0 || v > 100) { showToast(`Invalid probability for ${s}`, 'error'); return; }
+      newWeights[s] = v;
+    }
+    setBtnBusy(el, 'Saving…');
+    try { await savePipelineStageWeights(newWeights); showToast('Stage weights saved ✓'); }
+    catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    finally { clearBtnBusy(el); }
+    return;
+  }
   if (act === 'audit-apply') { S.auditPage = 0; loadAuditLog(); return; }
   if (act === 'audit-clear') { S.auditFrom = ''; S.auditTo = ''; S.auditUser = ''; S.auditSearch = ''; S.auditPage = 0; loadAuditLog(); return; }
   if (act === 'audit-preset') {
@@ -908,6 +937,68 @@ document.addEventListener('click', async e => {
       if (!sections.length) { showToast('Select at least one section', 'error'); return; }
       S.modal = null; render();
       exportConsolidatedPdf(selected, sections);
+    } else if (m.type === 'add-pipeline-entry' || m.type === 'edit-pipeline-entry') {
+      if (!can('editor')) return;
+      const isEdit = m.type === 'edit-pipeline-entry';
+      const name = document.getElementById('pe-name')?.value.trim();
+      const clientId = document.getElementById('pe-client')?.value || '';
+      const prospectName = document.getElementById('pe-prospect')?.value.trim() || '';
+      const stage = document.getElementById('pe-stage')?.value;
+      const owner = document.getElementById('pe-owner')?.value || '';
+      const estimatedHours = document.getElementById('pe-hours')?.value;
+      const quotedValue = document.getElementById('pe-value')?.value;
+      const leadSource = document.getElementById('pe-source')?.value || '';
+      const targetDomain = document.getElementById('pe-domain')?.value || '';
+      const expectedCloseDate = document.getElementById('pe-close')?.value || '';
+      const nextAction = document.getElementById('pe-next')?.value.trim() || '';
+      const notes = document.getElementById('pe-notes')?.value.trim() || '';
+      if (!name) { showToast('Opportunity name is required', 'error'); return; }
+      if (!isEdit && !clientId && !prospectName) { showToast('Select an existing client, or type a new prospect name', 'error'); return; }
+      const stageWeights = S.pipelineStageWeights || {};
+      const fields = { name, stage, owner, estimatedHours: estimatedHours ? Number(estimatedHours) : null, quotedValue: quotedValue ? Number(quotedValue) : null, leadSource: leadSource || null, targetDomain: targetDomain || null, expectedCloseDate: expectedCloseDate || null, nextAction: nextAction || null, notes: notes || null };
+      S.modal = { ...m, busy: true }; render();
+      try {
+        if (isEdit) {
+          await updatePipelineEntry(m.id, { ...fields, probability: stageWeights[stage] });
+          showToast('Opportunity updated ✓');
+        } else {
+          await createPipelineEntry({ id: uid(), ...fields, clientId: clientId || null, prospectName: clientId ? null : prospectName, probability: stageWeights[stage] || 10 });
+          showToast('Opportunity added ✓');
+        }
+        S.modal = null; render();
+      } catch (err) { S.modal = { ...S.modal, busy: false }; showToast('Failed: ' + err.message, 'error'); render(); }
+    } else if (m.type === 'move-pipeline-entry') {
+      if (!can('editor')) return;
+      const e = S.pipelineEntries.find(x => x.id === m.id); if (!e) return;
+      const targetDomain = m.targetDomain || e.targetDomain || 'Integration';
+      const newClientName = document.getElementById('mv-clientname')?.value.trim();
+      if (!e.clientId && !newClientName) { showToast('A client name is required', 'error'); return; }
+      const payload = { targetDomain };
+      if (newClientName) payload.newClientName = newClientName;
+      if (targetDomain === 'Integration' || targetDomain === 'Both') {
+        payload.integration = { name: document.getElementById('mv-integname')?.value.trim() || e.name };
+      }
+      if (targetDomain === 'Implementation' || targetDomain === 'Both') {
+        payload.implementation = { moduleName: document.getElementById('mv-modname')?.value.trim() || e.name, firstPhaseName: document.getElementById('mv-phasename')?.value.trim() || 'Kickoff' };
+      }
+      S.modal = { ...m, busy: true }; render();
+      try {
+        await movePipelineEntry(m.id, payload);
+        S.modal = null;
+        S.selectedPipelineId = e.id;
+        showToast(`Moved to ${targetDomain} — marked Won ✓`);
+        render();
+      } catch (err) { S.modal = { ...S.modal, busy: false }; showToast('Failed: ' + err.message, 'error'); render(); }
+    } else if (m.type === 'mark-pipeline-lost') {
+      if (!can('editor')) return;
+      const reason = document.getElementById('pl-reason')?.value.trim() || '';
+      S.modal = { ...m, busy: true }; render();
+      try {
+        await markPipelineLost(m.id, reason);
+        S.modal = null;
+        showToast('Marked Lost');
+        render();
+      } catch (err) { S.modal = { ...S.modal, busy: false }; showToast('Failed: ' + err.message, 'error'); render(); }
     } else if (m.type === 'client-email') {
       if (!can('editor')) return;
       const to = document.getElementById('ce-to')?.value.trim();
@@ -1214,6 +1305,8 @@ document.addEventListener('click', async e => {
 });
 
 document.addEventListener('change', async e => {
+  const pipelineSortEl = e.target.closest('[data-act="pipeline-sort"]');
+  if (pipelineSortEl) { S.pipelineSort = pipelineSortEl.value; render(); return; }
   const statusEl = e.target.closest('[data-act="inline-status"]');
   if (statusEl && can('editor')) {
     const c = S.clients.find(x => x.id === statusEl.dataset.cid); if (!c) return;

@@ -1,7 +1,7 @@
 const KOGNOZ_LOGO = "/kognoz_Iogo.png";
 let _bgRefreshTimer = null; // Phase 2 staleness-reduction poll, started on login, stopped on logout
 // ─── STATE ────────────────────────────────────────────────────────
-const S = { user: null, clients: [], archivedClients: [], users: [], usersForDropdown: [], shas: { clients: null, users: null }, sessionToken: null, view: 'login', params: {}, adminTab: 'integrations', filter: 'all', search: '', modal: null, toast: null, sidebarCollapsed: false, mobileSidebarOpen: false, sidebarClientsOpen: false, sort: { key: 'name', dir: 'asc' }, editingTimelineId: null, expandedHistory: new Set(), amsFrom: '', amsTo: '', amsQuick: '', editingAmsEntryId: null, expandedAmsHistory: new Set(), selectedAmsEntryId: null, selectedIntegId: null, openExportMenu: null, cmdPaletteOpen: false, cmdQuery: '', cmdSelectedIdx: 0, recentlyViewed: [], darkMode: false, shortcutsHelpOpen: false, bulkImplMode: false, bulkImplCid: null, bulkSelected: new Set(), offlineMode: false, bulkIntegMode: false, bulkIntegCid: null, bulkIntegSelected: new Set(), dashAttnSort: { key: 'reason', dir: 'desc' }, dashClientSort: { key: 'name', dir: 'asc' }, dashAssigneeSort: { key: 'total', dir: 'desc' }, dashAssigneeSearch: '', dashAssigneeExpanded: new Set(), dashCapacityExpanded: new Set(), dashAssigneeFilter: 'all', dashCritSearch: '', dashCritFilter: 'all', adminSearch: '', auditRows: [], auditTotal: 0, auditPage: 0, auditPageSize: 50, auditFrom: '', auditTo: '', auditUser: '', auditSearch: '', auditLoading: false, auditLoaded: false, snapshotHistory: [], snapshotChecked: false, snapshotHistoryFetched: false, capacityWeights: { module: 1, pmo: 0.5, ams: 0.25, cap: 5 }, capacityWeightsFetched: false, digestRecipients: { emails: [] }, digestRecipientsFetched: false, pendingPath: null, authMessage: null, integRailFilter: '', integRailSort: 'name', integMineOnly: false, lastActiveMap: {}, lastActiveFetched: false, viewAsRole: null, bulkUserMode: false, bulkUserSelected: new Set(), pomodoro: null, pomodoroModePref: 'simple' };
+const S = { user: null, clients: [], archivedClients: [], users: [], usersForDropdown: [], shas: { clients: null, users: null }, sessionToken: null, view: 'login', params: {}, adminTab: 'integrations', filter: 'all', search: '', modal: null, toast: null, sidebarCollapsed: false, mobileSidebarOpen: false, sidebarClientsOpen: false, sort: { key: 'name', dir: 'asc' }, editingTimelineId: null, expandedHistory: new Set(), amsFrom: '', amsTo: '', amsQuick: '', editingAmsEntryId: null, expandedAmsHistory: new Set(), selectedAmsEntryId: null, selectedIntegId: null, openExportMenu: null, cmdPaletteOpen: false, cmdQuery: '', cmdSelectedIdx: 0, recentlyViewed: [], darkMode: false, shortcutsHelpOpen: false, bulkImplMode: false, bulkImplCid: null, bulkSelected: new Set(), offlineMode: false, bulkIntegMode: false, bulkIntegCid: null, bulkIntegSelected: new Set(), dashAttnSort: { key: 'reason', dir: 'desc' }, dashClientSort: { key: 'name', dir: 'asc' }, dashAssigneeSort: { key: 'total', dir: 'desc' }, dashAssigneeSearch: '', dashAssigneeExpanded: new Set(), dashCapacityExpanded: new Set(), dashAssigneeFilter: 'all', dashCritSearch: '', dashCritFilter: 'all', adminSearch: '', auditRows: [], auditTotal: 0, auditPage: 0, auditPageSize: 50, auditFrom: '', auditTo: '', auditUser: '', auditSearch: '', auditLoading: false, auditLoaded: false, snapshotHistory: [], snapshotChecked: false, snapshotHistoryFetched: false, capacityWeights: { module: 1, pmo: 0.5, ams: 0.25, cap: 5 }, capacityWeightsFetched: false, digestRecipients: { emails: [] }, digestRecipientsFetched: false, pipelineEntries: [], pipelineEntriesFetched: false, pipelineStageWeights: { 'Lead': 10, 'Qualified': 30, 'Proposal Sent': 50, 'Negotiation': 75, 'Won': 100, 'Lost': 0 }, pipelineStageWeightsFetched: false, pipelineFilter: 'all', pipelineSort: 'created', selectedPipelineId: null, pipelineStats: null, pipelineStatsFetched: false, pendingPath: null, authMessage: null, integRailFilter: '', integRailSort: 'name', integMineOnly: false, lastActiveMap: {}, lastActiveFetched: false, viewAsRole: null, bulkUserMode: false, bulkUserSelected: new Set(), pomodoro: null, pomodoroModePref: 'simple' };
 
 try { S.sidebarCollapsed = localStorage.getItem('itk_sb_collapsed') === '1'; } catch (e) { }
 try { const r = localStorage.getItem('itk_recent'); if (r) S.recentlyViewed = JSON.parse(r); } catch (e) { }
@@ -10,6 +10,10 @@ if (S.darkMode) document.documentElement.classList.add('dark');
 
 // ─── CONSTANTS — KOGNOZ BRAND ─────────────────────────────────────
 const STATUSES = ['Not Started', 'In Progress', 'At Risk', 'On Hold — Internal', 'On Hold — Client', 'Pending Client', 'Under Review', 'Delayed', 'Cancelled', 'Completed'];
+const PIPELINE_STAGES = ['Lead', 'Qualified', 'Proposal Sent', 'Negotiation', 'Won', 'Lost'];
+const PIPELINE_LEAD_SOURCES = ['Referral', 'Inbound', 'Existing Client Expansion', 'Cold Outreach', 'Other'];
+const PIPELINE_TARGET_DOMAINS = ['Integration', 'Implementation', 'Both'];
+const PIPELINE_STAGE_HEX = { 'Lead': '94a3b8', 'Qualified': '0284c7', 'Proposal Sent': '0e7490', 'Negotiation': 'ea580c', 'Won': '22c55e', 'Lost': 'be185d' };
 const ROLES = ['viewer', 'editor', 'admin'];
 const PHASES = ['BPU', 'BPU Signoff', 'CRP', 'CRP Signoff', 'UAT', 'UAT Signoff', 'Data Migration / Production Migration', 'Go Live', 'Hypercare'];
 const SIGNOFF_PHASES = ['BPU Signoff', 'CRP Signoff', 'UAT Signoff'];
@@ -415,6 +419,84 @@ async function saveDigestRecipients(newValue) {
   const r = await fetch('/api/ops?op=settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ key: 'digest_recipients', value: newValue }) });
   if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Failed to save recipients'); }
   S.digestRecipients = newValue;
+}
+
+// ─── Sales Pipeline ─────────────────────────────────────────────────
+async function fetchPipelineEntries(force = false) {
+  if (S.pipelineEntriesFetched && !force) return;
+  S.pipelineEntriesFetched = true;
+  try {
+    const r = await fetch('/api/ops?op=pipeline', { headers: { 'x-session-token': S.sessionToken || '' } });
+    if (!r.ok) return;
+    const d = await r.json();
+    S.pipelineEntries = d.entries || [];
+    render();
+  } catch (e) {/* leaves whatever was already in state, never blocks on it */ }
+}
+async function fetchPipelineStageWeights() {
+  if (S.pipelineStageWeightsFetched) return;
+  S.pipelineStageWeightsFetched = true;
+  try {
+    const r = await fetch('/api/ops?op=settings', { headers: { 'x-session-token': S.sessionToken || '' } });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.pipelineStageWeights) { S.pipelineStageWeights = d.pipelineStageWeights; render(); }
+  } catch (e) {/* defaults already in state */ }
+}
+async function savePipelineStageWeights(newValue) {
+  const r = await fetch('/api/ops?op=settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ key: 'pipeline_stage_weights', value: newValue }) });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Failed to save stage weights'); }
+  S.pipelineStageWeights = newValue;
+}
+async function fetchPipelineStats(force = false) {
+  if (S.pipelineStatsFetched && !force) return;
+  S.pipelineStatsFetched = true;
+  try {
+    const r = await fetch('/api/ops?op=pipeline&stats=1', { headers: { 'x-session-token': S.sessionToken || '' } });
+    if (!r.ok) return;
+    S.pipelineStats = await r.json();
+    render();
+  } catch (e) {/* leave null, callers handle */ }
+}
+async function createPipelineEntry(entry) {
+  const r = await fetch('/api/ops?op=pipeline', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ action: 'create', entry }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Failed to create pipeline entry');
+  S.pipelineEntries = [d.entry, ...S.pipelineEntries];
+  return d.entry;
+}
+async function updatePipelineEntry(id, fields) {
+  const existing = S.pipelineEntries.find(e => e.id === id);
+  const r = await fetch('/api/ops?op=pipeline', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ action: 'update', id, fields, expectedUpdatedAt: existing?._v }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Failed to update pipeline entry');
+  S.pipelineEntries = S.pipelineEntries.map(e => e.id === id ? d.entry : e);
+  return d.entry;
+}
+async function markPipelineLost(id, reason) {
+  const r = await fetch('/api/ops?op=pipeline', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ action: 'mark-lost', id, reason }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Failed to mark entry Lost');
+  S.pipelineEntries = S.pipelineEntries.map(e => e.id === id ? d.entry : e);
+  return d.entry;
+}
+async function movePipelineEntry(id, payload) {
+  const r = await fetch('/api/ops?op=pipeline', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ action: 'move', id, ...payload }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Failed to move pipeline entry');
+  if (d.entry) S.pipelineEntries = S.pipelineEntries.map(e => e.id === id ? d.entry : e);
+  return d;
+}
+// Deal-rotting flag — reuses the SAME isStale()/staleBadge() logic already
+// used for integration/AMS items, just keyed off the pipeline entry's own
+// lastActivityAt instead of an item's update timeline.
+function pipelineIsStale(entry, days = 7) {
+  if (entry.stage === 'Won' || entry.stage === 'Lost') return false;
+  if (!entry.lastActivityAt) return true;
+  return daysDiff(entry.lastActivityAt.slice(0, 10)) >= days;
+}
+function pipelineWeightedValue(entry) {
+  return (Number(entry.quotedValue) || 0) * (Number(entry.probability) || 0) / 100;
 }
 // Shared card visual for Integration + Implementation client-list cards —
 // a small progress ring (health % + color) paired with a metric strip below.
