@@ -1,4 +1,14 @@
 // ─── DASHBOARD ────────────────────────────────────────────────────
+// UI PORT NOTICE: this file's visual structure (markup/CSS classes) is
+// redesigned to match koraV2's actual dashboard components
+// (components/dashboard/admin-dashboard.tsx, kpi.tsx, critical-items.tsx,
+// my-dashboard.tsx). EVERY COMPUTATION BELOW IS UNCHANGED from the previous
+// version — same variables, same formulas, same trend calculation (including
+// its known inversion bug — deliberately not fixed here, that's a separate,
+// isolated change). Only the returned HTML changed. Every data-act, every
+// tile key in `sections{}`, every S.* state field read/written is identical,
+// so the existing tile customization system (DASH_TILE_REGISTRY /
+// getDashLayout()) keeps working exactly as before.
 function renderDashboard() {
   ensureSnapshotCaptured();
   fetchSnapshotHistory(14);
@@ -69,55 +79,50 @@ function renderDashboard() {
   });
   criticalItems.sort((a, b) => a.severity - b.severity);
 
-  // ── Editor/Viewer: stripped dashboard, confirmed rule ──────────────
-  // No KPI strip, no Portfolio Health, no other widgets — just Critical
-  // Items assigned to this person, or genuinely unassigned. Reuses the
-  // exact same row markup as the Admin view below (see sections['critical-items'])
-  // so there's only one Critical Items component to maintain, not two.
+  const datestampLine = () => {
+    const d = new Date();
+    const date = d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/,/g, '');
+    const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `<p class="kd-datestamp">${esc((date + ' · ' + time).toUpperCase())}</p>`;
+  };
+  const critRow = it => `<div class="kd-crit-row" data-act="${it.act}" data-cid="${esc(it.cid)}" data-id="${esc(it.cid)}" ${it.iid ? `data-iid="${esc(it.iid)}"` : ''}>
+    <div class="kd-crit-title-wrap">
+      ${it.severity === 0 ? `<svg class="kd-crit-flag" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 5v4M8 11h.01M7.1 2.3 1.5 12a1.5 1.5 0 0 0 1.3 2.2h10.4a1.5 1.5 0 0 0 1.3-2.2L8.9 2.3a1 1 0 0 0-1.8 0Z"/></svg>` : ''}
+      <div class="min-w-0">
+        <div class="kd-crit-title" title="${esc(it.title)}">${esc(it.title)}</div>
+        <div class="kd-crit-domain">${esc(it.domain)}</div>
+      </div>
+    </div>
+    <div class="kd-crit-client" title="${esc(it.client)}">${esc(it.client)}</div>
+    <div class="kd-crit-status ${it.severity === 0 ? 'kd-text-red' : 'kd-text-amber'}">${esc(it.detail)}</div>
+    <div class="kd-crit-owner" title="${esc(it.owner)}">${esc(it.owner)}</div>
+  </div>`;
+
   if (!can('admin')) {
     const myName = (S.user?.name || '').trim().toLowerCase();
     const myItems = criticalItems.filter(it => {
       const owner = (it.owner || '').trim().toLowerCase();
       return owner === myName || owner === 'unassigned' || !owner;
     });
-    return `<div class="k-page fade kdash2">
-  <style>
-    .kdash2{--dp:#2563EB;--da:#059669;--dd:#DC2626;--damber:#D97706;--dbg:#F8FAFC;--dcard:#FFFFFF;--dborder:#E4ECFC;--dmute:#64748B;--dink:#0F172A;}
-    .kdash2 .bento{border-radius:24px;background:var(--dcard);border:1px solid var(--dborder);box-shadow:0 4px 6px rgba(0,0,0,.05);padding:20px;}
-    .kdash2 .chip2{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;white-space:nowrap;}
-    .kdash2 .dot2{width:8px;height:8px;border-radius:999px;display:inline-block;}
-  </style>
-  <h1 class="text-2xl font-extrabold" style="color:var(--dink);margin-bottom:4px;">My Critical Items</h1>
-  <p class="text-sm mt-0.5 mb-5" style="color:var(--dmute);margin-bottom:20px;">Assigned to you, plus anything unassigned that needs an owner</p>
-  <div class="bento mb-4">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="font-bold text-sm flex items-center gap-2" style="color:var(--dink)"><span class="dot2" style="background:var(--dd)"></span>⚠️ Critical Items</h3>
-      <span class="chip2" style="background:rgba(220,38,38,.08);color:var(--dd)">${myItems.length}</span>
-    </div>
-    <div class="crit-table-wrap">
-      <div class="crit-grid-table">
-        <div class="crit-grid-header">
-          <div class="hd-col">Item</div>
-          <div class="hd-col">Client</div>
-          <div class="hd-col">Status / Age</div>
-          <div class="hd-col">Owner</div>
-        </div>
-        <div class="crit-grid-body">
-          ${myItems.length ? myItems.map(it => `
-          <div class="crit-grid-row ${it.severity === 0 ? 'crit-sev-0' : 'crit-sev-1'}" data-act="${it.act}" data-cid="${esc(it.cid)}" data-id="${esc(it.cid)}" ${it.iid ? `data-iid="${esc(it.iid)}"` : ''}>
-            <div class="crit-cell-item">
-              <div class="crit-title" title="${esc(it.title)}">${esc(it.title)}</div>
-              <div class="crit-domain">${esc(it.domain)}</div>
-            </div>
-            <div class="crit-cell-client" title="${esc(it.client)}">${esc(it.client)}</div>
-            <div class="crit-cell-status ${it.severity === 0 ? 'status-danger' : 'status-warning'}">${esc(it.detail)}</div>
-            <div class="crit-cell-owner" title="${esc(it.owner)}">${esc(it.owner)}</div>
-          </div>`).join('') : `
-          <div class="text-sm text-center py-12" style="color:var(--dmute)">Nothing critical assigned to you right now 🎉</div>`}
-        </div>
+    return `<div class="k-page fade kd">
+  ${DASH_CSS}
+  <header>
+    <h1 class="kd-page-title">Your critical items</h1>
+    <p class="kd-page-sub">Assigned to you, plus anything unassigned that needs an owner</p>
+  </header>
+  <section class="kd-card mt-5">
+    <div class="kd-card-head">
+      <div class="flex items-center gap-2.5">
+        <span class="kd-dot kd-dot-red" aria-hidden="true"></span>
+        <h2 class="kd-card-title">Critical items</h2>
       </div>
+      <span class="kd-mono kd-count">${myItems.length}</span>
     </div>
-  </div>
+    ${myItems.length ? `<div class="kd-crit-table">
+      <div class="kd-crit-head"><div>Item</div><div>Client</div><div>Status / Age</div><div>Owner</div></div>
+      <div>${myItems.map(critRow).join('')}</div>
+    </div>` : `<div class="kd-empty"><div class="kd-empty-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3v14M3 10h14"/></svg></div><p class="kd-empty-title">Nothing of yours needs attention</p><p class="kd-empty-hint">Nothing assigned to "${esc(S.user?.name || '')}" is overdue, stale or critical.</p></div>`}
+  </section>
 </div>`;
   }
 
@@ -128,7 +133,7 @@ function renderDashboard() {
   implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => { if (ph.status !== 'Completed' && ph.targetDate && ph.targetDate >= todayS && ph.targetDate <= in14) upcoming.push({ date: ph.targetDate, title: `${ph.name} — ${m.name}`, client: c.name, tag: 'Phase' }); })));
   openAmsEntries.forEach(e => { if (e.dueDate && e.dueDate >= todayS && e.dueDate <= in14) upcoming.push({ date: e.dueDate, title: (e.description || 'AMS item').slice(0, 50), client: e.clientName, tag: 'AMS' }); });
   upcoming.sort((a, b) => a.date.localeCompare(b.date));
-  const TAG_COLOR = { Milestone: 'da', Phase: 'dp', AMS: 'damber' };
+  const TAG_CLASS = { Milestone: 'kd-tag-teal', Phase: 'kd-tag-primary', AMS: 'kd-tag-amber' };
 
   const workMixTotal = allAmsEntries.reduce((a, e) => a + Number(e.hours || 0), 0);
   const workMixByType = {};
@@ -142,7 +147,7 @@ function renderDashboard() {
   allAmsEntries.forEach(e => { const l = e.queryLevel || AMS_QUERY_LEVELS[0]; severityDist[l] = (severityDist[l] || 0) + 1; });
   const severityTotal = allAmsEntries.length || 1;
   const oldestCritical = openAmsEntries.filter(isL3orL4).map(e => daysDiff(entryDate(e))).sort((a, b) => b - a)[0];
-  const SEV_COLOR = { 'L1 - Low': '#94A3B8', 'L2 - Medium': 'var(--dp)', 'L3 - High': 'var(--damber)', 'L4 - Critical': 'var(--dd)' };
+  const SEV_CLASS = { 'L1 - Low': 'kd-sev-l1', 'L2 - Medium': 'kd-sev-l2', 'L3 - High': 'kd-sev-l3', 'L4 - Critical': 'kd-sev-l4' };
 
   const funnelCounts = {};
   PHASES.forEach(p => funnelCounts[p] = 0);
@@ -169,13 +174,8 @@ function renderDashboard() {
   const healthSplit = { Red: 0, Amber: 0, Green: 0 };
   healthRows.forEach(r => { healthSplit[r.overall] = (healthSplit[r.overall] || 0) + 1; });
   const l3l4OpenCount = openAmsEntries.filter(isL3orL4).length;
+  const portfolioScore = healthRows.length ? Math.round((healthSplit.Green * 100 + healthSplit.Amber * 50) / healthRows.length) : null;
 
-  // ─── SECTIONS ─────────────────────────────────────────────────────
-  // Each dashboard block below is built as a standalone string keyed by its
-  // DASH_TILE_REGISTRY id (see core.js), so the person's saved drag-and-drop
-  // order/visibility (getDashLayout()) decides what actually renders and in
-  // what sequence — nothing here is a fixed position anymore except the top
-  // KPI strip, which stays as a header rather than a reorderable tile.
   const sections = {};
 
   const critDomains = [...new Set(criticalItems.map(it => it.domain.split(' · ')[0]))];
@@ -186,79 +186,59 @@ function renderDashboard() {
   }
   if (S.dashCritFilter !== 'all') critFiltered = critFiltered.filter(it => it.domain.startsWith(S.dashCritFilter));
 
-  sections['critical-items'] = `<div class="bento p-5 mb-4">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="font-bold text-sm flex items-center gap-2" style="color:var(--dink)"><span class="dot2" style="background:var(--dd)"></span>⚠️ Critical Items — start here</h3>
-      <span class="chip2" style="background:rgba(220,38,38,.08);color:var(--dd)">${critFiltered.length}${critFiltered.length !== criticalItems.length ? ` / ${criticalItems.length}` : ''}</span>
+  sections['critical-items'] = `<section class="kd-card kd-tile">
+    <div class="kd-card-head kd-wrap">
+      <div class="flex items-center gap-2.5">
+        <span class="kd-dot kd-dot-red" aria-hidden="true"></span>
+        <h2 class="kd-card-title">Critical items — start here</h2>
+      </div>
+      <span class="kd-mono kd-count">${critFiltered.length}${critFiltered.length !== criticalItems.length ? ` / ${criticalItems.length}` : ''}</span>
     </div>
-    <div class="flex flex-wrap items-center gap-2 mb-3">
-      <input type="text" id="dash-crit-search-inp" placeholder="Search item, client, owner…" value="${esc(S.dashCritSearch)}" data-act="dash-crit-search" class="text-xs rounded-lg px-2.5 py-1.5 focus:outline-none max-w-[220px]" style="border:1px solid var(--dborder)"/>
-      <div class="flex gap-1.5 flex-wrap">
-        <button data-act="dash-crit-filter" data-key="all" class="chip2" style="${S.dashCritFilter === 'all' ? 'background:var(--dp);color:#0c0c0f;font-weight:700;' : 'background:var(--dbg);color:var(--dmute);border:1px solid var(--dborder);'}">All</button>
-        ${critDomains.map(d => `<button data-act="dash-crit-filter" data-key="${esc(d)}" class="chip2" style="${S.dashCritFilter === d ? 'background:var(--dp);color:#0c0c0f;font-weight:700;' : 'background:var(--dbg);color:var(--dmute);border:1px solid var(--dborder);'}">${esc(d)}</button>`).join('')}
+    <div class="kd-toolbar">
+      <input type="text" id="dash-crit-search-inp" placeholder="Search item, client, owner…" value="${esc(S.dashCritSearch)}" data-act="dash-crit-search" class="kd-search"/>
+      <div class="kd-chipbar" role="group" aria-label="Filter critical items by domain">
+        <button data-act="dash-crit-filter" data-key="all" class="kd-chip ${S.dashCritFilter === 'all' ? 'kd-chip-active' : ''}">All ${criticalItems.length}</button>
+        ${critDomains.map(d => `<button data-act="dash-crit-filter" data-key="${esc(d)}" class="kd-chip ${S.dashCritFilter === d ? 'kd-chip-active' : ''}">${esc(d)}</button>`).join('')}
       </div>
     </div>
-    <div class="crit-table-wrap">
-      <div class="crit-grid-table">
-        <div class="crit-grid-header">
-          <div class="hd-col">Item</div>
-          <div class="hd-col">Client</div>
-          <div class="hd-col">Status / Age</div>
-          <div class="hd-col">Owner</div>
-        </div>
-        <div class="crit-grid-body">
-          ${critFiltered.length ? critFiltered.map(it => `
-          <div class="crit-grid-row ${it.severity === 0 ? 'crit-sev-0' : 'crit-sev-1'}" data-act="${it.act}" data-cid="${esc(it.cid)}" data-id="${esc(it.cid)}" ${it.iid ? `data-iid="${esc(it.iid)}"` : ''}>
-            <div class="crit-cell-item">
-              <div class="crit-title" title="${esc(it.title)}">${esc(it.title)}</div>
-              <div class="crit-domain">${esc(it.domain)}</div>
-            </div>
-            <div class="crit-cell-client" title="${esc(it.client)}">${esc(it.client)}</div>
-            <div class="crit-cell-status ${it.severity === 0 ? 'status-danger' : 'status-warning'}">${esc(it.detail)}</div>
-            <div class="crit-cell-owner" title="${esc(it.owner)}">${esc(it.owner)}</div>
-          </div>`).join('') : `
-          <div class="text-sm text-center py-8" style="color:var(--dmute)">${S.dashCritSearch || S.dashCritFilter !== 'all' ? 'No matches' : 'Nothing critical right now 🎉'}</div>`}
-        </div>
-      </div>
+    <div class="kd-crit-table">
+      <div class="kd-crit-head"><div>Item</div><div>Client</div><div>Status / Age</div><div>Owner</div></div>
+      <div>${critFiltered.length ? critFiltered.map(critRow).join('') : `<div class="kd-empty-inline">${S.dashCritSearch || S.dashCritFilter !== 'all' ? 'No matches' : 'Nothing is overdue, stale or critical'}</div>`}</div>
     </div>
-  </div>`;
+  </section>`;
 
-  sections['health-scorecard'] = `<div class="bento p-5 mb-4">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="font-bold text-sm" style="color:var(--dink)">Portfolio Health Scorecard</h3>
-      ${healthRows.length ? (() => { const score = Math.round((healthSplit.Green * 100 + healthSplit.Amber * 50) / healthRows.length); return `<div class="text-right"><div class="text-lg font-extrabold" style="color:${score >= 75 ? 'var(--da)' : score >= 50 ? 'var(--damber)' : 'var(--dd)'}">${score}</div><div class="text-[10px]" style="color:var(--dmute)">portfolio score</div></div>`; })() : ''}
+  sections['health-scorecard'] = `<section class="kd-card kd-tile">
+    <div class="kd-card-head">
+      <h2 class="kd-card-title">Portfolio health scorecard</h2>
+      ${portfolioScore !== null ? `<div class="text-right"><p class="kd-num kd-score" style="color:${portfolioScore >= 75 ? 'var(--dk-green)' : portfolioScore >= 50 ? 'var(--dk-amber)' : 'var(--dk-red)'}">${portfolioScore}</p><p class="kd-score-sub">portfolio score</p></div>` : ''}
     </div>
-    <div class="scrollbox">
-      <div class="flex" style="border-bottom:1px solid var(--dborder)">
-        <div class="hd2 flex-1 px-2 py-1.5">Client</div><div class="hd2 w-10 px-2 py-1.5 text-center">Int</div><div class="hd2 w-10 px-2 py-1.5 text-center">Impl</div><div class="hd2 w-10 px-2 py-1.5 text-center">AMS</div><div class="hd2 w-16 px-2 py-1.5 text-right">Trend</div>
-      </div>
-      ${healthRows.length ? healthRows.map(r => `<div class="row2" data-act="open-client" data-id="${esc(r.id)}">
-        <div class="flex-1 px-2 font-medium truncate" style="color:var(--dink)">${esc(r.name)}</div>
-        <div class="w-10 px-2 text-center">${r.integR ? `<span class="dot2" style="background:${RAG_HEX[r.integR]}"></span>` : ''}</div>
-        <div class="w-10 px-2 text-center">${r.implR ? `<span class="dot2" style="background:${RAG_HEX[r.implR]}"></span>` : ''}</div>
-        <div class="w-10 px-2 text-center">${r.amsR ? `<span class="dot2" style="background:${RAG_HEX[r.amsR]}"></span>` : ''}</div>
-        <div class="w-16 px-2 text-right font-semibold" style="color:${r.trend === 'worse' ? 'var(--dd)' : r.trend === 'better' ? 'var(--da)' : 'var(--dmute)'}">${r.trend === 'worse' ? '↓ worse' : r.trend === 'better' ? '↑ better' : r.trend === 'new' ? '— new' : '→ same'}</div>
-      </div>`).join('') : `<div class="text-sm text-center py-8" style="color:var(--dmute)">No client health data yet</div>`}
+    <div class="kd-thead"><div class="kd-th-client">Client</div><div class="kd-th-c">Int</div><div class="kd-th-c">Impl</div><div class="kd-th-c">AMS</div><div class="kd-th-r">Trend</div></div>
+    <div class="kd-scorebody">
+      ${healthRows.length ? healthRows.map(r => `<div class="kd-scorerow" data-act="open-client" data-id="${esc(r.id)}">
+        <div class="kd-sr-name">${esc(r.name)}</div>
+        <div class="kd-sr-c">${r.integR ? `<span class="kd-dot" style="background:${RAG_HEX[r.integR]}"></span>` : `<span class="kd-dash">—</span>`}</div>
+        <div class="kd-sr-c">${r.implR ? `<span class="kd-dot" style="background:${RAG_HEX[r.implR]}"></span>` : `<span class="kd-dash">—</span>`}</div>
+        <div class="kd-sr-c">${r.amsR ? `<span class="kd-dot" style="background:${RAG_HEX[r.amsR]}"></span>` : `<span class="kd-dash">—</span>`}</div>
+        <div class="kd-sr-trend ${r.trend === 'worse' ? 'kd-text-red' : r.trend === 'better' ? 'kd-text-green' : ''}">${r.trend === 'worse' ? '↓ worse' : r.trend === 'better' ? '↑ better' : r.trend === 'new' ? 'new' : '— same'}</div>
+      </div>`).join('') : `<div class="kd-empty-inline">No client health data yet</div>`}
     </div>
-    <div class="text-[11px] mt-2 pt-2" style="color:var(--dmute);border-top:1px solid var(--dborder)">Portfolio score = 100 per Green client + 50 per Amber, averaged. Trend sharpens as daily snapshots accumulate.</div>
-  </div>`;
+    <p class="kd-footnote">100 per Green client + 50 per Amber, averaged. Trend sharpens as daily snapshots accumulate.</p>
+  </section>`;
 
-  sections['upcoming-deadlines'] = `<div class="bento p-5 mb-4">
-    <h3 class="font-bold text-sm mb-2" style="color:var(--dink)">Upcoming Deadlines — next 14 days</h3>
-    <div class="scrollbox">
-      ${upcoming.length ? upcoming.map(u => `<div class="row2" style="cursor:default">
-        <div class="w-16 px-2 font-semibold" style="color:var(--dp)">${fmtDate(u.date)}</div>
-        <div class="flex-1 px-2 truncate" style="color:var(--dink)" title="${esc(u.title)}">${esc(u.title)}</div>
-        <div class="w-24 px-2 truncate" style="color:var(--dmute)">${esc(u.client)}</div>
-        <div class="w-20 px-2"><span class="chip2" style="background:rgba(37,99,235,.08);color:var(--${TAG_COLOR[u.tag]})">${u.tag}</span></div>
-      </div>`).join('') : `<div class="text-sm text-center py-8" style="color:var(--dmute)">Nothing due in the next 14 days</div>`}
-    </div>
-  </div>`;
+  sections['upcoming-deadlines'] = `<section class="kd-card kd-tile">
+    <div class="kd-card-head"><h2 class="kd-card-title">Upcoming deadlines — next 14 days</h2><span class="kd-mono kd-count">${upcoming.length}</span></div>
+    ${upcoming.length ? `<ul class="kd-list">${upcoming.map(u => `<li class="kd-deadline-row">
+        <span class="kd-mono kd-deadline-date">${fmtDate(u.date)}</span>
+        <span class="kd-deadline-title" title="${esc(u.title)}">${esc(u.title)}</span>
+        <span class="kd-deadline-client">${esc(u.client)}</span>
+        <span class="kd-tag ${TAG_CLASS[u.tag]}">${u.tag}</span>
+      </li>`).join('')}</ul>` : `<div class="kd-empty"><p class="kd-empty-title">Nothing due in the next fortnight</p></div>`}
+  </section>`;
 
-  sections['ams-workmix'] = `<div class="bento p-5 mb-4">
-    <h3 class="font-bold text-sm mb-3" style="color:var(--dink)">AMS Work-Mix</h3>
+  sections['ams-workmix'] = `<section class="kd-card kd-tile">
+    <h2 class="kd-card-title mb-3">Work mix</h2>
     ${workMixSorted.length ? (() => {
-      const donutColors = ['var(--dp)', 'var(--da)', 'var(--damber)', 'var(--dd)'];
+      const donutColors = ['var(--dk-primary)', 'var(--dk-green)', 'var(--dk-amber)', 'var(--dk-red)'];
       const r = 52, cx = 60, cy = 60, circ = 2 * Math.PI * r;
       let cumulative = 0;
       const arcs = workMixSorted.map(([type, hrs], idx) => {
@@ -266,79 +246,67 @@ function renderDashboard() {
         const dash = pct * circ;
         const offset = circ - cumulative;
         cumulative += dash;
-        return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${donutColors[idx % 4]}" stroke-width="16" stroke-dasharray="${dash.toFixed(1)} ${(circ - dash).toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+        return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${donutColors[idx % 4]}" stroke-width="14" stroke-dasharray="${dash.toFixed(1)} ${(circ - dash).toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="round"/>`;
       }).join('');
       return `<div class="flex items-center gap-5">
         <svg width="120" height="120" viewBox="0 0 120 120" class="shrink-0">
-          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--dborder)" stroke-width="16"/>
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--dk-line)" stroke-width="14"/>
           ${arcs}
-          <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="20" font-weight="800" fill="var(--dink)">${workMixTotal.toFixed(0)}h</text>
-          <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="9" fill="var(--dmute)">total logged</text>
+          <text x="${cx}" y="${cy - 3}" text-anchor="middle" class="kd-donut-num" fill="var(--dk-ink)">${workMixTotal.toFixed(0)}h</text>
+          <text x="${cx}" y="${cy + 14}" text-anchor="middle" class="kd-donut-sub" fill="var(--dk-mute)">total logged</text>
         </svg>
         <div class="flex-1 space-y-1.5">
-          ${workMixSorted.map(([type, hrs], idx) => { const pct = workMixTotal ? Math.round(hrs / workMixTotal * 100) : 0; return `<div class="flex items-center gap-2 text-xs"><span style="width:9px;height:9px;border-radius:50%;background:${donutColors[idx % 4]};display:inline-block;flex-shrink:0;"></span><span class="flex-1 truncate" style="color:var(--dink)">${esc(type)}</span><span class="font-semibold" style="color:var(--dmute)">${pct}%</span></div>`; }).join('')}
+          ${workMixSorted.map(([type, hrs], idx) => { const pct = workMixTotal ? Math.round(hrs / workMixTotal * 100) : 0; return `<div class="kd-legend-row"><span class="kd-dot" style="background:${donutColors[idx % 4]}"></span><span class="kd-legend-label">${esc(type)}</span><span class="kd-legend-pct">${pct}%</span></div>`; }).join('')}
         </div>
       </div>
-      <div class="text-[11px] mt-3 pt-2" style="color:var(--dmute);border-top:1px solid var(--dborder)">${reactivePct}% reactive (Bug Fix + Support) vs ${100 - reactivePct}% proactive</div>`;
-    })() : `<div class="text-sm text-center py-6" style="color:var(--dmute)">No AMS hours logged yet</div>`}
-  </div>`;
+      <p class="kd-footnote">${reactivePct}% reactive (Bug Fix + Support) vs ${100 - reactivePct}% proactive</p>`;
+    })() : `<div class="kd-empty-inline">No AMS hours logged yet</div>`}
+  </section>`;
 
-  sections['severity-aging'] = `<div class="bento p-5 mb-4">
-    <h3 class="font-bold text-sm mb-3" style="color:var(--dink)">Severity &amp; Aging</h3>
-    ${severityTotal > 1 ? `<div class="flex gap-1 h-3 rounded-full overflow-hidden mb-2" style="background:var(--dborder)">
-      ${AMS_QUERY_LEVELS.map(l => severityDist[l] ? `<div style="width:${Math.round(severityDist[l] / severityTotal * 100)}%;background:${SEV_COLOR[l]}" title="${l}: ${severityDist[l]}"></div>` : '').join('')}
+  sections['severity-aging'] = `<section class="kd-card kd-tile">
+    <h2 class="kd-card-title mb-3">Severity &amp; aging</h2>
+    ${severityTotal > 1 ? `<div class="kd-sevbar">
+      ${AMS_QUERY_LEVELS.map(l => severityDist[l] ? `<div class="${SEV_CLASS[l]}" style="width:${Math.round(severityDist[l] / severityTotal * 100)}%" title="${l}: ${severityDist[l]}"></div>` : '').join('')}
     </div>
-    <div class="flex flex-wrap gap-2 text-[11px] mb-3">
-      ${AMS_QUERY_LEVELS.map(l => `<span style="color:${SEV_COLOR[l]}">${l.split(' - ')[0]}: ${Math.round(severityDist[l] / severityTotal * 100)}%</span>`).join('')}
+    <div class="kd-sevlegend">
+      ${AMS_QUERY_LEVELS.map(l => `<span class="${SEV_CLASS[l]}-text">${l.split(' - ')[0]}: ${Math.round(severityDist[l] / severityTotal * 100)}%</span>`).join('')}
     </div>
-    ${oldestCritical !== undefined ? `<div class="text-xs font-semibold" style="color:var(--dd)">Oldest open L3/L4 ticket: ${oldestCritical}d</div>` : `<div class="text-xs" style="color:var(--da)">No open L3/L4 tickets ✓</div>`}` : `<div class="text-sm text-center py-6" style="color:var(--dmute)">No AMS entries yet</div>`}
-  </div>`;
+    ${oldestCritical !== undefined ? `<p class="kd-text-red kd-bold-sm">Oldest open L3/L4 ticket: ${oldestCritical}d</p>` : `<p class="kd-text-green kd-bold-sm">No open L3/L4 tickets</p>`}` : `<div class="kd-empty-inline">No AMS entries yet</div>`}
+  </section>`;
 
   const delayedPhaseCount = allPhases.filter(ph => ph.status === 'Delayed').length;
-  sections['phase-funnel'] = `<div class="bento p-5 mb-4">
-    <h3 class="font-bold text-sm mb-3" style="color:var(--dink)">Phase-Stage Funnel</h3>
+  sections['phase-funnel'] = `<section class="kd-card kd-tile">
+    <h2 class="kd-card-title mb-3">Phase-stage funnel</h2>
     ${funnelSorted.length ? `<div class="space-y-1.5">
-      ${funnelSorted.map(([name, n]) => `<div class="flex items-center gap-2 text-[11px]"><span class="w-24 truncate" style="color:${name === funnelMax[0] ? 'var(--dink)' : 'var(--dmute)'};font-weight:${name === funnelMax[0] ? 600 : 400}">${esc(name)}</span><div class="flex-1 h-2.5 rounded" style="background:var(--dborder)"><div class="h-full rounded" style="width:${Math.round(n / funnelTotal * 100)}%;background:${name === funnelMax[0] ? 'var(--dd)' : 'var(--dp)'}"></div></div><span class="w-4 text-right" style="color:var(--dmute)">${n}</span></div>`).join('')}
+      ${funnelSorted.map(([name, n]) => `<div class="kd-funnel-row"><span class="kd-funnel-label ${name === funnelMax[0] ? 'kd-funnel-max' : ''}">${esc(name)}</span><div class="kd-funnel-track"><div class="kd-funnel-fill ${name === funnelMax[0] ? 'kd-funnel-fill-max' : ''}" style="width:${Math.round(n / funnelTotal * 100)}%"></div></div><span class="kd-funnel-n">${n}</span></div>`).join('')}
     </div>
-    <div class="text-[11px] mt-2 pt-2" style="color:var(--dd);border-top:1px solid var(--dborder)">Bottleneck: ${Math.round(funnelMax[1] / funnelTotal * 100)}% of active phases stuck at ${esc(funnelMax[0])}${delayedPhaseCount ? ` · ${delayedPhaseCount} phase${delayedPhaseCount !== 1 ? 's' : ''} marked Delayed` : ''}</div>` : `<div class="text-sm text-center py-6" style="color:var(--dmute)">No active phases in progress</div>`}
-  </div>`;
+    <p class="kd-footnote kd-text-red">Bottleneck: ${Math.round(funnelMax[1] / funnelTotal * 100)}% of active phases stuck at ${esc(funnelMax[0])}${delayedPhaseCount ? ` · ${delayedPhaseCount} phase${delayedPhaseCount !== 1 ? 's' : ''} marked Delayed` : ''}</p>` : `<div class="kd-empty-inline">No active phases in progress</div>`}
+  </section>`;
 
-  sections['financial-rollup'] = `<div class="bento p-5 mb-4">
-    <h3 class="font-bold text-sm mb-3" style="color:var(--dink)">Financial Rollup</h3>
+  sections['financial-rollup'] = `<section class="kd-card kd-tile">
+    <h2 class="kd-card-title mb-3">Financial rollup</h2>
     ${isAdmin ? `<div class="grid grid-cols-2 gap-2 mb-3">
-      <div class="rounded-xl p-3" style="background:rgba(5,150,105,.06)"><div class="text-lg font-extrabold" style="color:var(--da)">${amsRevenueINR ? `₹${amsRevenueINR.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—'}</div><div class="text-[11px]" style="color:var(--dmute)">Billable (INR)</div></div>
-      <div class="rounded-xl p-3" style="background:rgba(5,150,105,.06)"><div class="text-lg font-extrabold" style="color:var(--da)">${amsRevenueUSD ? `$${amsRevenueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}</div><div class="text-[11px]" style="color:var(--dmute)">Billable (USD)</div></div>
-    </div>`: `<div class="rounded-xl p-3 mb-3" style="background:rgba(37,99,235,.06)"><div class="text-lg font-extrabold" style="color:var(--dp)">${amsHoursThisMonth.toFixed(1)}h</div><div class="text-[11px]" style="color:var(--dmute)">Hours this month</div></div>`}
-    ${amsLowBalance.length ? `<div class="text-xs font-semibold" style="color:var(--dd)">⚠ ${amsLowBalance.length} client pool${amsLowBalance.length !== 1 ? 's' : ''} running low</div>` : amsClients.length ? `<div class="text-xs" style="color:var(--da)">All hour pools healthy ✓</div>` : ''}
-  </div>`;
+      <div class="kd-fin-box"><p class="kd-fin-num">${amsRevenueINR ? `₹${amsRevenueINR.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—'}</p><p class="kd-fin-label">Billable (INR)</p></div>
+      <div class="kd-fin-box"><p class="kd-fin-num">${amsRevenueUSD ? `$${amsRevenueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}</p><p class="kd-fin-label">Billable (USD)</p></div>
+    </div>` : `<div class="kd-fin-box mb-3"><p class="kd-fin-num">${amsHoursThisMonth.toFixed(1)}h</p><p class="kd-fin-label">Hours this month</p></div>`}
+    ${amsLowBalance.length ? `<p class="kd-text-red kd-bold-sm">${amsLowBalance.length} client pool${amsLowBalance.length !== 1 ? 's' : ''} running low</p>` : amsClients.length ? `<p class="kd-text-green kd-bold-sm">All hour pools healthy</p>` : ''}
+  </section>`;
 
-  sections['data-hygiene'] = `<div class="bento p-5 mb-4">
-    <h3 class="font-bold text-sm mb-3" style="color:var(--dink)">Data Hygiene Score</h3>
-    <div class="flex items-center gap-3 mb-2">
-      <div class="text-3xl font-extrabold" style="color:${hygieneScore >= 80 ? 'var(--da)' : hygieneScore >= 60 ? 'var(--damber)' : 'var(--dd)'}">${hygieneScore}%</div>
-      <div class="text-xs" style="color:var(--dmute)">of items fully tracked</div>
-    </div>
-    <div class="text-[11px] space-y-1" style="color:var(--dmute)">
-      <div>${Math.round((1 - hyg.assignee) * 100)}% missing assignee</div>
-      <div>${Math.round((1 - hyg.due) * 100)}% missing due date</div>
-      <div>${Math.round((1 - hyg.fresh) * 100)}% no update in 30+ days</div>
-    </div>
-  </div>`;
+  sections['data-hygiene'] = `<section class="kd-card kd-tile">
+    <h2 class="kd-card-title mb-3">Hygiene</h2>
+    <p class="kd-num kd-hygiene-num" style="color:${hygieneScore >= 80 ? 'var(--dk-green)' : hygieneScore >= 60 ? 'var(--dk-amber)' : 'var(--dk-red)'}">${hygieneScore}%</p>
+    <dl class="kd-hygiene-rows">
+      <div class="kd-hygiene-row"><dt>Have an assignee</dt><dd class="kd-mono">${Math.round(hyg.assignee * 100)}%</dd></div>
+      <div class="kd-hygiene-row"><dt>Have a due date</dt><dd class="kd-mono">${Math.round(hyg.due * 100)}%</dd></div>
+      <div class="kd-hygiene-row"><dt>Updated recently</dt><dd class="kd-mono">${Math.round(hyg.fresh * 100)}%</dd></div>
+    </dl>
+  </section>`;
 
-  sections['blockers'] = `<div class="bento p-5 mb-4">
-    <div class="flex items-center justify-between mb-1">
-      <h3 class="font-bold text-sm" style="color:var(--dink)">Blockers / Dependencies</h3>
-      ${blockers.length ? `<span class="text-[10px]" style="color:var(--dmute)">self-reported, unverified</span>` : ''}
-    </div>
-    ${blockers.length ? blockers.slice(0, 5).map(b => `<div class="row2" style="cursor:default"><div class="flex-1 truncate text-xs" style="color:var(--dink)">${esc(b.client)} — ${esc(b.text)}</div></div>`).join('') : `<div class="text-sm text-center py-6" style="color:var(--dmute)">No blockers flagged ✓</div>`}
-  </div>`;
+  sections['blockers'] = `<section class="kd-card kd-tile">
+    <div class="kd-card-head"><h2 class="kd-card-title">Blockers</h2><span class="kd-mono kd-count">${blockers.length}</span></div>
+    ${blockers.length ? `<ul class="kd-list">${blockers.slice(0, 5).map(b => `<li class="kd-blocker-row"><p class="kd-blocker-text">${esc(b.text)}</p><p class="kd-blocker-client">${esc(b.client)}</p></li>`).join('')}</ul>` : `<div class="kd-empty"><p class="kd-empty-title">Nothing is blocked</p></div>`}
+  </section>`;
 
-  // ── Admin-only: Team Bandwidth ──────────────────────────────────────
-  // Workload by Assignee removed entirely (not just hidden) — it overlapped
-  // with Team Bandwidth (raw counts vs. capacity-weighted load for the same
-  // data), and the brief explicitly called out this kind of redundant widget
-  // for removal. Team Bandwidth is the richer, more actionable version of
-  // the same "who's got what" question.
   if (isAdmin) {
     const cw = S.capacityWeights;
     const capacity = {};
@@ -363,100 +331,233 @@ function renderDashboard() {
     const stretched = capacityRows.filter(r => r.total >= cw.cap * 0.9);
     const overCap = capacityRows.filter(r => r.total > cw.cap);
 
-    sections['team-bandwidth'] = `<div class="bento p-5 mb-4">
-      <div class="flex items-center justify-between mb-2">
-        <div>
-          <h3 class="font-bold text-sm" style="color:var(--dink)">Team Bandwidth</h3>
-          <p class="text-xs mt-0.5" style="color:var(--dmute)">Module = ${cw.module} · PMO = ${cw.pmo} · AMS ticket = ${cw.ams} · Integration = per-item · Cap = ${cw.cap}</p>
+    sections['team-bandwidth'] = `<section class="kd-card kd-tile">
+      <div class="kd-card-head kd-wrap">
+        <div class="min-w-0">
+          <h2 class="kd-card-title">Team bandwidth</h2>
+          <p class="kd-card-subline">Module = ${cw.module} · PMO = ${cw.pmo} · AMS ticket = ${cw.ams} · Integration = per-item · Cap = ${cw.cap}</p>
         </div>
-        <button data-act="modal-open" data-modal="capacity-weights" class="text-xs font-medium px-3 py-1.5 rounded-lg shrink-0" style="border:1px solid var(--dborder);color:var(--dmute)">⚙ Configure weights</button>
+        <button data-act="modal-open" data-modal="capacity-weights" class="kd-btn kd-btn-outline kd-btn-sm shrink-0">Configure weights</button>
       </div>
-      ${overCap.length ? `<div class="rounded-xl px-4 py-3 mb-3 flex items-center gap-2.5" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);">
-        <span style="font-size:16px;">🔴</span>
-        <span class="text-xs font-semibold" style="color:var(--dd)">Delivery risk: ${overCap.length} ${overCap.length === 1 ? 'person is' : 'people are'} over capacity right now — ${overCap.map(r => esc(r.name)).join(', ')}</span>
+      ${overCap.length ? `<div class="kd-riskband">
+        <span class="kd-dot kd-dot-red" aria-hidden="true"></span>
+        <p class="kd-text-red kd-bold-sm">Delivery risk: ${overCap.length} ${overCap.length === 1 ? 'person is' : 'people are'} over capacity right now — ${overCap.map(r => esc(r.name)).join(', ')}</p>
       </div>` : ''}
-      ${capacityRows.length ? `<div class="grid grid-cols-2 gap-4 my-4">
-        <div class="rounded-xl p-3" style="background:rgba(5,150,105,.06);border:1px solid rgba(5,150,105,.15)">
-          <div class="text-xs font-semibold mb-1.5" style="color:var(--da)">✓ Available capacity (${available.length})</div>
-          <div class="text-xs leading-relaxed" style="color:var(--dmute)">${available.length ? available.map(r => `${esc(r.name)} (${r.total.toFixed(2)})`).join(', ') : 'Nobody has meaningful spare capacity right now'}</div>
+      ${capacityRows.length ? `<div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="kd-capbox kd-capbox-green">
+          <p class="kd-capbox-title kd-text-green">Available capacity (${available.length})</p>
+          <p class="kd-capbox-body">${available.length ? available.map(r => `${esc(r.name)} (${r.total.toFixed(2)})`).join(', ') : 'Nobody has meaningful spare capacity right now'}</p>
         </div>
-        <div class="rounded-xl p-3" style="background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15)">
-          <div class="text-xs font-semibold mb-1.5" style="color:var(--dd)">⚠ Stretched (${stretched.length})</div>
-          <div class="text-xs leading-relaxed" style="color:var(--dmute)">${stretched.length ? stretched.map(r => `${esc(r.name)} (${r.total.toFixed(2)})`).join(', ') : 'Nobody is at or near capacity'}</div>
+        <div class="kd-capbox kd-capbox-red">
+          <p class="kd-capbox-title kd-text-red">Stretched (${stretched.length})</p>
+          <p class="kd-capbox-body">${stretched.length ? stretched.map(r => `${esc(r.name)} (${r.total.toFixed(2)})`).join(', ') : 'Nobody is at or near capacity'}</p>
         </div>
-      </div>`: ''}
-      <div class="scrollbox">
-        ${capacityRows.length ? capacityRows.map(r => {
+      </div>` : ''}
+      ${capacityRows.length === 0 ? `<div class="kd-empty"><p class="kd-empty-title">Nothing is assigned</p></div>` : `<div class="kd-scrollbox"><ul>
+        ${capacityRows.map(r => {
       const pct = Math.min(100, r.total / cw.cap * 100);
       const over = r.total > cw.cap;
-      const nearCap = pct >= 90;
-      const barColor = over ? 'var(--dd)' : nearCap ? 'var(--damber)' : 'var(--da)';
       const expanded = S.dashCapacityExpanded.has(r.name);
-      return `<div>
-          <div class="row2" data-act="dash-capacity-toggle" data-key="${esc(r.name)}" style="${over ? 'background:rgba(220,38,38,.05);' : nearCap ? 'background:rgba(217,119,6,.04);' : ''}">
-            <div class="w-32 px-2 truncate font-medium" style="color:${over ? 'var(--dd)' : 'var(--dink)'}">${over ? '🔴 ' : ''}${esc(r.name)}</div>
-            <div class="flex-1 px-2 h-2 rounded-full overflow-hidden" style="background:var(--dborder)"><div class="h-full rounded-full" style="width:${pct}%;background:${barColor}"></div></div>
-            <div class="w-20 px-2 text-right font-semibold" style="color:${over ? 'var(--dd)' : 'var(--dink)'}">${r.total.toFixed(2)} / ${cw.cap}</div>
-            <div class="w-6 px-2 text-right" style="color:var(--dmute)">${expanded ? '▾' : '▸'}</div>
+      return `<li>
+          <div class="kd-bwrow" data-act="dash-capacity-toggle" data-key="${esc(r.name)}">
+            <span class="kd-bw-name ${over ? 'kd-text-red' : ''}">${esc(r.name)}</span>
+            <span class="kd-bw-track"><span class="kd-bw-fill" style="width:${pct}%;background:${loadFillColor(r.total, cw)}"></span></span>
+            <span class="kd-mono kd-bw-total ${over ? 'kd-text-red' : ''}">${r.total.toFixed(2)} / ${cw.cap}</span>
           </div>
-          ${expanded ? `<div class="pl-6 pr-2 py-2" style="background:var(--dbg);border-bottom:1px solid var(--dborder)">
-            <div class="flex flex-wrap gap-x-4 gap-y-1">
-              ${r.details.map(d => `<span class="text-xs" style="color:var(--dmute)"><span class="chip2" style="background:var(--dborder);font-size:9px;color:var(--dmute);">${d.amount}</span> ${esc(d.detail)}</span>`).join('')}
-            </div>
-          </div>`: ''}
-        </div>`;
-    }).join('') : `<div class="text-sm text-center py-8" style="color:var(--dmute)">No active assignments to compute bandwidth from yet</div>`}
-      </div>
-    </div>`;
+          ${expanded ? `<div class="kd-bw-detail">${r.details.map(d => `<span class="kd-bw-detail-item"><span class="kd-mono kd-bw-detail-amt">${d.amount}</span> ${esc(d.detail)}</span>`).join('')}</div>` : ''}
+        </li>`;
+    }).join('')}
+      </ul></div>`}
+    </section>`;
   }
 
-  // ─── ASSEMBLE, in the person's saved order, admin-only tiles filtered out for non-admins ───
   const layout = getDashLayout().filter(t => {
     const reg = DASH_TILE_REGISTRY.find(r => r.id === t.id);
     return reg && t.visible && (!reg.adminOnly || isAdmin);
   });
   const orderedSections = layout.map(t => sections[t.id] || '').join('');
 
-  return `<div class="k-page fade kdash2">
-  <style>
-    .kdash2{--dp:#2563EB;--da:#059669;--dd:#DC2626;--damber:#D97706;--dbg:#F8FAFC;--dcard:#FFFFFF;--dborder:#E4ECFC;--dmute:#64748B;--dink:#0F172A;}
-    .kdash2 .bento{border-radius:24px;background:var(--dcard);border:1px solid var(--dborder);box-shadow:0 4px 6px rgba(0,0,0,.05);transition:transform 180ms ease,box-shadow 180ms ease;}
-    .kdash2 .bento:hover{transform:scale(1.006);box-shadow:0 8px 20px rgba(37,99,235,.08);}
-    .kdash2 .row2{display:flex;align-items:center;padding:7px 4px;border-bottom:1px solid var(--dborder);font-size:12.5px;cursor:pointer;}
-    .kdash2 .row2:last-child{border-bottom:none;}
-    .kdash2 .row2:hover{background:rgba(37,99,235,.03);}
-    .kdash2 .chip2{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;white-space:nowrap;}
-    .kdash2 .hd2{color:var(--dmute);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;}
-    .kdash2 .scrollbox{max-height:320px;overflow-y:auto;}
-    .kdash2 .dot2{width:8px;height:8px;border-radius:999px;display:inline-block;}
-  </style>
+  const red = healthSplit.Red, amber = healthSplit.Amber;
 
-  <div class="flex items-center justify-between mb-5">
-    <div>
-      <h1 class="text-2xl font-extrabold" style="color:var(--dink)">Dashboard</h1>
-      <p class="text-sm mt-0.5" style="color:var(--dmute)">Portfolio overview — sorted worst-first</p>
+  return `<div class="k-page fade kd">
+  ${DASH_CSS}
+  <header class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0">
+      ${datestampLine()}
+      <h1 class="kd-page-title">Portfolio</h1>
+      <p class="kd-page-sub">${S.clients.length} client${S.clients.length === 1 ? '' : 's'} across three delivery streams — sorted worst-first</p>
     </div>
     <div class="flex items-center gap-2">
-      <button data-act="modal-open" data-modal="dashboard-layout" class="text-sm font-medium px-3.5 py-2 rounded-xl" style="border:1px solid var(--dborder);color:var(--dmute);background:var(--dcard)">⠿ Customize</button>
-      ${isAdmin ? `<button data-act="portfolio-export" class="text-sm font-semibold text-white px-4 py-2.5 rounded-xl" style="background:var(--dp)">Portfolio Export</button>` : ''}
+      <button data-act="modal-open" data-modal="dashboard-layout" class="kd-btn kd-btn-outline">Customize</button>
+      ${isAdmin ? `<button data-act="portfolio-export" class="kd-btn kd-btn-primary">Portfolio Export</button>` : ''}
     </div>
-  </div>
+  </header>
 
-  <div class="grid grid-cols-6 gap-3 mb-4">
-    <div class="bento p-4"><div class="text-3xl font-extrabold" style="color:var(--dink)">${S.clients.length}</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">Clients</div></div>
-    <div class="bento p-4">
-      <div class="flex items-end gap-1.5"><div class="text-3xl font-extrabold" style="color:${ar ? 'var(--dd)' : 'var(--dink)'}">${ar}</div>${atRiskDelta !== null && atRiskDelta !== 0 ? `<span class="text-xs font-semibold mb-1" style="color:${atRiskDelta > 0 ? 'var(--dd)' : 'var(--da)'}">${atRiskDelta > 0 ? '↑' : '↓'}${Math.abs(atRiskDelta)}</span>` : ''}</div>
-      <div class="text-xs font-medium mt-1" style="color:var(--dmute)">At Risk${atRiskDelta !== null ? ' · vs ' + new Date([...new Set(S.snapshotHistory.map(s => s.snapshot_date))].sort()[0]).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</div>
+  <div class="kd-kpi-sticky">
+    <div class="kd-kpi-strip">
+      <div class="kd-kpi" style="border-left-color:var(--dk-primary)"><span class="kd-num kd-kpi-val">${S.clients.length}</span><span class="kd-kpi-label">Clients</span></div>
+      <div class="kd-kpi" style="border-left-color:var(--dk-red)">
+        <span class="kd-num kd-kpi-val" style="color:${ar ? 'var(--dk-red)' : 'var(--dk-ink)'}">${ar}${atRiskDelta !== null && atRiskDelta !== 0 ? `<span class="kd-kpi-delta ${atRiskDelta > 0 ? 'kd-text-red' : 'kd-text-green'}">${atRiskDelta > 0 ? '↑' : '↓'}${Math.abs(atRiskDelta)}</span>` : ''}</span>
+        <span class="kd-kpi-label">At risk${atRiskDelta !== null ? ' · vs ' + new Date([...new Set(S.snapshotHistory.map(s => s.snapshot_date))].sort()[0]).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</span>
+      </div>
+      <div class="kd-kpi" style="border-left-color:var(--dk-sky)"><span class="kd-num kd-kpi-val">${thisWeekUpdates}</span><span class="kd-kpi-label">Updates, 7 days</span><span class="kd-kpi-sub">hygiene ${hygieneScore}%</span></div>
+      <div class="kd-kpi" style="border-left-color:var(--dk-amber)"><span class="kd-num kd-kpi-val kd-kpi-val-sm">${healthSplit.Red}<span class="kd-text-red"> R</span> · ${healthSplit.Amber}<span class="kd-text-amber"> A</span> · ${healthSplit.Green}<span class="kd-text-green"> G</span></span><span class="kd-kpi-label">Clients off track</span><span class="kd-kpi-sub">${red} red · ${amber} amber</span></div>
+      <div class="kd-kpi" style="border-left-color:var(--dk-red)"><span class="kd-num kd-kpi-val" style="color:${l3l4OpenCount ? 'var(--dk-red)' : 'var(--dk-ink)'}">${l3l4OpenCount}</span><span class="kd-kpi-label">L3/L4 tickets open</span></div>
+      <div class="kd-kpi" style="border-left-color:var(--dk-green)"><span class="kd-num kd-kpi-val" style="color:${hygieneScore >= 80 ? 'var(--dk-green)' : hygieneScore >= 60 ? 'var(--dk-amber)' : 'var(--dk-red)'}">${hygieneScore}%</span><span class="kd-kpi-label">Data hygiene score</span></div>
     </div>
-    <div class="bento p-4"><div class="text-3xl font-extrabold" style="color:var(--dink)">${thisWeekUpdates}</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">Updates · 7d</div></div>
-    <div class="bento p-4">
-      <div class="text-lg font-extrabold" style="color:var(--dink)">${healthSplit.Red} <span style="color:var(--dd)">R</span> · ${healthSplit.Amber} <span style="color:var(--damber)">A</span> · ${healthSplit.Green} <span style="color:var(--da)">G</span></div>
-      <div class="text-xs font-medium mt-1" style="color:var(--dmute)">Client Health Split</div>
-    </div>
-    <div class="bento p-4"><div class="text-3xl font-extrabold" style="color:${l3l4OpenCount ? 'var(--dd)' : 'var(--dink)'}">${l3l4OpenCount}</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">L3/L4 tickets open</div></div>
-    <div class="bento p-4" style="${hygieneScore < 60 ? 'background:rgba(220,38,38,.06);border-color:rgba(220,38,38,.25);' : ''}"><div class="text-3xl font-extrabold" style="color:${hygieneScore >= 80 ? 'var(--da)' : hygieneScore >= 60 ? 'var(--damber)' : 'var(--dd)'}">${hygieneScore < 60 ? '⚠ ' : ''}${hygieneScore}%</div><div class="text-xs font-medium mt-1" style="color:var(--dmute)">Data Hygiene Score</div></div>
   </div>
 
   ${orderedSections}
 </div>`;
 }
+
+function loadFillColor(total, w) {
+  if (total > w.cap) return 'var(--dk-red)';
+  if (total >= w.cap * 0.9) return 'var(--dk-amber)';
+  if (total < w.cap * 0.6) return 'var(--dk-green)';
+  return 'var(--dk-primary)';
+}
+
+const DASH_CSS = `<style>
+.kd{ --dk-primary: var(--teal); --dk-red: var(--red); --dk-amber: var(--amber); --dk-green: var(--green);
+     --dk-sky: #43AFCD; --dk-ink: var(--ink); --dk-mute: var(--mute); --dk-mute-2: var(--mute-2); --dk-line: var(--line); --dk-line-2: var(--line-2); --dk-paper: var(--paper); }
+.kd-page-title{ font-size:26px; font-weight:800; color:var(--dk-ink); line-height:1.15; }
+.kd-page-sub{ margin-top:4px; font-size:13px; color:var(--dk-mute); }
+.kd-datestamp{ font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--dk-mute-2); margin-bottom:6px; }
+.kd-btn{ font-size:13px; font-weight:600; padding:8px 16px; border-radius:12px; transition:background .15s; }
+.kd-btn-outline{ border:1px solid var(--dk-line); color:var(--dk-mute); background:var(--dk-paper); }
+.kd-btn-outline:hover{ border-color:var(--dk-primary); color:var(--dk-primary); }
+.kd-btn-primary{ background:var(--dk-primary); color:#fff; font-weight:700; }
+.kd-btn-primary:hover{ filter:brightness(.93); }
+.kd-btn-sm{ padding:6px 12px; font-size:12px; }
+.kd-num{ font-family:var(--font-head, inherit); font-weight:800; }
+.kd-mono{ font-family:var(--mono); }
+.kd-text-red{ color:var(--dk-red); } .kd-text-amber{ color:var(--dk-amber); } .kd-text-green{ color:var(--dk-green); }
+.kd-bold-sm{ font-size:12px; font-weight:600; }
+.kd-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.kd-dot-red{ background:var(--dk-red); }
+.kd-dash{ color:var(--dk-mute-2); }
+
+.kd-kpi-sticky{ position:sticky; top:0; z-index:20; background:var(--surface); margin:0 -4px; padding:12px 4px 14px; }
+.kd-kpi-strip{ display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+@media (max-width:1180px){ .kd-kpi-strip{ grid-template-columns:repeat(3,1fr); } }
+@media (max-width:640px){ .kd-kpi-strip{ grid-template-columns:repeat(2,1fr); } }
+.kd-kpi{ background:var(--dk-paper); border:1px solid var(--dk-line); border-left-width:3px; border-radius:12px; padding:14px 16px; }
+.kd-kpi-val{ display:block; font-size:26px; line-height:1; color:var(--dk-ink); }
+.kd-kpi-val-sm{ font-size:17px; }
+.kd-kpi-delta{ font-size:12px; font-weight:600; margin-left:6px; }
+.kd-kpi-label{ display:block; margin-top:7px; font-size:11px; color:var(--dk-mute); line-height:1.35; }
+.kd-kpi-sub{ display:block; margin-top:2px; font-size:11px; color:var(--dk-mute-2); }
+
+.kd-tile{ margin-top:16px; }
+.kd-card{ background:var(--dk-paper); border:1px solid var(--dk-line); border-radius:14px; padding:18px; }
+.kd-card-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.kd-wrap{ flex-wrap:wrap; row-gap:8px; }
+.kd-card-title{ font-size:14px; font-weight:700; color:var(--dk-ink); }
+.kd-card-subline{ margin-top:3px; font-size:11px; color:var(--dk-mute); }
+.kd-count{ font-size:11px; color:var(--dk-mute); }
+.kd-footnote{ margin-top:10px; padding-top:10px; border-top:1px solid var(--dk-line-2); font-size:11px; color:var(--dk-mute); }
+.kd-empty{ text-align:center; padding:32px 12px; }
+.kd-empty-icon{ width:32px; height:32px; margin:0 auto 8px; color:var(--dk-mute-2); }
+.kd-empty-title{ font-size:13px; font-weight:600; color:var(--dk-mute); }
+.kd-empty-hint{ margin-top:4px; font-size:11.5px; color:var(--dk-mute-2); max-width:280px; margin-left:auto; margin-right:auto; }
+.kd-empty-inline{ text-align:center; padding:24px 8px; font-size:13px; color:var(--dk-mute); }
+
+.kd-toolbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.kd-search{ font-size:12px; border:1px solid var(--dk-line); border-radius:10px; padding:6px 10px; max-width:220px; background:var(--dk-paper); }
+.kd-search:focus{ outline:none; box-shadow:0 0 0 2px var(--teal-lo); }
+.kd-chipbar{ display:flex; gap:6px; flex-wrap:wrap; }
+.kd-chip{ font-size:11px; font-weight:600; padding:4px 11px; border-radius:999px; border:1px solid var(--dk-line); color:var(--dk-mute); background:var(--dk-paper); transition:all .12s; }
+.kd-chip:hover{ border-color:var(--dk-primary); color:var(--dk-primary); }
+.kd-chip-active{ background:var(--dk-primary); border-color:var(--dk-primary); color:#fff; }
+
+.kd-crit-table{ border:1px solid var(--dk-line-2); border-radius:10px; overflow:hidden; }
+.kd-crit-head{ display:grid; grid-template-columns:1fr 160px 130px 140px; background:var(--surface); border-bottom:1px solid var(--dk-line); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--dk-mute); padding:8px 14px; }
+.kd-crit-row{ display:grid; grid-template-columns:1fr 160px 130px 140px; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--dk-line-2); cursor:pointer; transition:background .12s; }
+.kd-crit-row:last-child{ border-bottom:none; }
+.kd-crit-row:hover{ background:var(--teal-hi); }
+.kd-crit-title-wrap{ display:flex; align-items:flex-start; gap:6px; min-width:0; }
+.kd-crit-flag{ width:13px; height:13px; margin-top:2px; flex-shrink:0; color:var(--dk-red); }
+.kd-crit-title{ font-size:12.5px; font-weight:600; color:var(--dk-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kd-crit-domain{ font-size:10.5px; color:var(--dk-mute-2); margin-top:1px; }
+.kd-crit-client{ font-size:12px; color:var(--dk-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kd-crit-status{ font-family:var(--mono); font-size:11.5px; font-weight:600; }
+.kd-crit-owner{ font-size:12px; color:var(--dk-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (max-width:820px){ .kd-crit-head{ display:none; } .kd-crit-row{ grid-template-columns:1fr; row-gap:2px; } }
+
+.kd-thead{ display:grid; grid-template-columns:1fr 34px 34px 34px 76px; border-bottom:1px solid var(--dk-line); padding:0 4px 6px; }
+.kd-thead > div{ font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--dk-mute); }
+.kd-th-c{ text-align:center; } .kd-th-r{ text-align:right; }
+.kd-scorebody{ max-height:320px; overflow-y:auto; }
+.kd-scrollbox{ max-height:320px; overflow-y:auto; }
+.kd-scorerow{ display:grid; grid-template-columns:1fr 34px 34px 34px 76px; align-items:center; padding:8px 4px; border-bottom:1px solid var(--dk-line-2); font-size:12.5px; cursor:pointer; }
+.kd-scorerow:hover{ background:var(--teal-hi); }
+.kd-scorerow:last-child{ border-bottom:none; }
+.kd-sr-name{ font-weight:500; color:var(--dk-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kd-sr-c{ text-align:center; }
+.kd-sr-trend{ text-align:right; font-size:11px; font-weight:600; color:var(--dk-mute); }
+.kd-score{ font-size:20px; line-height:1; }
+.kd-score-sub{ margin-top:2px; font-size:9.5px; color:var(--dk-mute-2); }
+
+.kd-list{ display:flex; flex-direction:column; }
+.kd-deadline-row{ display:grid; grid-template-columns:60px 1fr 110px 78px; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--dk-line-2); font-size:12px; }
+.kd-deadline-row:last-child{ border-bottom:none; }
+.kd-deadline-date{ font-size:11px; font-weight:600; color:var(--dk-primary); }
+.kd-deadline-title{ color:var(--dk-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kd-deadline-client{ color:var(--dk-mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kd-tag{ font-size:10px; font-weight:600; padding:2px 8px; border-radius:999px; text-align:center; }
+.kd-tag-teal{ background:var(--teal-hi); color:var(--dk-primary); }
+.kd-tag-primary{ background:var(--teal-hi); color:var(--dk-primary); }
+.kd-tag-amber{ background:rgba(245,158,11,.12); color:var(--dk-amber); }
+
+.kd-riskband{ display:flex; align-items:center; gap:10px; padding:10px 14px; margin-bottom:12px; border-radius:10px; background:rgba(239,68,68,.06); border:1px solid rgba(239,68,68,.18); }
+.kd-capbox{ border-radius:12px; padding:12px; }
+.kd-capbox-green{ background:rgba(34,153,84,.06); border:1px solid rgba(34,153,84,.15); }
+.kd-capbox-red{ background:rgba(239,68,68,.06); border:1px solid rgba(239,68,68,.15); }
+.kd-capbox-title{ font-size:12px; font-weight:600; margin-bottom:5px; }
+.kd-capbox-body{ font-size:11.5px; line-height:1.5; color:var(--dk-mute); }
+.kd-bwrow{ display:grid; grid-template-columns:130px 1fr 92px; align-items:center; gap:12px; padding:9px 2px; border-bottom:1px solid var(--dk-line-2); cursor:pointer; }
+.kd-bwrow:hover{ background:var(--teal-hi); }
+.kd-bw-name{ font-size:12.5px; font-weight:500; color:var(--dk-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kd-bw-track{ height:8px; border-radius:999px; background:var(--dk-line-2); overflow:hidden; }
+.kd-bw-fill{ display:block; height:100%; border-radius:999px; }
+.kd-bw-total{ font-size:11.5px; font-weight:600; text-align:right; color:var(--dk-mute); }
+.kd-bw-detail{ padding:8px 4px 8px 20px; display:flex; flex-wrap:wrap; gap:8px 16px; background:var(--surface); border-bottom:1px solid var(--dk-line-2); }
+.kd-bw-detail-item{ font-size:11px; color:var(--dk-mute); }
+.kd-bw-detail-amt{ font-size:9px; background:var(--dk-line-2); color:var(--dk-mute); padding:1px 5px; border-radius:6px; margin-right:3px; }
+
+.kd-legend-row{ display:flex; align-items:center; gap:8px; font-size:12px; }
+.kd-legend-label{ flex:1; color:var(--dk-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kd-legend-pct{ font-weight:600; color:var(--dk-mute); }
+.kd-donut-num{ font-size:19px; font-weight:800; }
+.kd-donut-sub{ font-size:9px; }
+
+.kd-sevbar{ display:flex; height:10px; border-radius:999px; overflow:hidden; background:var(--dk-line-2); margin-bottom:8px; }
+.kd-sevlegend{ display:flex; flex-wrap:wrap; gap:8px; font-size:11px; margin-bottom:10px; }
+.kd-sev-l1{ background:#94A3B8; } .kd-sev-l1-text{ color:#64748B; }
+.kd-sev-l2{ background:var(--dk-primary); } .kd-sev-l2-text{ color:var(--dk-primary); }
+.kd-sev-l3{ background:var(--dk-amber); } .kd-sev-l3-text{ color:var(--dk-amber); }
+.kd-sev-l4{ background:var(--dk-red); } .kd-sev-l4-text{ color:var(--dk-red); }
+
+.kd-funnel-row{ display:flex; align-items:center; gap:8px; font-size:11px; }
+.kd-funnel-label{ width:150px; flex-shrink:0; color:var(--dk-mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kd-funnel-max{ color:var(--dk-ink); font-weight:600; }
+.kd-funnel-track{ flex:1; height:10px; border-radius:6px; background:var(--dk-line-2); overflow:hidden; }
+.kd-funnel-fill{ height:100%; border-radius:6px; background:var(--dk-primary); }
+.kd-funnel-fill-max{ background:var(--dk-red); }
+.kd-funnel-n{ width:20px; text-align:right; color:var(--dk-mute); }
+
+.kd-fin-box{ border-radius:12px; padding:12px; background:rgba(34,153,84,.06); }
+.kd-fin-num{ font-size:18px; font-weight:800; color:var(--dk-green); }
+.kd-fin-label{ font-size:11px; color:var(--dk-mute); margin-top:2px; }
+
+.kd-hygiene-num{ font-size:28px; line-height:1; margin-bottom:12px; }
+.kd-hygiene-rows{ display:flex; flex-direction:column; gap:6px; font-size:12px; }
+.kd-hygiene-row{ display:flex; align-items:center; justify-content:space-between; }
+.kd-hygiene-row dt{ color:var(--dk-mute); }
+
+.kd-blocker-row{ padding:8px 0; border-bottom:1px solid var(--dk-line-2); }
+.kd-blocker-row:last-child{ border-bottom:none; }
+.kd-blocker-text{ font-size:12px; color:var(--dk-ink); }
+.kd-blocker-client{ font-size:11px; color:var(--dk-mute); margin-top:1px; }
+</style>`;
