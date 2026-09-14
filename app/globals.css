@@ -1,0 +1,1404 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   KORA — Kognoz design system
+   Token values are from design_handoff_kora_reskin/_ds/…/colors_and_type.css
+   and the handoff README. Verified against kognoz_Iogo.png:
+     wordmark #005082 ≈ --k-primary #005184
+     tagline  #0099DA ≈ --k-cyan    #009BDD
+     mark tip #74A63F ≈ --k-olive   #75A02F
+
+   HARD RULES (handoff §0):
+     - Only two radii exist: 4px and 9999px. Chips/checkbox use 3px.
+     - Cards have NO shadow at rest; --k-shadow-s on hover only. No lift.
+     - Never use a `fill` colour as text. Use its `text-safe` pair.
+     - No emoji in UI. Icons are Lucide, stroke-width 1.5, currentColor.
+     - #71717A is the lightest text allowed on white.
+   ========================================================================== */
+
+/* Class-based dark mode — preserves the legacy `itk_dark` localStorage flag. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* --- Brand: primary ---------------------------------------------------- */
+  --k-primary: #005184;
+  --k-primary-hover: #003e66;
+  --k-primary-04: rgba(0, 81, 132, 0.04); /* table row hover              */
+  --k-primary-05: rgba(0, 81, 132, 0.05); /* rail selected, gate callout  */
+  --k-primary-06: rgba(0, 81, 132, 0.06); /* view-as banner, palette row  */
+  --k-primary-08: rgba(0, 81, 132, 0.08); /* active nav, chips, avatars   */
+  --k-primary-10: rgba(0, 81, 132, 0.1); /* type chips, tags             */
+  --k-primary-12: rgba(0, 81, 132, 0.12); /* focus ring                   */
+  --k-primary-18: rgba(0, 81, 132, 0.18); /* view-as border               */
+
+  /* --- Brand: supporting fills ------------------------------------------- */
+  --k-sky: #43afcd;
+  --k-teal: #55b09d;
+  --k-green: #88b787;
+  --k-cyan: #009bdd;
+  --k-olive: #75a02f;
+  --k-grey: #939598;
+  --k-gradient: linear-gradient(135deg, #009bdd 0%, #75a02f 100%);
+
+  /* --- Semantic fills (dots, bars, cells, borders — never text) ---------- */
+  --k-fill-risk: #ef4444;
+  --k-fill-warn: #f59e0b;
+  --k-fill-ok: #88b787;
+
+  /* Label colour for text sitting ON one of those fills — the matrix cell's
+     initials.
+
+     THE SAME VALUE IN BOTH THEMES, deliberately, and this is NOT the frozen
+     light-mode mistake that `--k-fill-ok` and `--k-cyan` were rescued from. It
+     is the opposite case: every fill above gets LIGHTER in dark mode, never
+     darker, so a label that flipped to a light ink would be unreadable exactly
+     where the ground is palest. Measured against all eight fills in both
+     themes it ranges 4.71:1 (At Risk, light) to 9.28:1 (Delayed, dark) — AA on
+     every one. White, which the reference artwork uses, manages 2.15–3.76:1
+     and fails all of them.
+
+     Kept out of MUST_OVERRIDE_IN_DARK for that reason. */
+  --k-on-fill: #18181b;
+
+  /* Label ON the brand fill — primary buttons, the active filter chip, the
+     admin avatar. White in light, black in dark, because the primary itself
+     inverts: #005184 takes white at 8.6:1, #7FC4E8 takes white at 1.87:1 and
+     black at 10.96:1. It existed as two `.dark` override rules and one
+     `text-white` that nobody had overridden at all; as a token there is one
+     place to be right. */
+  --k-on-primary: #ffffff;
+
+  /* The offline banner is white 12.5px on solid red. The handoff says to use
+     --k-fill-risk, but white on #EF4444 is 3.76:1 — below AA, on the one
+     message telling people their work is not being saved. A darker red for
+     this surface only: the RAG fill above keeps its brand hue, and the banner
+     becomes readable at 5.46:1. */
+  --k-banner-risk: #c92a26;
+
+  /* --- Text-safe pairs (AA on white) ------------------------------------- */
+  --k-text-red: #b42318;
+  --k-text-amber: #8a5a00;
+  --k-text-green: #3c7546;
+  --k-text-cyan: #00618c;
+  --k-text-sky: #1d6d82;
+  --k-text-olive: #4c6b1d;
+  --k-text-teal: #2f6b5c;
+  --k-text-grey: #5b5d60;
+
+  /* --- Status tints (pill backgrounds, 12–18% alpha) --------------------- */
+  --k-tint-green: rgba(136, 183, 135, 0.18);
+  --k-tint-cyan: rgba(0, 155, 221, 0.12);
+  --k-tint-risk: rgba(239, 68, 68, 0.12);
+  --k-tint-warn: rgba(245, 158, 11, 0.14);
+  --k-tint-olive: rgba(117, 160, 47, 0.14);
+  --k-tint-sky: rgba(67, 175, 205, 0.14);
+  --k-tint-teal: rgba(85, 176, 157, 0.16);
+  --k-tint-grey: rgba(147, 149, 152, 0.16);
+  --k-tint-neutral: rgba(161, 161, 170, 0.14);
+
+  /* --- Surfaces & ink ---------------------------------------------------- */
+  --k-paper: #ffffff; /* cards, sidebar          */
+  --k-surface: #fafafa; /* page ground, table head */
+  --k-line-2: #f4f4f5; /* inner divider           */
+  --k-line: #e4e4e7; /* structural hairline     */
+  --k-field: #939598; /* form control border — --kognoz-grey, 3.00:1 */
+  --k-mute-2: #a1a1aa; /* NON-TEXT only — see note */
+  --k-mute: #71717a; /* secondary text          */
+  --k-ink-3: #3f3f46; /* tertiary body text      */
+  --k-ink-2: #003252; /* deep brand ground       */
+  --k-ink: #212121; /* body ink                */
+
+  /* --- Radii (only these exist) ------------------------------------------ */
+  --k-radius: 4px;
+  --k-radius-chip: 3px;
+  --k-pill: 9999px;
+
+  /* ON --k-mute-2 AND TEXT
+     There is no colour lighter than --k-mute (#71717A, 4.83:1) that reaches
+     AA on white — #71717A is literally the first passing value, so a fourth,
+     lighter TEXT tier cannot exist. The handoff specifies #A1A1AA for eyebrows
+     while also stating #71717A is the lightest text allowed on white; the two
+     rules contradict, and the contrast maths settles it.
+     So --k-mute-2 is for NON-TEXT only: empty-state icons, decorative rules,
+     disabled marks. Eyebrows, column headers and placeholders use --k-mute.
+     The hierarchy survives because an eyebrow is distinguished by being 10px
+     uppercase with wide tracking, not by being pale. */
+
+  /* --- Elevation --------------------------------------------------------- */
+  --k-shadow-s: 0 1px 2px rgba(33, 33, 33, 0.04);
+  --k-shadow: 0 2px 8px rgba(33, 33, 33, 0.06);
+  --k-shadow-m: 0 8px 24px rgba(33, 33, 33, 0.08);
+  --k-shadow-l: 0 16px 48px rgba(33, 33, 33, 0.12);
+  --k-focus-ring: 0 0 0 3px var(--k-primary-12);
+  /* Select chevron. A data: URI cannot use currentColor, so the stroke is
+     the --k-mute value spelled out, and re-declared in the dark block. */
+  --k-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+
+  /* --- Motion ------------------------------------------------------------ */
+  --k-t-fast: 120ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  --k-t: 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  --k-t-enter: 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* --- Layout ------------------------------------------------------------ */
+  --k-sidebar: 232px;
+  --k-sidebar-collapsed: 56px;
+  --k-sidebar-mobile: 240px;
+  --k-rail: 268px;
+  --k-side-panel: 300px;
+  --k-page-max: 1180px;
+  --k-detail-rail: 300px;
+}
+
+/* --------------------------------------------------------------------------
+   Dark mode.
+
+   GROUNDS ARE NEUTRAL, AND THAT IS A DEPARTURE FROM THE HANDOFF, which
+   specifies three navy grounds (#0A1F2E / #00263D / #003252) alongside the
+   primary. Navy at card lightness competes with the brand blue it carries:
+   a #7FC4E8 button on a #003252 card is blue on blue, and every status hue
+   picks up the same cast. The grounds are now the zinc scale the LIGHT theme
+   already uses, inverted — so the two themes are the same product rather than
+   two palettes, and a hue on screen is the data's rather than the ground's.
+
+   Primary and every fill are untouched: the accent is still Kognoz blue.
+
+   Every value below is measured, not chosen — tests/design/contrast.test.ts
+   reads this file and fails on the ratio, not on opinion.
+   -------------------------------------------------------------------------- */
+.dark {
+  --k-primary: #7fc4e8;
+  --k-primary-hover: #a3d6f0;
+  --k-primary-04: rgba(127, 196, 232, 0.06);
+  --k-primary-05: rgba(127, 196, 232, 0.08);
+  --k-primary-06: rgba(127, 196, 232, 0.1);
+  --k-primary-08: rgba(127, 196, 232, 0.14);
+  --k-primary-10: rgba(127, 196, 232, 0.16);
+  --k-primary-12: rgba(127, 196, 232, 0.22);
+  --k-primary-18: rgba(127, 196, 232, 0.3);
+
+  /* Fills keep their identity — they are graphical, not text. */
+  --k-sky: #5cc0dc;
+  --k-teal: #66c2ae;
+  --k-green: #98c797;
+  --k-cyan: #2bb3ee;
+  --k-olive: #8db93f;
+  --k-grey: #a2a4a7;
+
+  --k-fill-risk: #f2564f;
+  --k-fill-warn: #f8ad24;
+  --k-fill-ok: #98c797;
+  /* Slightly lifted from the light value so it does not read as a black bar
+     against the navy ground, while keeping white text at 5.43:1. */
+  --k-banner-risk: #c0392f;
+
+  /* Text-safe pairs are re-derived upward: dark navy needs light text. */
+  --k-text-red: #ff9a8f;
+  --k-text-amber: #fbbf24;
+  --k-text-green: #a8d5a2;
+  --k-text-cyan: #67c8f0;
+  --k-text-sky: #7fc4e8;
+  --k-text-olive: #b4d97a;
+  --k-text-teal: #7fd4c1;
+  /* The only text-safe pair that was a BLUE grey rather than a hue. On a
+     neutral ground it read as a colour; this is the same lightness, neutral. */
+  --k-text-grey: #b4b4bb;
+
+  --k-tint-green: rgba(136, 183, 135, 0.2);
+  --k-tint-cyan: rgba(0, 155, 221, 0.2);
+  --k-tint-risk: rgba(239, 68, 68, 0.2);
+  --k-tint-warn: rgba(245, 158, 11, 0.2);
+  --k-tint-olive: rgba(117, 160, 47, 0.2);
+  --k-tint-sky: rgba(67, 175, 205, 0.2);
+  --k-tint-teal: rgba(85, 176, 157, 0.22);
+  --k-tint-grey: rgba(147, 149, 152, 0.24);
+  --k-tint-neutral: rgba(161, 161, 170, 0.2);
+
+  --k-paper: #18181b; /* card surface, and the sidebar */
+  --k-surface: #09090b; /* page ground                   */
+
+  /* Borders do more work in dark mode than in light: shadows are all but
+     invisible against a dark ground, so an edge is often the only thing
+     separating a card from the page. The light values, transposed directly,
+     landed at 1.45:1 — technically present, practically not there. */
+  --k-line-2: #27272a; /* inner divider                         */
+  --k-line: #3f3f46; /* structural hairline — 1.70:1 on paper */
+  --k-field: #71717a; /* control boundary   — 3.67:1, meets AA */
+
+  /* Text ramp, every step measured against --k-paper:
+       mute-2   4.65:1   dimmest — 10px eyebrows and column headers
+       mute     6.91:1   secondary text
+       ink-3   11.99:1   tertiary body
+       ink     16.97:1   body
+     Monotonic by construction, and the test asserts it: a ramp whose steps
+     cross makes "less prominent" stop meaning anything.
+
+     MUTE-2 CLEARS AA HERE EVEN THOUGH IT DOES NOT IN LIGHT. The light value
+     is 2.32:1 on white and is documented as non-text only, but `.k-nav-group`
+     and `.k-kbd` do put 10px text in it. Reproducing a known-bad light value
+     in a theme being rebuilt from scratch would be copying a defect for
+     symmetry's sake, so the dark ramp starts above the line. */
+  --k-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+
+  --k-mute-2: #82828b;
+  --k-mute: #a1a1aa;
+  --k-ink-3: #d4d4d8;
+  --k-ink-2: #000000; /* deepest ground */
+  --k-on-primary: #000000; /* 10.96:1 on #7FC4E8; white is 1.87:1 */
+  --k-ink: #fafafa;
+
+  --k-shadow-s: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --k-shadow: 0 2px 8px rgba(0, 0, 0, 0.36);
+  --k-shadow-m: 0 8px 24px rgba(0, 0, 0, 0.44);
+  --k-shadow-l: 0 16px 48px rgba(0, 0, 0, 0.52);
+}
+
+/* --------------------------------------------------------------------------
+   Expose tokens to Tailwind utilities: bg-k-primary, text-k-mute, border-k-line
+   -------------------------------------------------------------------------- */
+@theme inline {
+  --color-k-primary: var(--k-primary);
+  --color-k-primary-hover: var(--k-primary-hover);
+  --color-k-sky: var(--k-sky);
+  --color-k-teal: var(--k-teal);
+  --color-k-green: var(--k-green);
+  --color-k-cyan: var(--k-cyan);
+  --color-k-olive: var(--k-olive);
+  --color-k-grey: var(--k-grey);
+
+  --color-k-risk: var(--k-fill-risk);
+  --color-k-warn: var(--k-fill-warn);
+  --color-k-ok: var(--k-fill-ok);
+
+  --color-k-text-red: var(--k-text-red);
+  --color-k-text-amber: var(--k-text-amber);
+  --color-k-text-green: var(--k-text-green);
+  --color-k-text-cyan: var(--k-text-cyan);
+  --color-k-text-sky: var(--k-text-sky);
+  --color-k-text-olive: var(--k-text-olive);
+  --color-k-text-teal: var(--k-text-teal);
+  --color-k-text-grey: var(--k-text-grey);
+
+  --color-k-paper: var(--k-paper);
+  --color-k-surface: var(--k-surface);
+  --color-k-line: var(--k-line);
+  --color-k-line-2: var(--k-line-2);
+  --color-k-field: var(--k-field);
+  --color-k-mute: var(--k-mute);
+  --color-k-mute-2: var(--k-mute-2);
+  --color-k-ink: var(--k-ink);
+  --color-k-ink-2: var(--k-ink-2);
+  --color-k-ink-3: var(--k-ink-3);
+
+  /* Fonts — bound to next/font variables in app/layout.tsx */
+  --font-k-head:
+    var(--font-k-head), Calibri, Carlito, "Open Sans", system-ui, sans-serif;
+  --font-k-body: var(--font-k-body), "Open Sans", system-ui, sans-serif;
+  --font-k-mono: var(--font-k-mono), "JetBrains Mono", ui-monospace, monospace;
+
+  /* Dense app type scale (handoff), NOT the marketing scale. */
+  --text-k-login: 38px;
+  --text-k-h1: 26px;
+  --text-k-h2: 22px;
+  --text-k-h3: 20px;
+  --text-k-h4: 18px;
+  --text-k-card: 14px;
+  --text-k-nav: 13px;
+  --text-k-body: 12.5px;
+  --text-k-meta: 12px;
+  --text-k-small: 11.5px;
+  --text-k-label: 11px;
+  --text-k-pill: 10.5px;
+  --text-k-eyebrow: 10px;
+  --text-k-micro: 9px;
+
+  --radius-k: var(--k-radius);
+  --radius-k-chip: var(--k-radius-chip);
+
+  --shadow-k-s: var(--k-shadow-s);
+  --shadow-k: var(--k-shadow);
+  --shadow-k-m: var(--k-shadow-m);
+  --shadow-k-l: var(--k-shadow-l);
+
+  /* The artboard width, as a NAMED breakpoint: `page:`.
+     Several grids need to change at the width the page is capped to rather than
+     at Tailwind's `xl` (1280) — the KPI strip and the critical-items table both
+     have room for their full layout at 1180 and were wrapping needlessly for
+     the 100px in between.
+     It has to be a named breakpoint rather than an arbitrary `min-[1180px]:`
+     variant. Tailwind emits arbitrary variants BEFORE the named ones, and at
+     equal specificity source order decides — so `sm:grid-cols-3` was silently
+     beating `min-[1180px]:grid-cols-6` at every width above 1180. Registered
+     here, it sorts by value and lands between `sm` and `xl` where it belongs.
+     Keep this in step with --k-page-max above; they are the same measure. */
+  --breakpoint-page: 1180px;
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--k-surface);
+    color: var(--k-ink);
+    font-family: var(--font-k-body), "Open Sans", system-ui, sans-serif;
+    font-size: 12.5px;
+    line-height: 1.5;
+    letter-spacing: -0.005em;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Headings and every large numeral use the Kognoz head face. */
+  h1,
+  h2,
+  h3,
+  h4,
+  kbd,
+  .k-num {
+    font-family:
+      var(--font-k-head), Calibri, Carlito, "Open Sans", system-ui, sans-serif;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--k-primary);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--k-primary-18);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Components — the `k-` layer. Single naming convention for the app.
+   The design system's unprefixed .h1/.body/.caption are deliberately NOT
+   shipped: they collide with Tailwind.
+   -------------------------------------------------------------------------- */
+@layer components {
+  /* --- Type helpers ------------------------------------------------------ */
+  .k-num {
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .k-mono {
+    font-family: var(--font-k-mono), "JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Section label above a card's contents. */
+  .k-eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    /* --k-mute, not --k-mute-2: at 10px this must clear AA, and no lighter
+       value can. Uppercase + tracking carry the hierarchy instead. */
+    color: var(--k-mute);
+  }
+
+  /* The page measure.
+     Artboards 1b-1f were drawn at 1180px total — a 232px sidebar beside a 948px
+     column. Uncapped, a 1920px monitor hands the dashboard 1632px of content,
+     83% more than anything was drawn for, and every `1fr` column swallows the
+     difference: an 880px Item column holding a one-line title. Centring a
+     capped column keeps the drawn proportions at any size and puts the slack in
+     the margins, where it reads as whitespace rather than as a broken row.
+
+     THE 28px IS LOAD-BEARING, not just `p-7` spelled differently. The
+     dashboard's sticky KPI band cancels this padding with `-mx-7` and re-adds
+     it with `px-7` so the band spans the full page; change this number and the
+     band stops lining up with the cards under it. */
+  /* The pane splitter.
+     A 1px rule that thickens into a 5px hit target. Fitts's law says a 1px
+     grab zone is a cruel joke, but a permanently 5px divider would read as a
+     gutter — so the visible line stays 1px and the padded box around it is
+     what the pointer actually hits. `touch-action: none` because without it a
+     trackpad drag scrolls the page instead of moving the handle. */
+  .k-resize-handle {
+    position: relative;
+    flex: none;
+    width: 5px;
+    margin-inline: -2px;
+    cursor: col-resize;
+    touch-action: none;
+    z-index: 30;
+    background: transparent;
+    transition: background-color var(--k-t-fast);
+  }
+
+  .k-resize-handle::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: 2px;
+    width: 1px;
+    background: transparent;
+    transition: background-color var(--k-t-fast);
+  }
+
+  .k-resize-handle:hover::after,
+  .k-resize-handle:focus-visible::after,
+  .k-resize-handle[data-dragging]::after {
+    background: var(--k-primary);
+  }
+
+  .k-resize-handle:focus-visible {
+    outline: none;
+  }
+
+  /* While a drag is live the cursor must not flicker into a text caret every
+     time it crosses a label, and a stray selection must not be painted over
+     half the app. */
+  .k-resizing,
+  .k-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+  }
+
+  /* A page's main pane + side rail, with a draggable divider.
+     THE QUERY IS ON THE SPLIT'S OWN WRAPPER, not on an ancestor and not on the
+     viewport. That is the entire point: these splits live inside the tracker
+     column, which is 232-500px narrower than the window, so a viewport media
+     query was always asking the wrong question — both splits had already been
+     pushed from `lg` to `xl` to compensate. A container query asks the right
+     one, and it re-answers it when the rail beside it is DRAGGED, with no
+     JavaScript and no resize listener.
+
+     Written out here rather than as Tailwind container variants because this
+     codebase has already been bitten once by variant emission order — see the
+     --breakpoint-page note above — and one explicit block cannot lose a
+     cascade fight. */
+  .k-split-container {
+    container-type: inline-size;
+  }
+
+  .k-split {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Stacked: the rail is just the next block down, and there is nothing to
+     drag, so the handle is not merely hidden but absent from the a11y tree. */
+  .k-split > .k-resize-handle {
+    display: none;
+  }
+
+  @container (min-width: 720px) {
+    .k-split {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 0;
+    }
+
+    .k-split > .k-resize-handle {
+      display: block;
+      margin-inline: 10px;
+      align-self: stretch;
+    }
+
+    .k-split-main {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .k-split-rail {
+      flex: none;
+      width: var(--k-split-rail, var(--k-detail-rail));
+      min-width: 0;
+    }
+  }
+
+  /* The implementation matrix frame, and the phase panel's own gate.
+     The panel used to be `hidden xl:block` — a WINDOW query for a panel whose
+     room depends on the sidebar and the client rail beside it, both of which
+     are now draggable. Asking the frame instead means dragging the rail
+     narrower opens the panel, and widening it closes it again, with the window
+     never moving. */
+  .k-matrix-frame {
+    container-type: inline-size;
+  }
+
+  .k-phase-panel {
+    display: none;
+  }
+
+  @container (min-width: 1080px) {
+    .k-phase-panel {
+      display: block;
+    }
+  }
+
+  /* The record panel is its own container.
+     Without this the grid below would resolve against .k-split-container — the
+     width of the WHOLE split, list included — and lay out three columns in a
+     panel that has room for one. The query has to be asked of the box the grid
+     actually lives in. */
+  .k-record-panel {
+    container-type: inline-size;
+  }
+
+  /* The record panel's field grid.
+     A CONTAINER QUERY, like .k-split above it and for the same reason: the
+     panel sits beside a rail the user can drag, so its width has nothing to do
+     with the window's. It is a class rather than `@container` utilities because
+     .k-kpi-strip already had to become one — Tailwind emits custom breakpoints
+     ahead of the built-ins, and at equal specificity source order decided the
+     fight, silently. */
+  .k-panel-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @container (min-width: 460px) {
+    .k-panel-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container (min-width: 700px) {
+    .k-panel-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .k-page {
+    max-width: var(--k-page-max);
+    margin-inline: auto;
+    padding: 28px;
+  }
+
+  /* The dashboard's six-up KPI strip.
+     Written as a class rather than `sm:grid-cols-3 page:grid-cols-6` because
+     Tailwind emits a CUSTOM breakpoint before the built-in ones, and at equal
+     specificity source order decides — so `sm:grid-cols-3` silently beat the
+     1180 rule at every width above 1180 and the strip wrapped to two rows of
+     three on a page that had room for all six. Here the order is explicit. */
+  .k-kpi-strip {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 640px) {
+    .k-kpi-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1180px) {
+    .k-kpi-strip {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+  }
+
+  .k-page-title {
+    font-family: var(--font-k-head), Calibri, Carlito, sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--k-primary);
+    margin: 0;
+  }
+
+  /* --- Surface ----------------------------------------------------------- */
+  .k-card {
+    background: var(--k-paper);
+    border: 1px solid var(--k-line);
+    border-radius: var(--k-radius);
+  }
+
+  /* Cards are flat at rest; hover raises by the smallest step, never lifts. */
+  .k-card-hover:hover {
+    box-shadow: var(--k-shadow-s);
+  }
+
+  .k-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 9px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--k-line-2);
+  }
+
+  .k-card-title {
+    font-family: var(--font-k-head), Calibri, Carlito, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--k-ink);
+  }
+
+  /* --- Buttons ----------------------------------------------------------- */
+  .k-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: var(--k-radius);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--k-t-fast),
+      border-color var(--k-t-fast),
+      color var(--k-t-fast),
+      transform 80ms ease;
+  }
+
+  .k-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .k-btn:not(:disabled):active {
+    transform: scale(0.98);
+  }
+
+  .k-btn-primary {
+    background: var(--k-primary);
+    color: var(--k-on-primary);
+    border: 1px solid var(--k-primary);
+  }
+
+  .k-btn-primary:not(:disabled):hover {
+    background: var(--k-primary-hover);
+    border-color: var(--k-primary-hover);
+  }
+
+  .k-btn-outline {
+    background: transparent;
+    color: var(--k-ink-3);
+    border: 1px solid var(--k-field);
+    font-weight: 400;
+  }
+
+  .k-btn-outline:not(:disabled):hover {
+    border-color: var(--k-primary);
+    color: var(--k-primary);
+  }
+
+  /* Outlined in BRAND rather than in the field grey. The admin artboard uses
+     both in one row to rank two equal-weight actions without promoting either
+     to a filled button. */
+  .k-btn-outline-brand {
+    background: transparent;
+    color: var(--k-primary);
+    border: 1px solid var(--k-primary);
+    font-weight: 600;
+  }
+
+  .k-btn-outline-brand:not(:disabled):hover {
+    background: var(--k-primary-08);
+  }
+
+  .k-btn-ghost {
+    background: transparent;
+    color: var(--k-mute);
+    border: 1px solid transparent;
+    font-weight: 400;
+  }
+
+  .k-btn-ghost:not(:disabled):hover {
+    background: var(--k-line-2);
+  }
+
+  /* Text-only affordance: "+ Add", "View full log →" */
+  .k-btn-link {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--k-primary);
+    cursor: pointer;
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+
+  .k-btn-link:hover {
+    color: var(--k-primary-hover);
+    text-decoration: underline;
+  }
+
+  .k-btn-sm {
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .k-btn-md {
+    height: 34px;
+    padding: 0 16px;
+    font-size: 13px;
+  }
+  .k-btn-lg {
+    height: 40px;
+    padding: 0 16px;
+    font-size: 14px;
+    font-family: var(--font-k-head), Calibri, Carlito, sans-serif;
+    letter-spacing: 0.02em;
+  }
+
+  /* --- Form controls ----------------------------------------------------- */
+  .k-input {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--k-field);
+    border-radius: var(--k-radius);
+    background: var(--k-paper);
+    color: var(--k-ink);
+    font-size: 14px;
+    transition:
+      border-color var(--k-t-fast),
+      box-shadow var(--k-t-fast);
+  }
+
+  .k-input::placeholder {
+    /* Placeholders are read as text and must clear AA like any other. */
+    color: var(--k-mute);
+  }
+
+  .k-input:focus {
+    outline: none;
+    border-color: var(--k-primary);
+    box-shadow: var(--k-focus-ring);
+  }
+
+  /* Compact filter/search control that sits on --k-surface. */
+  .k-input-sm {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 12px;
+    border-color: var(--k-line);
+    background: var(--k-surface);
+  }
+
+  .k-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--k-mute);
+  }
+
+  /* Read-mode value box used across record cards. */
+  .k-field {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--k-line);
+    border-radius: var(--k-radius);
+    background: var(--k-surface);
+    font-size: 12.5px;
+    color: var(--k-ink);
+  }
+
+  /* A `.k-field` that is also a button — the click target that swaps a
+     read-mode value for an input. Looks identical at rest so the page does not
+     become a grid of boxes, and announces itself on hover. */
+  /* A .k-field holding a value taller than one line — an activity entry, a
+     wrapped note. Same box, no fixed height.
+
+     IT HAS TO SIT AFTER `.k-field`, and it did not. Both are single-class
+     selectors, so specificity is equal and SOURCE ORDER decides; declared
+     earlier in the file it lost every property it overrides, leaving the
+     activity feed's entries as 32px flex rows with the date and the text
+     colliding on one line. The same trap `.k-kpi-strip` exists to document. */
+  .k-field-block {
+    display: block;
+    height: auto;
+    padding: 10px 12px;
+    line-height: 1.5;
+  }
+
+  .k-field-edit {
+    width: 100%;
+    text-align: left;
+    cursor: text;
+  }
+
+  .k-field-edit:hover {
+    border-color: var(--k-field);
+    background: var(--k-paper);
+  }
+
+  .k-field-edit:focus-visible {
+    outline: none;
+    border-color: var(--k-primary);
+    box-shadow: var(--k-focus-ring);
+  }
+
+  /* Multi-line input. Height is set by `rows`, so no fixed height here. */
+  .k-textarea {
+    width: 100%;
+    min-height: 72px;
+    padding: 8px 12px;
+    border: 1px solid var(--k-field);
+    border-radius: var(--k-radius);
+    background: var(--k-paper);
+    color: var(--k-ink);
+    font-family: inherit;
+    font-size: 12.5px;
+    line-height: 1.6;
+    resize: vertical;
+    transition:
+      border-color var(--k-t-fast),
+      box-shadow var(--k-t-fast);
+  }
+
+  .k-textarea::placeholder {
+    color: var(--k-mute);
+  }
+
+  .k-textarea:focus {
+    outline: none;
+    border-color: var(--k-primary);
+    box-shadow: var(--k-focus-ring);
+  }
+
+  /* Native select, restyled. `appearance: none` removes the platform chrome;
+     the chevron is a background SVG so it inherits nothing from the OS and
+     looks the same in both themes. `currentColor` cannot be used in a
+     data: URI, so the stroke is the token value spelled out. */
+  .k-select {
+    width: 100%;
+    height: 32px;
+    padding: 0 28px 0 10px;
+    border: 1px solid var(--k-field);
+    border-radius: var(--k-radius);
+    background-color: var(--k-paper);
+    background-image: var(--k-chevron);
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    background-size: 12px;
+    color: var(--k-ink);
+    font-family: inherit;
+    font-size: 12.5px;
+    appearance: none;
+    cursor: pointer;
+    transition:
+      border-color var(--k-t-fast),
+      box-shadow var(--k-t-fast);
+  }
+
+  .k-select:focus {
+    outline: none;
+    border-color: var(--k-primary);
+    box-shadow: var(--k-focus-ring);
+  }
+
+  .k-select:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  /* 15px square, radius 3 (handoff §6 — one of the sub-16px primitives the
+     4px/9999px rule exempts). Done = filled green with a white tick. */
+  .k-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    flex: none;
+    border: 1.5px solid var(--k-field);
+    border-radius: 3px;
+    background: var(--k-paper);
+    color: transparent;
+    cursor: pointer;
+    transition:
+      background var(--k-t-fast),
+      border-color var(--k-t-fast);
+  }
+
+  .k-check[data-checked="true"] {
+    background: var(--k-fill-ok);
+    border-color: var(--k-fill-ok);
+    color: #ffffff;
+  }
+
+  .k-check:focus-visible {
+    outline: none;
+    box-shadow: var(--k-focus-ring);
+  }
+
+  /* Invalid state, shared by every control above.
+     Colour is never the only signal — the field is described by a
+     `.k-error` message and wired with aria-describedby, because a red border
+     says nothing to a screen reader and little to anyone who cannot
+     distinguish it from the resting grey. */
+  .k-input[aria-invalid="true"],
+  .k-textarea[aria-invalid="true"],
+  .k-select[aria-invalid="true"] {
+    border-color: var(--k-fill-risk);
+  }
+
+  .k-input[aria-invalid="true"]:focus,
+  .k-textarea[aria-invalid="true"]:focus,
+  .k-select[aria-invalid="true"]:focus {
+    border-color: var(--k-fill-risk);
+    box-shadow: 0 0 0 3px var(--k-tint-risk);
+  }
+
+  .k-error {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--k-text-red);
+  }
+
+  /* --- Pills ------------------------------------------------------------- */
+  .k-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: var(--k-pill);
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    /* No border on status pills — handoff §1. */
+  }
+
+  .k-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--k-pill);
+    border: 1px solid var(--k-line);
+    background: var(--k-paper);
+    color: var(--k-mute);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      border-color var(--k-t-fast),
+      background-color var(--k-t-fast),
+      color var(--k-t-fast);
+  }
+
+  .k-chip:hover {
+    border-color: var(--k-primary);
+  }
+
+  .k-chip[data-active="true"] {
+    background: var(--k-primary);
+    border-color: var(--k-primary);
+    color: var(--k-on-primary);
+  }
+
+  .k-chip-sm {
+    padding: 3px 10px;
+    font-size: 11px;
+  }
+
+  /* Mono type-chip: INT / MOD / AMS / USR / PDF / XLSX */
+  .k-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 6px;
+    border-radius: var(--k-radius-chip);
+    font-family: var(--font-k-mono), ui-monospace, monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  /* Keyboard hint chip: ⌘K, esc */
+  .k-kbd {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 4px;
+    border: 1px solid var(--k-line);
+    border-radius: var(--k-radius-chip);
+    background: var(--k-paper);
+    font-family: var(--font-k-mono), ui-monospace, monospace;
+    font-size: 10px;
+    color: var(--k-mute-2);
+  }
+
+  /* --- Status dot -------------------------------------------------------- */
+  /* In the health scorecard a client's RAG is three bare dots with no text
+     label, so the dot IS the information. Several brand fills sit near 2.2:1
+     on white, well under the 3:1 WCAG asks of a meaningful graphic. Rather
+     than alter the brand hues, an inset ring gives every dot a defined edge —
+     the fill is untouched, the boundary becomes perceivable, and it works on
+     both themes because it darkens on light and lightens on dark. */
+  .k-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: none;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.22);
+  }
+
+  .dark .k-dot {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+  }
+
+  /* --- Short screens ------------------------------------------------------
+     The sidebar costs 527px expanded: header 96, search 48, nav 280, footer
+     103. A 1366x768 laptop at 125% browser zoom has about 518px of viewport,
+     and a banner takes 37 more — so the nav grows a scrollbar on exactly the
+     machines this app is used on.
+
+     Rather than make every screen denser, the spacing tightens only when there
+     is not enough room for it. Tall windows keep the handoff's rhythm — 34px
+     rows, the stacked wordmark — untouched. Below 700px it comes down to about
+     430px, which fits a 500px viewport with a banner up, and NOTHING IS
+     HIDDEN: the search trigger, the wordmark and all six nav rows stay. A
+     control you cannot find is worse than one that is 4px shorter.
+
+     Keyed on height alone, so it applies to a short desktop window as readily
+     as to a small laptop. The collapsed rail (56px) is unaffected — it has no
+     labels to tighten.
+     ----------------------------------------------------------------------- */
+  @media (max-height: 700px) {
+    /* Logo beside the wordmark instead of above it — the single biggest
+       saving, and the only one that changes the composition rather than the
+       spacing. */
+    .k-side-head {
+      flex-direction: row;
+      justify-content: center;
+      gap: 8px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+
+    .k-side-search {
+      padding-top: 8px;
+      padding-bottom: 2px;
+    }
+
+    .k-side-nav {
+      padding-top: 6px;
+      padding-bottom: 6px;
+    }
+
+    .k-side-nav .k-nav-item {
+      height: 30px;
+    }
+
+    .k-side-nav .k-nav-group {
+      padding-top: 6px !important;
+      padding-bottom: 2px !important;
+    }
+
+    .k-side-foot {
+      padding: 8px;
+    }
+
+    .k-side-avatar {
+      height: 24px;
+      width: 24px;
+    }
+  }
+
+  /* --- Menus -------------------------------------------------------------
+     Radix DropdownMenu items. The row menu on the admin users table is the
+     first menu in the app; @radix-ui/react-dropdown-menu was already a
+     dependency and unimported. Hand-rolling one means re-implementing focus
+     trapping, typeahead and dismissal, which is how menus end up unusable
+     from a keyboard. */
+  .k-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 7px 10px;
+    border-radius: var(--k-radius-chip);
+    font-size: 12.5px;
+    color: var(--k-ink);
+    cursor: pointer;
+    outline: none;
+    user-select: none;
+  }
+
+  .k-menu-item[data-highlighted] {
+    background: var(--k-surface);
+  }
+
+  .k-menu-item[data-disabled] {
+    color: var(--k-mute-2);
+    cursor: default;
+  }
+
+  /* Danger sits last and below a divider — v1's adminRowMenu rule, kept. */
+  .k-menu-item-danger {
+    color: var(--k-text-red);
+  }
+
+  .k-menu-item-danger[data-highlighted] {
+    background: var(--k-tint-risk);
+  }
+
+  /* --- Tabs --------------------------------------------------------------
+     The underline tab bar from the admin artboard. The only primitive that
+     screen needed which did not already exist. Active is weight + colour +
+     a 2px rule, never a filled pill — the handoff uses filled pills for
+     FILTER chips (.k-chip), and reusing them here would make a tab strip
+     read as a filter row. */
+  .k-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--k-line);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .k-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .k-tab {
+    padding: 9px 14px;
+    font-size: 13px;
+    color: var(--k-mute);
+    white-space: nowrap;
+    background: none;
+    border: 0;
+    /* Sits ON the container's 1px rule, so the active tab's 2px rule covers
+       it rather than stacking under it. */
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    transition:
+      color var(--k-t-fast),
+      border-color var(--k-t-fast);
+  }
+
+  .k-tab:hover {
+    color: var(--k-ink);
+  }
+
+  .k-tab[aria-selected="true"] {
+    font-weight: 600;
+    color: var(--k-primary);
+    border-bottom-color: var(--k-primary);
+  }
+
+  .k-tab:focus-visible {
+    outline: 2px solid var(--k-primary);
+    outline-offset: -2px;
+    border-radius: var(--k-radius-chip) var(--k-radius-chip) 0 0;
+  }
+
+  /* --- Tables ------------------------------------------------------------ */
+  .k-thead {
+    padding: 9px 18px;
+    background: var(--k-surface);
+    border-bottom: 1px solid var(--k-line);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--k-mute);
+  }
+
+  /* Header variant for cards that keep a white head. */
+  .k-thead-plain {
+    padding: 8px 18px;
+    background: transparent;
+    border-bottom: 1px solid var(--k-line-2);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--k-mute);
+  }
+
+  .k-row {
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--k-line-2);
+    font-size: 12.5px;
+    transition: background-color var(--k-t-fast);
+  }
+
+  .k-row-hover:hover {
+    background: var(--k-primary-04);
+  }
+
+  /* --- Nav --------------------------------------------------------------- */
+  .k-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: var(--k-radius);
+    font-size: 13px;
+    color: var(--k-ink-3);
+    transition:
+      background-color var(--k-t-fast),
+      color var(--k-t-fast);
+  }
+
+  .k-nav-item:hover {
+    background: var(--k-line-2);
+  }
+
+  /* Active nav is tint + colour + weight. No left bar, no dark fill. */
+  .k-nav-item[data-active="true"] {
+    background: var(--k-primary-08);
+    color: var(--k-primary);
+    font-weight: 600;
+  }
+
+  .k-nav-group {
+    padding: 12px 10px 4px;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--k-mute-2);
+  }
+
+  /* --- Banners & callouts ------------------------------------------------ */
+  .k-callout {
+    padding: 12px 14px;
+    border-radius: var(--k-radius);
+    border-left: 3px solid var(--k-primary);
+    background: var(--k-primary-05);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--k-ink-3);
+  }
+
+  /* The banner rail. STICKY, not fixed.
+     A warning you can scroll away from is useless, so it has to stay put — but
+     `fixed` takes the rail out of flow, which means the shell has to be padded
+     by exactly its height, and that number then has to be maintained by hand in
+     two places. It was already wrong: `app-chrome` documented these as fixed
+     while nothing set the property and padded for them anyway, and a fixed 36px
+     under-counts the view-as banner, which is taller because it contains a
+     button.
+     `sticky` keeps the rail in flow, so it occupies its own height whatever
+     that turns out to be, and still pins to the top on scroll. No constant to
+     keep in step. */
+  /* The banner rail no longer needs to be sticky: the shell is a column of
+     `h-dvh` and this is its first row, so it is pinned by construction. The
+     z-index stays — banners sit above the content's shadows and the sidebar's
+     border. */
+  .k-banner-rail {
+    position: relative;
+    z-index: 60;
+  }
+
+  .k-banner-offline,
+  .k-banner-viewas,
+  .k-banner-readonly {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 36px;
+    padding: 8px 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .k-banner-offline {
+    background: var(--k-banner-risk);
+    color: #fff;
+  }
+
+  .k-banner-viewas {
+    border-bottom: 1px solid var(--k-primary-18);
+    background: var(--k-primary-06);
+    color: var(--k-primary);
+  }
+
+  /* Read-only parallel run. Deliberately the calmest of the three: it is the
+     normal state of the app today, not a fault. */
+  .k-banner-readonly {
+    border-bottom: 1px solid var(--k-line);
+    background: var(--k-surface);
+    color: var(--k-ink-3);
+  }
+
+  /* Optimistic-concurrency 409 card. */
+  .k-conflict {
+    padding: 14px 16px;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-left: 3px solid var(--k-fill-warn);
+    border-radius: var(--k-radius);
+    background: rgba(245, 158, 11, 0.06);
+  }
+
+  /* Toasts.
+     `providers.tsx` has passed this class to Sonner since the provider was
+     written, and it was never defined — so every toast has been rendering in
+     Sonner's own palette rather than the Kognoz tokens. Nothing had raised one
+     yet, which is why nobody saw it. Sonner sets its colours through its own
+     `--normal-*` custom properties, so they are overridden here rather than
+     fought with `!important` on the painted properties. */
+  .k-toast {
+    --normal-bg: var(--k-paper);
+    --normal-text: var(--k-ink);
+    --normal-border: var(--k-line);
+    --success-bg: var(--k-paper);
+    --success-text: var(--k-text-green);
+    --success-border: var(--k-line);
+    --error-bg: var(--k-paper);
+    --error-text: var(--k-text-red);
+    --error-border: var(--k-line);
+    border-radius: var(--k-radius);
+    box-shadow: var(--k-shadow-m);
+    font-family: inherit;
+    font-size: 12.5px;
+  }
+
+  /* --- Feedback ---------------------------------------------------------- */
+  .k-skeleton {
+    border-radius: var(--k-radius);
+    background: var(--k-line-2);
+    animation: k-shimmer 1.4s linear infinite;
+  }
+
+  .k-spinner {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2.5px solid var(--k-line);
+    border-top-color: var(--k-primary);
+    animation: k-spin 0.7s linear infinite;
+  }
+}
+
+@keyframes k-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes k-shimmer {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
