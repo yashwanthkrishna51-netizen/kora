@@ -1,0 +1,121 @@
+import { createHash } from "node:crypto";
+import { IssueLog } from "./issues";
+import { ID_RE, isValidId, derivePhaseId } from "@/lib/validation/ids";
+
+// Re-exported so the migration modules keep their existing import site while
+// the application owns the definitions — lib must not depend on scripts/.
+export { ID_RE, isValidId, derivePhaseId };
+
+/**
+ * Identifier handling.
+ *
+ * v2 makes every id a real primary key, which surfaces two problems that v1's
+ * per-array ids hid:
+ *
+ * 1. THE `::` SYNTHETICS. When a phase had no id, the old dual-write minted
+ *    `${moduleId}::${phaseName}` (api/_dualwrite.js:129,149). That contains
+ *    colons, which violate the app's own id validator, so such a row can never
+ *    round-trip through a save. It also changes if the phase is renamed,
+ *    orphaning the old row. Live v2 rows may already carry these; since nothing
+ *    reads v2 yet, we re-mint them freely here.
+ *
+ * 2. MISSING IDS generally. Older records predate consistent id assignment.
+ *
+ * Derivation is deterministic — same input, same id on every run — which is
+ * what makes the whole backfill idempotent and re-runnable. We deliberately do
+ * NOT write generated ids back into the v1 jsonb: v1 stays untouched so it
+ * remains a clean rollback target.
+ */
+
+const NUL = "\0";
+
+function shortHash(...parts: string[]): string {
+  return createHash("sha256").update(parts.join(NUL)).digest("hex").slice(0, 24);
+}
+
+/** True for the `moduleId::phaseName` shape the old dual-write generated. */
+export function isSyntheticPhaseId(id: unknown): boolean {
+  return typeof id === "string" && id.includes("::");
+}
+
+/**
+ * Stable id for any collection entry that has none.
+ *
+ * Includes the array index, which is safe because v1 is frozen for the
+ * duration of the migration — the index cannot shift under us between the
+ * dry run and the real run.
+ */
+export function deriveEntryId(
+  prefix: "in" | "ms" | "md" | "wl",
+  clientId: string,
+  collection: string,
+  index: number,
+  hint = "",
+): string {
+  return `${prefix}_${shortHash(clientId, collection, String(index), hint)}`;
+}
+
+/**
+ * Resolve the id to use for a row, recording what happened.
+ * Returns the id plus whether it was taken as-is, derived, or re-minted.
+ */
+export function resolveId(
+  existing: unknown,
+  derive: () => string,
+  log: IssueLog,
+  location: string,
+): string {
+  if (isSyntheticPhaseId(existing)) {
+    const next = derive();
+    log.add("ID_REMINTED", location, existing, `-> ${next}`);
+    return next;
+  }
+
+  if (existing === undefined || existing === null || existing === "") {
+    const next = derive();
+    log.add("ID_DERIVED", location, undefined, `-> ${next}`);
+    return next;
+  }
+
+  if (!isValidId(existing)) {
+    // Present but malformed — a human should look, since this shouldn't be
+    // possible given the old server validated ids on every save.
+    log.add("ID_INVALID", location, existing);
+    return String(existing);
+  }
+
+  return existing;
+}
+
+/**
+ * Detects ids reused across rows that land in the same v2 table.
+ *
+ * v1 ids only had to be unique within one client's array; v2 makes them global
+ * primary keys. `uid()` is `Date.now().toString(36) + 4 random base36 chars`,
+ * so two records created in the same millisecond have a ~1-in-1.7M chance of
+ * colliding — small, but across years of records it is not negligible, and the
+ * failure mode (an insert silently overwriting another client's row) is severe.
+ */
+export class IdCollisionTracker {
+  private readonly seen = new Map<string, string>();
+
+  constructor(private readonly table: string) {}
+
+  check(id: string, location: string, log: IssueLog): void {
+    const prev = this.seen.get(id);
+    if (prev !== undefined) {
+      log.add(
+        "ID_COLLISION",
+        location,
+        id,
+        `${this.table}: also used at ${prev}`,
+      );
+      return;
+    }
+    this.seen.set(id, location);
+  }
+
+  get size(): number {
+    return this.seen.size;
+  }
+}

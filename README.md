@@ -1,216 +1,142 @@
-# Kora by Kognoz
+# Kora v2
 
-<p align="center">
-  <img src="kognoz_Iogo.png" alt="Kognoz Logo" width="220"/>
-</p>
+Rebuild of **Kora** — Kognoz Consulting's internal client-delivery tracker — on
+Next.js + TypeScript, themed on the Kognoz brand, with the database migrated
+from jsonb blobs to a normalized schema **in place** (same Supabase project, so
+the data never moves providers).
 
-<p align="center">
-  <strong>Enterprise Client Delivery Tracker for Integrations, Implementations & AMS</strong>
-</p>
+The existing app in `../kora` stays deployed until cutover; it is the rollback
+path. **Only one of the two may be writable at a time** — see *One writer* below
+and `HANDOVER.md`.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Architecture-Vanilla_JS_SPA-0e7490.svg" alt="Architecture"/>
-  <img src="https://img.shields.io/badge/Backend-Vercel_Serverless-black.svg" alt="Backend"/>
-  <img src="https://img.shields.io/badge/Database-Supabase_PostgreSQL-3ECF8E.svg" alt="Database"/>
-  <img src="https://img.shields.io/badge/PWA-Installable-blue.svg" alt="PWA"/>
-</p>
+## Status
 
----
+Built and deployed. Every screen the old app had is here except Sales Pipeline.
 
-## 📌 Overview
+| Area | State |
+|---|---|
+| Kognoz design tokens + `k-*` component layer | done — review at `/styleguide` |
+| Drizzle schema + numbered SQL migrations | done, applied |
+| Migration tooling (`preflight`/`backfill`/`verify`) | done, proven end to end |
+| Auth: password, lockout, Microsoft SSO, roles | done |
+| API: 37 route handlers, OCC on every write, audit rows | done |
+| Dashboard (admin + personal) | done |
+| Integrations tracker | done |
+| Implementation tracker (module × nine-phase matrix) | done |
+| AMS & Support tracker | done — logic ported from `../kora/js/ams.js` |
+| Admin: users, clients, settings, audit, restore | done |
+| Exports: PDF and Excel, client email | done |
+| Daily digest + nightly backup crons | done |
+| **Sales Pipeline** | **not built** — see `HANDOVER.md` |
 
-**Kora** is an enterprise-grade client delivery and project governance platform purpose-built for consulting and system integration firms. Developed for **Kognoz**, Kora provides real-time visibility and end-to-end lifecycle tracking across three critical client delivery domains:
+**660 tests** across 41 files: golden-master parity against the original
+vanilla-JS functions, mapping rules, migration SQL against real Postgres, the
+API read and write paths against PGlite, and the component behaviour that is
+invisible in a screenshot.
 
-1. **🔗 Integrations Tracker** — Manage system interfaces, API integrations, milestone deadlines, overdue/staleness alerts, and status history.
-2. **🚀 Implementation Tracker** — Track modular ERP/HRMS rollouts across a structured 9-phase lifecycle (BPU, CRP, UAT, Data Migration, Go-Live, Hypercare).
-3. **🛠️ AMS & Support** — Monitor managed services, support tickets (L1–L4 criticality), hours consumption against retainers, and automated billing summaries.
+## One writer
 
----
+The old app's `api/_dualwrite.js` shadow-writes every save into the `*_v2`
+tables and archives any row that is not in the v1 jsonb. So while v1 is live,
+anything this app creates is archived the next time v1 saves that client.
 
-## ✨ Key Features
+`KORA_READ_ONLY=1` (plus `NEXT_PUBLIC_KORA_READ_ONLY=1` for the UI half) makes
+every write route answer 423 and hides every write control, so the two can run
+side by side safely. Lift it only in the same change that freezes v1.
 
-### 📊 Portfolio Dashboard & Health Scorecards
-- **Bento Grid Layout**: High-density executive overview summarizing real-time RAG (Red/Amber/Green) statuses, active delivery risks, and capacity metrics.
-- **Daily Snapshots**: Automated tracking of historic RAG trends and portfolio progression.
-- **Overdue & Staleness Detection**: Real-time alerts flagging items lacking recent activity or approaching critical deadlines.
+## Getting started
 
-### 👥 Role-Based Access Control (RBAC)
-- **Roles**: `admin`, `editor`, `viewer`.
-- **Admin "View As" Simulation**: Admins can safely preview the application under viewer/editor roles without modifying server-side privileges.
-- **Granular Permissions**: Restricts sensitive destructive operations, user management, and system configuration to authorized roles.
-
-### 🔒 Enterprise Security & Concurrency
-- **Optimistic Concurrency Control (OCC)**: Version tracking prevents race conditions and accidental overwrites during concurrent edits.
-- **Hardened Authentication**: Bcrypt password hashing (cost factor 12), brute-force IP/username rate-limiting, and Microsoft Entra SSO integration.
-- **Immutable Audit Logging**: Every mutation records user, action, target entity, timestamp, and client metadata.
-- **Secure File Storage**: Uploaded attachments (PDFs, spreadsheets, images, emails) are stored in private Supabase buckets with signed expiring URLs.
-
-### 📑 Automated Multi-Format Reporting
-- **Branded Presentation Export**: One-click generation of client-ready PowerPoint (`.pptx`) decks via PptxGenJS.
-- **Document & Spreadsheet Export**: Automated PDF reports (via jsPDF + AutoTable) and Excel workbooks (`.xlsx` via SheetJS) matching corporate brand typography and palettes.
-
-### 📱 Progressive Web App (PWA)
-- **Installable**: Full web app manifest, custom favicon suite, and standalone display support across mobile and desktop.
-- **Offline Aware**: Real-time connection monitoring with persistent banners to protect unsaved local state during network outages.
-
----
-
-## 🛠️ Architecture & Tech Stack
-
-```
-┌────────────────────────────────────────────────────────┐
-│                   Client Browser                       │
-│  Vanilla JS Single Page App (No Framework, Zero Build) │
-│  • Custom Design System (styles.css)                   │
-│  • Client-Side URL Routing & Browser History           │
-│  • Reactive innerHTML Rendering Engines                │
-└───────────────────────────┬────────────────────────────┘
-                            │ HTTPS / REST
-┌───────────────────────────▼────────────────────────────┐
-│              Vercel Serverless Functions               │
-│  /api/login · /api/read · /api/write · /api/upload...  │
-│  • Session Verification · OCC Conflict Handling        │
-│  • Rate Limiting & Input Validation                    │
-└───────────────────────────┬────────────────────────────┘
-                            │ PostgREST / REST API
-┌───────────────────────────▼────────────────────────────┐
-│                 Supabase PostgreSQL                     │
-│  clients · users · audit_log · snapshots · storage     │
-└────────────────────────────────────────────────────────┘
+```bash
+pnpm install
+pnpm dev          # http://localhost:3000
 ```
 
-- **Frontend**: Modern Vanilla JavaScript (ES6+), HTML5, Custom CSS Design System (`styles.css`), Tailwind CSS.
-- **Backend API**: Node.js Serverless Functions deployed on Vercel (`/api/*`).
-- **Database & Storage**: Supabase PostgreSQL with PostgREST REST API and Supabase Storage.
-- **Libraries**:
-  - [PptxGenJS](https://gitbrent.github.io/PptxGenJS/) — PowerPoint generation
-  - [jsPDF](https://github.com/parallax/jsPDF) & [jsPDF-AutoTable](https://github.com/simonbengtsson/jsPDF-AutoTable) — PDF document export
-  - [SheetJS (xlsx)](https://sheetjs.com/) — Excel data export
-  - [bcryptjs](https://github.com/dcodeIO/bcrypt.js) — Password hashing
+`/styleguide` renders every design atom in both themes. It is the design
+approval gate — screens are built from these atoms, so a wrong value there is a
+wrong value everywhere.
 
----
-
-## 📁 Repository Structure
-
-```
-kora/
-├── api/                       # Vercel Serverless Backend Functions
-│   ├── _audit.js              # Audit trail helper
-│   ├── _auth.js               # Session verification & authorization
-│   ├── _cors.js               # CORS origin validation & headers
-│   ├── _dualwrite.js          # Dual-write sync utilities
-│   ├── _errors.js             # Sanitized error response handler
-│   ├── _storage.js            # Supabase Storage client wrapper
-│   ├── _throttle.js           # Rate limiting & brute-force defense
-│   ├── _validate.js           # Schema & payload sanitization
-│   ├── account.js             # User profile & credentials management
-│   ├── audit.js               # Audit log querying endpoint
-│   ├── auth-microsoft.js      # Microsoft Entra SSO authentication
-│   ├── cron/
-│   │   └── backup.js          # Daily automated database snapshot cron
-│   ├── login.js               # Password authentication handler
-│   ├── read.js                # Authenticated data retrieval
-│   ├── settings.js            # Platform configuration & capacity weights
-│   ├── snapshot.js            # Historical RAG capture
-│   ├── upload.js              # File attachment upload & signed URL signer
-│   └── write.js               # OCC mutation & write gateway
-│
-├── js/                        # Frontend Application Modules
-│   ├── admin.js               # Admin dashboard, audit viewer, user manager
-│   ├── ams.js                 # AMS & support tracking views & billing
-│   ├── core.js                # Global state (S), routing, utilities, API clients
-│   ├── dashboard.js           # Bento grid dashboard, RAG calculations, metrics
-│   ├── events.js              # Central delegated event dispatcher & init
-│   ├── export.js              # PPTX, PDF, and XLSX report generators
-│   ├── implementation.js      # 9-phase implementation tracker & grids
-│   ├── integrations.js        # Integrations management & milestone trackers
-│   ├── modal.js               # Universal modal engine & interactive dialogs
-│   └── shell.js               # Navigation shell, collapsible sidebar, layout
-│
-├── icons/                     # PWA app icons (192px, 512px, maskable)
-├── favicon.svg                # Vector brand favicon
-├── index.html                 # SPA entry point
-├── manifest.json              # Web app manifest
-├── sql_v2_migration.sql       # Normalized schema migration script
-├── styles.css                 # Custom design tokens, utilities & dark theme
-├── sw.js                      # PWA service worker
-└── vercel.json                # Vercel routing rules & cron definitions
+```bash
+pnpm test         # 660 tests
+pnpm typecheck
+pnpm lint
+pnpm build
 ```
 
----
+The database tests run against PGlite and need no server. The golden-master
+suite needs `../kora` checked out; it skips rather than fails without it.
 
-## 🚀 Getting Started
+## Migration
 
-### Prerequisites
-- Node.js (v18+ recommended)
-- [Vercel CLI](https://vercel.com/docs/cli) (`npm i -g vercel`)
-- A [Supabase](https://supabase.com) project with database & storage enabled
+```bash
+pnpm migrate:preflight    # read-only scan; produces the data-cleanup list
+pnpm migrate:backfill     # dry run by default
+pnpm migrate:backfill --execute --i-have-a-backup <dump>
+pnpm migrate:verify       # the cutover gate — must exit 0
+```
 
-### Installation
+Put the connection string in `.env.local` (gitignored) as
+`MIGRATION_DATABASE_URL`, using the Supabase **session-mode pooler on port
+5432** — not 6543 (no prepared statements) and not `db.<ref>.supabase.co`
+(IPv6-only on the free tier).
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yashwanthkrishna51-netizen/kora.git
-   cd kora
-   ```
+Every tool prints its target and mode before doing anything, and anything that
+writes to a non-local database makes you type the environment name first.
+`preflight` and `verify` never write. `backfill` runs in one transaction and
+rolls back on any inconsistency; v1 is never written to, which is what keeps
+rollback trivial.
 
-2. **Install backend dependencies:**
-   ```bash
-   npm install
-   ```
+See `db/migrations/APPLIED.md` for migration order and the two gates.
 
-3. **Configure Environment Variables:**
-   Create a `.env.local` file in the root directory:
-   ```env
-   SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
-   SESSION_SECRET=your-random-32-char-session-secret
-   CRON_SECRET=your-random-cron-secret
-   
-   # Optional: Microsoft Entra SSO
-   AZURE_CLIENT_ID=your-azure-client-id
-   AZURE_CLIENT_SECRET=your-azure-client-secret
-   AZURE_TENANT_ID=your-azure-tenant-id
-   ```
+## Layout
 
-4. **Run the local development server:**
-   ```bash
-   vercel dev
-   ```
-   Open `http://localhost:3000` in your browser.
+```
+app/            routes (App Router) + app/api route handlers
+app/styleguide  the design reference, every atom in both themes
+components/     screens and shared UI
+lib/domain/     business logic — RAG calculations, retainer maths, constants
+lib/db/         Drizzle schema, queries and mutations
+lib/query/      TanStack Query hooks, cache keys, optimistic writes
+lib/export/     PDF and Excel generation
+lib/digest/     the daily assignee digest
+tests/golden/   differential tests against the original implementation
+```
 
----
+## The golden-master tests
 
-## ⚙️ Environment Variables Reference
+The old app's business rules are subtle (three different RAG formulas, a
+retainer pool where only the overage is billable) and a silent change to any of
+them would quietly move every health indicator in the product.
 
-| Variable | Required | Description |
-|---|:---:|---|
-| `SUPABASE_URL` | **Yes** | URL of the Supabase project instance. |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Yes** | Supabase Service Role API key for administrative database access. |
-| `SESSION_SECRET` | **Yes** | Secret used to sign and verify user authentication tokens. |
-| `CRON_SECRET` | **Yes** | Bearer secret authorizing Vercel Cron backup routines. |
-| `AZURE_CLIENT_ID` | *Optional* | Microsoft Entra / Azure Application (client) ID for SSO. |
-| `AZURE_CLIENT_SECRET` | *Optional* | Microsoft Entra / Azure Application client secret for SSO. |
-| `AZURE_TENANT_ID` | *Optional* | Microsoft Entra / Azure Directory (tenant) ID for SSO. |
+So `tests/golden/` does not test my *reading* of that logic. It loads the
+**original vanilla-JS functions** out of `../kora/js` into a VM and diffs them
+against the TypeScript ports across 300 generated clients and five billing
+windows, with fixtures deliberately landing on every threshold the rules hinge
+on (0/1/7/14 days, exhausted pools, missing dates).
 
----
+The suite has been mutation-checked: deliberately breaking a threshold or a
+balance calculation makes it fail with a concrete input.
 
-## 🚢 Deployment
+If `../kora` isn't present the suite skips rather than fails. Point it elsewhere
+with `KORA_LEGACY_ROOT`.
 
-Kora is optimized for deployment on **Vercel**:
+## Conventions
 
-1. Link your repository to a Vercel project:
-   ```bash
-   vercel
-   ```
-2. Set the environment variables in the **Vercel Project Dashboard** (Settings → Environment Variables).
-3. Deploy to production:
-   ```bash
-   vercel --prod
-   ```
+- **Two radii exist**: `4px` and fully round. Nothing else.
+- **Cards are flat at rest** — shadow on hover only, never a transform lift.
+- **Never render a status `fill` colour as text.** Every hue has a `text`-safe
+  pair; `/styleguide` shows them side by side and why.
+- **No emoji in UI.** Icons are Lucide at `stroke-width: 1.5`, `currentColor`.
+- Class names are `k-` prefixed. The design system's unprefixed `.h1`/`.body`
+  are deliberately not shipped — they collide with Tailwind.
+- Dark mode is a `dark` class on `<html>`, applied pre-paint and stored under
+  the legacy `itk_dark` key so preferences survive cutover.
 
----
+## Notes
 
-## 📄 License
-
-Internal proprietary software of **Kognoz Consulting**. All rights reserved.
+- Next.js 16 renamed `middleware.ts` to **`proxy.ts`**, which runs on the
+  Node.js runtime only. Check `node_modules/next/dist/docs/` before assuming an
+  API — this version differs from most training data.
+- Headings use **Carlito**, the metric-compatible open clone of Calibri, until a
+  licensed Calibri is supplied.
+- Migration reports and database dumps contain real client data and password
+  hashes. They are gitignored and must never be committed.

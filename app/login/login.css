@@ -1,0 +1,87 @@
+/* ==========================================================================
+   Sign-in screen, artboard 1a.
+   Scoped here rather than in globals.css: none of it is reused, and the login
+   page is the only place in the app with a full-bleed brand surface.
+
+   The handoff explicitly drops two effects the old app had — a hue-rotating
+   mesh animation and a pulsing glow. One static blurred gradient reads as
+   considered; a moving one reads as a screensaver.
+   ========================================================================== */
+
+.login-panel {
+  /* Deep Blue is fixed here in both themes. It is the brand surface, and the
+     logo chip and white text are composed against exactly this value. */
+  background: #005184;
+  padding: 48px 56px;
+}
+
+/* One soft radial of the Kognoz gradient, top-right, well under the content. */
+.login-blob {
+  position: absolute;
+  inset: -30% -20% auto auto;
+  width: 620px;
+  height: 620px;
+  border-radius: 50%;
+  background: var(--k-gradient);
+  opacity: 0.22;
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.login-headline {
+  font-family: var(--font-k-head), Calibri, Carlito, sans-serif;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: #fff;
+  margin: 0;
+}
+
+.login-status {
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: var(--k-radius);
+  background: rgb(255 255 255 / 0.06);
+  padding: 18px 20px;
+  /* No backdrop-filter: the handoff removes it, and it costs a compositing
+     layer for an effect invisible over a solid background. */
+}
+
+/* Staggered entrance. Kept from the original because it makes the panel feel
+   composed rather than dumped on screen; the delay is set per element. */
+.login-in {
+  animation: login-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes login-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Bars fill to their real value, so the panel reads as live data arriving. */
+.login-bar {
+  width: 0;
+  animation: login-bar 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes login-bar {
+  to {
+    width: var(--bar-width);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-in,
+  .login-bar {
+    animation: none;
+  }
+  .login-bar {
+    width: var(--bar-width);
+  }
+}
