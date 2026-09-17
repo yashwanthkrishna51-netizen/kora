@@ -1,0 +1,34 @@
+# GitGuardian configuration.
+#
+# Every match below was investigated and is a false positive. No production
+# credential has ever been committed to this repository — verified by scanning
+# the full history for the Supabase project password, the service-role key and
+# any pooler connection string with credentials in it. `.env.local` is
+# gitignored and has never been added.
+#
+# Real secrets live only in .env.local (local) and Vercel environment
+# variables (deployed). If a genuine credential is ever committed, rotate it
+# first and rewrite history second — an ignore entry is never the fix.
+
+version: 2
+
+secret:
+  ignored-paths:
+    # Auth fixtures. Testing login, lockout escalation and password rotation
+    # requires passwords and signing secrets in the test body; there is no way
+    # to exercise those paths without them. All are fabricated and only ever
+    # reach an in-process PGlite database.
+    - "tests/**"
+
+    # Documentation placeholders: `<PASSWORD>`, `<REF>`, and the standard
+    # postgres:postgres@localhost used by the throwaway Docker container.
+    - ".env.local.example"
+
+  ignored-matches:
+    - name: >-
+        lib/auth/password.ts DUMMY_HASH — a bcrypt hash of a value nobody
+        knows, compared against when a username does not exist so that response
+        timing does not reveal whether an account exists. It authenticates
+        nothing: no password produces it, and it is verified against, never
+        with. Published in the original open-source repo for the same reason.
+      match: "$2b$12$qs9g9NfuP.AOlgY5K24XsekwE.GxJ5.99rmHJDYy9O1ZIlKjBS/Pa"
