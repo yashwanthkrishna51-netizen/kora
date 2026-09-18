@@ -1,27 +1,15 @@
 {
-  "version": 2,
-  "rewrites": [
-    { "source": "/((?!api/|.*\\.[^/]+$).*)", "destination": "/index.html" }
-  ],
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["bom1"],
   "crons": [
-    { "path": "/api/cron/backup", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/daily-digest", "schedule": "30 3 * * *" }
-  ],
-  "headers": [
     {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "geolocation=(), camera=(), microphone=()" },
-        { "key": "Cache-Control", "value": "no-cache, must-revalidate" },
-        {
-          "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
-        }
-      ]
+      "path": "/api/cron/backup",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/daily-digest",
+      "schedule": "30 3 * * *"
     }
   ]
 }
