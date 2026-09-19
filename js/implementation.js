@@ -7,6 +7,7 @@ function implProgress(client) {
 // ─── CLIENT LIST — replaced by the 3-column renderImplClientDetail below,
 // which now also handles the bare "no client selected yet" case ───
 function renderImplClientDetail(clientId) {
+  fetchImplementationRagRules();
   const implClients = S.clients.filter(x => x.modules !== undefined);
   const c = S.clients.find(x => x.id === clientId) || implClients[0];
   if (!c) return `<div class="k-page fade"><div class="bg-white rounded-2xl border border-gray-100 text-center py-16 text-gray-400 text-sm">${emptyIcon('inbox')}No implementation clients yet. <button data-act="modal-open" data-modal="add-impl-client" class="text-[#0e7490] font-medium ml-1">Add one</button></div></div>`;
@@ -54,6 +55,7 @@ function renderImplClientDetail(clientId) {
       </div>
       ${c.description ? `<p class="text-sm text-gray-400 mt-0.5">${esc(c.description)}</p>` : ''}
       ${pr.total > 0 ? `<p class="text-xs text-gray-400 mt-1">${pr.completed}/${pr.total} phases complete · ${pr.pct}%${pr.atRisk > 0 ? ` · <span class="text-rose-500">${pr.atRisk} at risk</span>` : ''}</p>` : ''}
+      ${ragLogicHtml()}
     </div>
     <div class="flex gap-2 flex-wrap">
       ${bulk ? `<span class="text-xs text-[#0e7490] bg-[#0e7490]/10 px-3 py-2 rounded-xl font-medium">Select phases to mark complete</span>
@@ -80,7 +82,10 @@ function renderImplClientDetail(clientId) {
         ${(c.modules || []).length ? (c.modules || []).map((m, mi) => `<tr class="heat-row">
           <td class="font-medium text-gray-900 whitespace-nowrap sticky left-0 bg-white">
             <div class="flex items-center justify-between gap-2">
-              <span>${esc(m.name)}</span>
+              <div class="min-w-0">
+                <span>${esc(m.name)}</span>
+                ${(m.effort !== undefined || m.assignee) ? `<div class="text-[10px] font-normal text-gray-400 truncate">${m.effort !== undefined ? `Effort ${esc(String(m.effort))}` : ''}${m.effort !== undefined && m.assignee ? ' · ' : ''}${m.assignee ? esc(m.assignee) : ''}</div>` : ''}
+              </div>
               ${!bulk && can('admin') ? `<button data-act="delete-impl-module" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" title="Delete module" class="text-gray-200 hover:text-rose-500 transition text-sm leading-none shrink-0">✕</button>` : ''}
             </div>
           </td>
@@ -159,26 +164,26 @@ function renderImplPhaseDetail(clientId, moduleId, phaseName) {
     <div class="bg-white rounded-2xl border border-gray-100 p-6">
       <h3 class="font-semibold text-gray-900 mb-4 text-sm">Details</h3>
       <div class="space-y-4">
-        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Status</label>
+        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Status *</label>
           ${can('editor') ? `<select id="ip-status" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${STATUSES.map(s => `<option${s === ph.status ? ' selected' : ''}>${s}</option>`).join('')}</select>` : sbadge(ph.status)}
         </div>
-        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Assignee</label>
+        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Assignee *</label>
           ${can('editor') ? assigneeSelect('ip-assignee', ph.assignee || '') :
       `<p class="text-sm text-gray-700">${esc(ph.assignee || '—')}</p>`}
         </div>
-        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Start Date</label>
+        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Start Date *</label>
           ${can('editor') ? `<input id="ip-start" type="date" value="${esc(ph.startDate || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>` :
       `<p class="text-sm text-gray-700">${fmtDate(ph.startDate)}</p>`}
         </div>
-        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Target Date</label>
+        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Target Date *</label>
           ${can('editor') ? `<input id="ip-target" type="date" value="${esc(ph.targetDate || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>` :
       `<p class="text-sm text-gray-700">${fmtDate(ph.targetDate)}</p>`}
         </div>
-        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Current Activity</label>
+        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Current Activity *</label>
           ${can('editor') ? `<textarea id="ip-activity" rows="3" placeholder="What is currently happening in this phase?" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(ph.currentActivity || '')}</textarea>` :
       `<p class="text-sm text-gray-700 leading-relaxed">${esc(ph.currentActivity || '—')}</p>`}
         </div>
-        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Next Action</label>
+        <div><label class="block text-xs font-medium text-gray-400 mb-1.5">Next Action *</label>
           ${can('editor') ? `<textarea id="ip-next" rows="2" placeholder="What is the next planned step?" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(ph.nextAction || '')}</textarea>` :
       `<p class="text-sm text-gray-700">${esc(ph.nextAction || '—')}</p>`}
         </div>
@@ -285,7 +290,13 @@ function renderImplPhaseDetail(clientId, moduleId, phaseName) {
   </div>
 </div>`;
 }
+// RAG thresholds (redDays/amberDays) and the forceRed override are
+// admin-configurable — see Admin → Implementations → RAG Configuration,
+// backed by the `implementation_rag_rules` settings key (api/ops.js) and
+// fetched into S.implementationRagRules (js/core.js). ragLogicHtml() below
+// renders this same logic as human-readable text so it isn't a black box.
 function implAutoRag(client) {
+  const rules = S.implementationRagRules || { forceRed: true, redDays: 14, amberDays: 7 };
   const today = todayStr(); let hasRed = false, hasAmber = false, hasInProgress = false;
   (client.modules || []).forEach(m => (m.phases || []).forEach(ph => {
     if (ph.status === 'Completed' || ph.status === 'Not Started') return;
@@ -293,19 +304,49 @@ function implAutoRag(client) {
     if (ph.status === 'At Risk') { hasRed = true; return; }
     if (ph.targetDate) {
       const d = daysDiff(ph.targetDate);
-      if (d >= 14) { hasRed = true; return; }
+      if (d >= rules.redDays) { hasRed = true; return; }
       if (d >= 1) { hasAmber = true; return; }
     }
     const updates = ph.updates || [];
     if (!updates.length) { hasAmber = true; return; }
     const lastUpd = updates.reduce((a, u) => { const dt = u.addedAt || u.date || ''; return dt > a ? dt : a; }, '');
     const daysAgo = lastUpd ? Math.floor((Date.now() - new Date(lastUpd)) / 86400000) : 99;
-    if (daysAgo >= 14) hasRed = true;
-    else if (daysAgo >= 7) hasAmber = true;
+    if (daysAgo >= rules.redDays) hasRed = true;
+    else if (daysAgo >= rules.amberDays) hasAmber = true;
   }));
-  if (!hasInProgress && (client.modules || []).length > 0) return 'Green';
-  if (hasRed) return 'Red';
-  if (hasAmber) return 'Amber';
-  if (!hasInProgress) return null;
-  return 'Green';
+  let result;
+  if (!hasInProgress && (client.modules || []).length > 0) result = 'Green';
+  else if (hasRed) result = 'Red';
+  else if (hasAmber) result = 'Amber';
+  else if (!hasInProgress) result = null;
+  else result = 'Green';
+  if (rules.forceRed && result) return 'Red'; // admin override — see note above
+  return result;
+}
+
+// Human-readable version of implAutoRag's logic, shown inline on the
+// Implementation client page so the RAG calculation isn't a black box.
+function ragLogicHtml() {
+  const rules = S.implementationRagRules || { forceRed: true, redDays: 14, amberDays: 7 };
+  return `<details class="mt-2 text-xs">
+    <summary class="cursor-pointer text-gray-400 hover:text-[#0e7490] select-none inline-flex items-center gap-1">ℹ️ How is Red/Amber/Green calculated?</summary>
+    <div class="mt-2 bg-gray-50 border border-gray-100 rounded-xl p-3 text-gray-600 leading-relaxed max-w-xl">
+      ${rules.forceRed ? `<p class="text-rose-600 font-semibold mb-2">⚠ Admin override is ON — every client currently shows Red regardless of the logic below. Turn this off in Admin → Implementations → RAG Configuration.</p>` : ''}
+      <ul class="list-disc pl-4 space-y-1">
+        <li>Any phase marked <b>At Risk</b> → <b class="text-rose-600">Red</b></li>
+        <li>Any active phase overdue by <b>${rules.redDays}+ days</b> past its target date → <b class="text-rose-600">Red</b>; overdue by 1–${rules.redDays - 1} days → <b class="text-amber-600">Amber</b></li>
+        <li>Any active phase with no posted update in <b>${rules.redDays}+ days</b> → <b class="text-rose-600">Red</b>; ${rules.amberDays}–${rules.redDays - 1} days → <b class="text-amber-600">Amber</b></li>
+        <li>All phases Completed (or no phases in progress) → <b class="text-green-600">Green</b></li>
+        <li>Otherwise → <b class="text-green-600">Green</b></li>
+      </ul>
+    </div>
+  </details>`;
+}
+
+// Default module auto-added to every Implementation client (new + backfilled
+// existing ones) per standing policy: effort=1, assigned to the client's
+// Master Assignee. Module-level fields only — per-phase assignees are left
+// for editors to fill in individually (mandatory on save, see renderImplPhaseDetail).
+function makeGovernanceModule(masterAssignee) {
+  return { id: uid(), name: 'Governance', effort: 1, assignee: masterAssignee || '', phases: PHASES.map(ph => ({ name: ph, status: 'Not Started', startDate: '', targetDate: '', updates: [] })) };
 }

@@ -14,11 +14,14 @@ function adminSearchBar(placeholder){
 }
 
 function renderAdminImpl(){
+  fetchImplementationRagRules();
   const implClients=S.clients.filter(c=>c.modules!==undefined);
   const q=S.adminSearch.toLowerCase();
   const filtered=q?implClients.filter(c=>c.name.toLowerCase().includes(q)):implClients;
   const totalModules=implClients.reduce((a,c)=>a+(c.modules||[]).length,0);
   const totalAtRisk=implClients.reduce((a,c)=>a+implProgress(c).atRisk,0);
+  const noGovernance=implClients.filter(c=>!(c.modules||[]).some(m=>m.name==='Governance')).length;
+  const rules=S.implementationRagRules||{forceRed:true,redDays:14,amberDays:7};
   return`<div>
   <div class="k-card mb-5" style="padding:18px 0;">
     <div class="k-metric-row" style="grid-template-columns:repeat(3,1fr);">
@@ -27,6 +30,27 @@ function renderAdminImpl(){
       <div class="k-metric${totalAtRisk?' k-metric-red':''}"><div class="k-num-l" style="${totalAtRisk?'color:var(--red);':''}">${totalAtRisk}</div><div class="k-eyebrow" style="margin-top:6px;">Phases At Risk</div></div>
     </div>
   </div>
+
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
+    <h2 class="text-base font-bold text-gray-900 mb-1">RAG Configuration</h2>
+    <p class="text-xs text-gray-500 mb-4">Controls how Red/Amber/Green is calculated for every Implementation client — shown to users via the "How is RAG calculated?" panel on each client's page.</p>
+    <label class="flex items-center gap-2 mb-4 cursor-pointer">
+      <input id="rag-force-red" type="checkbox" ${rules.forceRed?'checked':''} class="w-4 h-4 accent-[#0e7490]"/>
+      <span class="text-sm text-gray-700">Force all records to <b class="text-rose-600">Red</b>, overriding the calculated status below</span>
+    </label>
+    <div class="grid grid-cols-2 gap-3 mb-4 max-w-md">
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Red after (days overdue / stale)</label><input id="rag-red-days" type="number" min="1" max="365" value="${rules.redDays}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Amber after (days stale, no update)</label><input id="rag-amber-days" type="number" min="1" max="365" value="${rules.amberDays}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+    </div>
+    <button data-act="save-impl-rag-rules" class="text-sm font-semibold px-4 py-2 rounded-xl bg-[#0e7490] text-white hover:bg-[#0d3d4f]">Save RAG Rules</button>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
+    <h2 class="text-base font-bold text-gray-900 mb-1">Governance Module</h2>
+    <p class="text-xs text-gray-500 mb-3">Every Implementation client should carry a default "Governance" module (effort 1, assigned to the client's Master Assignee). New clients get this automatically — use this to backfill existing ones.</p>
+    <button data-act="bulk-add-governance" class="text-sm font-semibold px-4 py-2 rounded-xl ${noGovernance?'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100':'bg-gray-50 border border-gray-200 text-gray-400'} transition">+ Add Governance Module to All Clients${noGovernance?` (${noGovernance} missing)`:' (none missing)'}</button>
+  </div>
+
   <div class="flex items-center justify-between gap-3 mb-4">
     ${adminSearchBar('Search clients…')}
     <div class="flex gap-2">

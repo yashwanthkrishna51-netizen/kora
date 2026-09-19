@@ -71,12 +71,18 @@ async function handleAudit(req, res, env, check) {
 }
 
 // ─── op=settings — verbatim from the current api/settings.js ──────────
-const SETTINGS_ALLOWED_KEYS = ['capacity_weights', 'digest_recipients', 'pipeline_stage_weights'];
+const SETTINGS_ALLOWED_KEYS = ['capacity_weights', 'digest_recipients', 'pipeline_stage_weights', 'implementation_rag_rules'];
 const DEFAULT_CAPACITY_WEIGHTS = { module: 1, pmo: 0.5, ams: 0.25, cap: 5 };
 const DEFAULT_DIGEST_RECIPIENTS = { emails: [] };
 // Default win-probability % per stage — admin-editable via the Pipeline
 // admin tab, same mechanism as capacity_weights.
 const DEFAULT_PIPELINE_STAGE_WEIGHTS = { Lead: 10, Qualified: 30, 'Proposal Sent': 50, Negotiation: 75, Won: 100, Lost: 0 };
+// Implementation RAG rules — admin-editable via Admin → Implementations, same
+// mechanism as capacity_weights. forceRed:true means every implementation
+// record displays Red regardless of its computed status (an explicit,
+// reversible override — defaults ON per the initial rollout request, until
+// an admin turns it off once mandatory-field data quality catches up).
+const DEFAULT_IMPLEMENTATION_RAG_RULES = { forceRed: true, redDays: 14, amberDays: 7 };
 
 async function handleSettings(req, res, env, check) {
   const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = env;
@@ -88,16 +94,18 @@ async function handleSettings(req, res, env, check) {
 
   if (req.method === 'GET') {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?key=in.(capacity_weights,digest_recipients,pipeline_stage_weights)&select=*`, { headers: sbHeaders });
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?key=in.(capacity_weights,digest_recipients,pipeline_stage_weights,implementation_rag_rules)&select=*`, { headers: sbHeaders });
       if (!r.ok) return res.status(r.status).json({ error: 'Settings read error' });
       const rows = await r.json();
       const cw = rows.find(row => row.key === 'capacity_weights')?.value || DEFAULT_CAPACITY_WEIGHTS;
       const dr = rows.find(row => row.key === 'digest_recipients')?.value || DEFAULT_DIGEST_RECIPIENTS;
       const psw = rows.find(row => row.key === 'pipeline_stage_weights')?.value || DEFAULT_PIPELINE_STAGE_WEIGHTS;
+      const irr = rows.find(row => row.key === 'implementation_rag_rules')?.value || DEFAULT_IMPLEMENTATION_RAG_RULES;
       return res.status(200).json({
         capacityWeights: { ...DEFAULT_CAPACITY_WEIGHTS, ...cw },
         digestRecipients: { ...DEFAULT_DIGEST_RECIPIENTS, ...dr },
         pipelineStageWeights: { ...DEFAULT_PIPELINE_STAGE_WEIGHTS, ...psw },
+        implementationRagRules: { ...DEFAULT_IMPLEMENTATION_RAG_RULES, ...irr },
       });
     } catch (err) {
       return serverError(res, err, 'ops.js settings GET');
@@ -130,6 +138,13 @@ async function handleSettings(req, res, env, check) {
       for (const stage of PIPELINE_STAGES) {
         const n = Number(value[stage]);
         if (!Number.isFinite(n) || n < 0 || n > 100) return res.status(400).json({ error: `Invalid probability % for stage: ${stage}` });
+      }
+    }
+    if (key === 'implementation_rag_rules') {
+      if (typeof value.forceRed !== 'boolean') return res.status(400).json({ error: 'forceRed must be true/false' });
+      for (const k of ['redDays', 'amberDays']) {
+        const n = Number(value[k]);
+        if (!Number.isFinite(n) || n <= 0 || n > 365) return res.status(400).json({ error: `Invalid value for ${k}` });
       }
     }
 

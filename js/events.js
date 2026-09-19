@@ -159,6 +159,32 @@ document.addEventListener('click', async e => {
     finally { clearBtnBusy(el); }
     return;
   }
+  if (act === 'save-impl-rag-rules') {
+    if (!can('admin')) return;
+    const forceRed = !!document.getElementById('rag-force-red')?.checked;
+    const redDays = Number(document.getElementById('rag-red-days')?.value);
+    const amberDays = Number(document.getElementById('rag-amber-days')?.value);
+    if (!Number.isFinite(redDays) || redDays <= 0 || redDays > 365) { showToast('Invalid Red threshold', 'error'); return; }
+    if (!Number.isFinite(amberDays) || amberDays <= 0 || amberDays > 365) { showToast('Invalid Amber threshold', 'error'); return; }
+    setBtnBusy(el, 'Saving…');
+    try { await saveImplementationRagRules({ forceRed, redDays, amberDays }); showToast('RAG rules saved ✓'); render(); }
+    catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    finally { clearBtnBusy(el); }
+    return;
+  }
+  if (act === 'bulk-add-governance') {
+    if (!can('admin')) return;
+    const targets = S.clients.filter(c => c.modules !== undefined && !(c.modules || []).some(m => m.name === 'Governance'));
+    if (!targets.length) { showToast('Every Implementation client already has a Governance module'); return; }
+    if (!confirm(`Add a default Governance module (effort 1, assigned to each client's Master Assignee) to ${targets.length} client${targets.length !== 1 ? 's' : ''}?`)) return;
+    const snapshot = targets.map(c => c.modules.length);
+    targets.forEach(c => c.modules.unshift(makeGovernanceModule(c.masterAssignee)));
+    setBtnBusy(el, 'Adding…');
+    try { await saveClients(`Backfill Governance module (${targets.length} clients)`, targets.map(c => c.id)); showToast(`Governance module added to ${targets.length} client${targets.length !== 1 ? 's' : ''} ✓`); render(); }
+    catch (err) { targets.forEach((c, idx) => { if (c.modules.length > snapshot[idx]) c.modules.shift(); }); showToast('Failed: ' + err.message, 'error'); render(); }
+    finally { clearBtnBusy(el); }
+    return;
+  }
   if (act === 'audit-apply') { S.auditPage = 0; loadAuditLog(); return; }
   if (act === 'audit-clear') { S.auditFrom = ''; S.auditTo = ''; S.auditUser = ''; S.auditSearch = ''; S.auditPage = 0; loadAuditLog(); return; }
   if (act === 'audit-preset') {
@@ -321,6 +347,15 @@ document.addEventListener('click', async e => {
     ph.targetDate = document.getElementById('ip-target')?.value || '';
     ph.currentActivity = document.getElementById('ip-activity')?.value?.trim() || '';
     ph.nextAction = document.getElementById('ip-next')?.value?.trim() || '';
+    // All fields mandatory on save
+    const missing = [];
+    if (!ph.status) missing.push('Status');
+    if (!ph.assignee) missing.push('Assignee');
+    if (!ph.startDate) missing.push('Start Date');
+    if (!ph.targetDate) missing.push('Target Date');
+    if (!ph.currentActivity) missing.push('Current Activity');
+    if (!ph.nextAction) missing.push('Next Action');
+    if (missing.length) { showToast(`Required: ${missing.join(', ')}`, 'error'); return; }
     // Signoff enforcement
     const isSignoff = SIGNOFF_PHASES.includes(phaseName);
     const hasAttachment = (ph.updates || []).some(u => u.attachment?.url);
@@ -1197,7 +1232,7 @@ document.addEventListener('click', async e => {
       const existingId = document.getElementById('m0')?.value;
       if (existingId) {
         const c = S.clients.find(x => x.id === existingId); if (!c) return;
-        c.modules = []; S.modal = { ...m, busy: true }; render();
+        c.modules = [makeGovernanceModule(c.masterAssignee)]; S.modal = { ...m, busy: true }; render();
         try { await saveClients(`Enable Implementation tracking: ${c.name}`, [existingId]); S.modal = null; showToast(`${c.name} added to Implementations`); render(); }
         catch (err) { delete c.modules; S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
       } else {
@@ -1205,7 +1240,7 @@ document.addEventListener('click', async e => {
         if (!name) { showToast('Pick a client above or enter a new name', 'error'); return; }
         if (S.clients.find(x => x.name.toLowerCase() === name.toLowerCase())) { showToast(`"${name}" already exists — select it above instead`, 'error'); return; }
         const desc = document.getElementById('m2')?.value.trim();
-        const nc = { id: uid(), name, description: desc || '', createdAt: new Date().toISOString(), integrations: [], modules: [] };
+        const nc = { id: uid(), name, description: desc || '', createdAt: new Date().toISOString(), integrations: [], modules: [makeGovernanceModule('')] };
         S.clients.push(nc); S.modal = { ...m, busy: true }; render();
         try { await saveClients(`Add ${name}`, [nc.id]); S.modal = null; showToast(`${name} added`); render(); }
         catch (err) { S.clients.pop(); S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
