@@ -130,7 +130,7 @@ function renderDashboard() {
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
   const upcoming = [];
   all.forEach(i => (i.milestones || []).forEach(ms => { if (ms.status === 'Pending' && ms.dueDate >= todayS && ms.dueDate <= in14) upcoming.push({ date: ms.dueDate, title: ms.name, client: i.clientName, tag: 'Milestone' }); }));
-  implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => { if (ph.status !== 'Completed' && ph.targetDate && ph.targetDate >= todayS && ph.targetDate <= in14) upcoming.push({ date: ph.targetDate, title: `${ph.name} — ${m.name}`, client: c.name, tag: 'Phase' }); })));
+  implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => { if (ph.status !== 'Completed' && ph.targetDate && ph.targetDate >= todayS && ph.targetDate <= in14) upcoming.push({ date: ph.targetDate, title: m.singlePhase ? m.name : `${ph.name} — ${m.name}`, client: c.name, tag: 'Phase' }); })));
   openAmsEntries.forEach(e => { if (e.dueDate && e.dueDate >= todayS && e.dueDate <= in14) upcoming.push({ date: e.dueDate, title: (e.description || 'AMS item').slice(0, 50), client: e.clientName, tag: 'AMS' }); });
   upcoming.sort((a, b) => a.date.localeCompare(b.date));
   const TAG_CLASS = { Milestone: 'kd-tag-teal', Phase: 'kd-tag-primary', AMS: 'kd-tag-amber' };
@@ -151,7 +151,9 @@ function renderDashboard() {
 
   const funnelCounts = {};
   PHASES.forEach(p => funnelCounts[p] = 0);
-  implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => { if (ph.status === 'In Progress' || ph.status === 'At Risk') funnelCounts[ph.name] = (funnelCounts[ph.name] || 0) + 1; })));
+  // singlePhase modules (Governance) aren't part of the BPU→Hypercare
+  // delivery funnel — excluded so they don't show up as a stray bucket.
+  implClients.forEach(c => (c.modules || []).forEach(m => { if (m.singlePhase) return; (m.phases || []).forEach(ph => { if (ph.status === 'In Progress' || ph.status === 'At Risk') funnelCounts[ph.name] = (funnelCounts[ph.name] || 0) + 1; }); }));
   const funnelTotal = Object.values(funnelCounts).reduce((a, b) => a + b, 0) || 1;
   const funnelSorted = Object.entries(funnelCounts).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   const funnelMax = funnelSorted[0];

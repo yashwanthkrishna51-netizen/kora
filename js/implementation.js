@@ -1,14 +1,25 @@
 // ─── IMPLEMENTATIONS ──────────────────────────────────────────────
+// Delivery-progress tally — singlePhase modules (Governance) are a standing
+// responsibility, not a delivery phase, so they're excluded here to keep
+// "X/Y phases complete" meaningful for actual BPU→Hypercare progress.
 function implProgress(client) {
   let total = 0, completed = 0, atRisk = 0;
-  (client.modules || []).forEach(m => (m.phases || []).forEach(ph => { total++; if (ph.status === 'Completed') completed++; if (ph.status === 'At Risk') atRisk++; }));
+  (client.modules || []).forEach(m => { if (m.singlePhase) return; (m.phases || []).forEach(ph => { total++; if (ph.status === 'Completed') completed++; if (ph.status === 'At Risk') atRisk++; }); });
   return { total, completed, atRisk, pct: total ? Math.round(completed / total * 100) : 0 };
+}
+const DEFAULT_IMPL_RAG_RULES = { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true };
+// A phase counts as "incomplete" once any mandatory field is missing — the
+// same fields renderImplPhaseDetail requires on save. Completed phases are
+// exempt (nothing left to fix). This is what makes the red flag self-resolve:
+// open the record, fill it in, save — it stops being red on its own.
+function phaseIsIncomplete(ph) {
+  return ph.status !== 'Completed' && (!ph.assignee || !ph.startDate || !ph.targetDate || !ph.currentActivity || !ph.nextAction);
 }
 // ─── CLIENT LIST — replaced by the 3-column renderImplClientDetail below,
 // which now also handles the bare "no client selected yet" case ───
 function renderImplClientDetail(clientId) {
   fetchImplementationRagRules();
-  const forceRedCells = !!(S.implementationRagRules || {}).forceRed;
+  const rules = S.implementationRagRules || DEFAULT_IMPL_RAG_RULES;
   const implClients = S.clients.filter(x => x.modules !== undefined);
   const c = S.clients.find(x => x.id === clientId) || implClients[0];
   if (!c) return `<div class="k-page fade"><div class="bg-white rounded-2xl border border-gray-100 text-center py-16 text-gray-400 text-sm">${emptyIcon('inbox')}No implementation clients yet. <button data-act="modal-open" data-modal="add-impl-client" class="text-[#0e7490] font-medium ml-1">Add one</button></div></div>`;
@@ -80,8 +91,8 @@ function renderImplClientDetail(clientId) {
         ${PHASES.map(ph => `<th class="text-center text-xs font-semibold text-gray-500 uppercase tracking-wide" style="font-size:10px;line-height:1.3;">${esc(ph)}</th>`).join('')}</tr>
       </thead>
       <tbody>
-        ${(c.modules || []).length ? (c.modules || []).map((m, mi) => `<tr class="heat-row">
-          <td class="font-medium text-gray-900 whitespace-nowrap sticky left-0 bg-white">
+        ${(c.modules || []).length ? (c.modules || []).map((m, mi) => {
+        const moduleHeaderCell = `<td class="font-medium text-gray-900 whitespace-nowrap sticky left-0 bg-white">
             <div class="flex items-center justify-between gap-2">
               <div class="min-w-0">
                 <span>${esc(m.name)}</span>
@@ -89,40 +100,71 @@ function renderImplClientDetail(clientId) {
               </div>
               ${!bulk && can('admin') ? `<button data-act="delete-impl-module" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" title="Delete module" class="text-gray-200 hover:text-rose-500 transition text-sm leading-none shrink-0">✕</button>` : ''}
             </div>
-          </td>
-          ${PHASES.map(phName => {
-        const ph = (m.phases || []).find(x => x.name === phName) || { name: phName, status: 'Not Started', updates: [] };
-        const isDone = ph.status === 'Completed';
-        const key = `${m.id}:${phName}`;
-        const isSel = sel.has(key);
-        // Cell color: normal per-status color, unless the admin RAG override
-        // (forceRed) is on — then every cell shows red, irrespective of its
-        // actual status, matching the client-level RAG override above. This
-        // is purely a display override; ph.status itself is never touched.
-        const bg = forceRedCells ? 'var(--red)' : (ph.status === 'Not Started' ? '#e5e7eb' : `#${SHEX[ph.status] || '64748b'}`);
-        const overdue = ph.targetDate && !isDone && new Date(ph.targetDate) < new Date();
-        const initialsTxt = ph.assignee ? initials(ph.assignee) : '';
-        const initialsColor = (!forceRedCells && ph.status === 'Not Started') ? '#9ca3af' : '#ffffff';
-        const initialsLabel = initialsTxt ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${initialsColor};pointer-events:none;">${esc(initialsTxt)}</span>` : '';
-        const tip = `<div class="heat-tip">
-              <div class="tip-title">${esc(phName)}</div>
-              <div class="tip-meta"><span class="${ph.status === 'At Risk' ? 'rag-red' : ph.status === 'Delayed' ? 'rag-amber' : ''}">${esc(ph.status)}</span>${ph.assignee ? ` · ${esc(ph.assignee)}` : ''}${ph.targetDate ? ` · due ${fmtDate(ph.targetDate)}${overdue ? ' (overdue)' : ''}` : ''} · ${(ph.updates || []).length} update${(ph.updates || []).length !== 1 ? 's' : ''}</div>
+          </td>`;
+
+        // Governance-style modules: one standing record for the whole
+        // module, not a 9-phase grid — rendered as a single wide cell.
+        if (m.singlePhase) {
+          const ph = (m.phases || [])[0] || { name: m.name, status: 'Not Started', updates: [] };
+          const isDone = ph.status === 'Completed';
+          const incomplete = rules.flagIncomplete && phaseIsIncomplete(ph);
+          const flaggedRed = rules.forceRed || incomplete;
+          const bg = flaggedRed ? 'var(--red)' : (ph.status === 'Not Started' ? '#e5e7eb' : `#${SHEX[ph.status] || '64748b'}`);
+          const textColor = (!flaggedRed && ph.status === 'Not Started') ? '#6b7280' : '#ffffff';
+          const overdue = ph.targetDate && !isDone && new Date(ph.targetDate) < new Date();
+          const label = `${esc(ph.status)}${ph.assignee ? ` · ${esc(ph.assignee)}` : ''}`;
+          const tip = `<div class="heat-tip">
+              <div class="tip-title">${esc(m.name)}</div>
+              <div class="tip-meta">${esc(ph.status)}${ph.assignee ? ` · ${esc(ph.assignee)}` : ''}${ph.targetDate ? ` · due ${fmtDate(ph.targetDate)}${overdue ? ' (overdue)' : ''}` : ''} · ${(ph.updates || []).length} update${(ph.updates || []).length !== 1 ? 's' : ''}${incomplete ? ' · ⚠ Missing required fields' : ''}</div>
             </div>`;
-        if (bulk) {
-          if (isDone) {
-            return `<td class="text-center">
+          const cellInner = bulk
+            ? `<div class="heat-cell" style="background:${bg};opacity:.5;cursor:default;position:relative;width:100%;" title="Not part of bulk-complete — open it directly to update">
+                 <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${textColor};pointer-events:none;">${label}</span>${tip}
+               </div>`
+            : `<button data-act="open-impl-phase" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" data-phase="${esc(ph.name)}" class="heat-cell" style="background:${bg};position:relative;width:100%;">
+                 <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${textColor};pointer-events:none;">${label}</span>${tip}
+               </button>`;
+          return `<tr class="heat-row">${moduleHeaderCell}<td colspan="${PHASES.length}" class="text-center">${cellInner}</td></tr>`;
+        }
+
+        return `<tr class="heat-row">${moduleHeaderCell}
+          ${PHASES.map(phName => {
+          const ph = (m.phases || []).find(x => x.name === phName) || { name: phName, status: 'Not Started', updates: [] };
+          const isDone = ph.status === 'Completed';
+          const key = `${m.id}:${phName}`;
+          const isSel = sel.has(key);
+          // Cell color: normal per-status color, unless this phase is
+          // "incomplete" (missing a mandatory field — self-clears once
+          // filled in and saved) or the admin's blunt emergency override is
+          // on. Either way this is purely a display override; ph.status
+          // itself is never touched.
+          const incomplete = rules.flagIncomplete && phaseIsIncomplete(ph);
+          const flaggedRed = rules.forceRed || incomplete;
+          const bg = flaggedRed ? 'var(--red)' : (ph.status === 'Not Started' ? '#e5e7eb' : `#${SHEX[ph.status] || '64748b'}`);
+          const overdue = ph.targetDate && !isDone && new Date(ph.targetDate) < new Date();
+          const initialsTxt = ph.assignee ? initials(ph.assignee) : '';
+          const initialsColor = (!flaggedRed && ph.status === 'Not Started') ? '#9ca3af' : '#ffffff';
+          const initialsLabel = initialsTxt ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${initialsColor};pointer-events:none;">${esc(initialsTxt)}</span>` : '';
+          const tip = `<div class="heat-tip">
+              <div class="tip-title">${esc(phName)}</div>
+              <div class="tip-meta"><span class="${ph.status === 'At Risk' ? 'rag-red' : ph.status === 'Delayed' ? 'rag-amber' : ''}">${esc(ph.status)}</span>${ph.assignee ? ` · ${esc(ph.assignee)}` : ''}${ph.targetDate ? ` · due ${fmtDate(ph.targetDate)}${overdue ? ' (overdue)' : ''}` : ''} · ${(ph.updates || []).length} update${(ph.updates || []).length !== 1 ? 's' : ''}${incomplete ? ' · ⚠ Missing required fields' : ''}</div>
+            </div>`;
+          if (bulk) {
+            if (isDone) {
+              return `<td class="text-center">
                   <div class="heat-cell" style="background:${bg};opacity:.35;cursor:default;position:relative;" title="Already completed">${initialsLabel}${tip}</div>
                 </td>`;
-          }
-          return `<td class="text-center">
+            }
+            return `<td class="text-center">
                 <button data-act="toggle-bulk-phase" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" data-phase="${esc(phName)}" class="heat-cell ${isSel ? 'heat-selected' : ''}" style="background:${bg};position:relative;">${initialsLabel}${tip}</button>
               </td>`;
-        }
-        return `<td class="text-center">
+          }
+          return `<td class="text-center">
               <button data-act="open-impl-phase" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" data-phase="${esc(phName)}" class="heat-cell" style="background:${bg};position:relative;">${initialsLabel}${tip}</button>
             </td>`;
-      }).join('')}
-        </tr>`).join('') : `<tr><td colspan="${PHASES.length + 1}" class="text-center py-12 text-gray-400 text-sm">${emptyIcon('inbox')}No modules yet. Add one to start tracking phases.</td></tr>`}
+        }).join('')}
+        </tr>`;
+      }).join('') : `<tr><td colspan="${PHASES.length + 1}" class="text-center py-12 text-gray-400 text-sm">${emptyIcon('inbox')}No modules yet. Add one to start tracking phases.</td></tr>`}
       </tbody>
     </table>
     ${(c.modules || []).length ? `<div class="flex items-center gap-4 flex-wrap px-1 pt-2 mt-1 border-t border-gray-50" style="font-size:11px;">
@@ -163,7 +205,7 @@ function renderImplPhaseDetail(clientId, moduleId, phaseName) {
   if (!ph.updates) ph.updates = [];
   return `<div class="max-w-6xl mx-auto px-6 py-7 fade">
   <div class="flex items-center gap-3 mb-2 flex-wrap">
-    <h1 class="text-xl font-bold text-gray-900">${esc(mod.name)} — ${esc(phaseName)}</h1>${sbadge(ph.status)}
+    <h1 class="text-xl font-bold text-gray-900">${mod.singlePhase ? esc(mod.name) : `${esc(mod.name)} — ${esc(phaseName)}`}</h1>${sbadge(ph.status)}
   </div>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-5">
     <div class="bg-white rounded-2xl border border-gray-100 p-6">
@@ -295,17 +337,27 @@ function renderImplPhaseDetail(clientId, moduleId, phaseName) {
   </div>
 </div>`;
 }
-// RAG thresholds (redDays/amberDays) and the forceRed override are
+// RAG thresholds (redDays/amberDays), flagIncomplete, and forceRed are all
 // admin-configurable — see Admin → Implementations → RAG Configuration,
 // backed by the `implementation_rag_rules` settings key (api/ops.js) and
 // fetched into S.implementationRagRules (js/core.js). ragLogicHtml() below
 // renders this same logic as human-readable text so it isn't a black box.
+//
+// flagIncomplete (default ON) is what makes "should look red until fixed"
+// self-resolving per record, instead of one global switch someone has to
+// remember to flip: any non-Completed phase missing a mandatory field pushes
+// the client to Red; the moment that phase is opened, filled in and saved,
+// it drops out of the incomplete count on its own. forceRed is a separate,
+// blunt emergency override (default OFF) that ignores all of this.
 function implAutoRag(client) {
-  const rules = S.implementationRagRules || { forceRed: true, redDays: 14, amberDays: 7 };
-  const today = todayStr(); let hasRed = false, hasAmber = false, hasInProgress = false;
-  (client.modules || []).forEach(m => (m.phases || []).forEach(ph => {
-    if (ph.status === 'Completed' || ph.status === 'Not Started') return;
-    hasInProgress = true;
+  const rules = S.implementationRagRules || DEFAULT_IMPL_RAG_RULES;
+  const mods = client.modules || [];
+  if (!mods.length) return null;
+  let hasRed = false, hasAmber = false, hasIncomplete = false;
+  mods.forEach(m => (m.phases || []).forEach(ph => {
+    if (ph.status === 'Completed') return;
+    if (rules.flagIncomplete && phaseIsIncomplete(ph)) hasIncomplete = true;
+    if (ph.status === 'Not Started') return;
     if (ph.status === 'At Risk') { hasRed = true; return; }
     if (ph.targetDate) {
       const d = daysDiff(ph.targetDate);
@@ -319,30 +371,26 @@ function implAutoRag(client) {
     if (daysAgo >= rules.redDays) hasRed = true;
     else if (daysAgo >= rules.amberDays) hasAmber = true;
   }));
-  let result;
-  if (!hasInProgress && (client.modules || []).length > 0) result = 'Green';
-  else if (hasRed) result = 'Red';
-  else if (hasAmber) result = 'Amber';
-  else if (!hasInProgress) result = null;
-  else result = 'Green';
-  if (rules.forceRed && result) return 'Red'; // admin override — see note above
+  let result = hasRed ? 'Red' : hasAmber ? 'Amber' : 'Green';
+  if (hasIncomplete) result = 'Red';
+  if (rules.forceRed) result = 'Red';
   return result;
 }
 
 // Human-readable version of implAutoRag's logic, shown inline on the
 // Implementation client page so the RAG calculation isn't a black box.
 function ragLogicHtml() {
-  const rules = S.implementationRagRules || { forceRed: true, redDays: 14, amberDays: 7 };
+  const rules = S.implementationRagRules || DEFAULT_IMPL_RAG_RULES;
   return `<details class="mt-2 text-xs">
     <summary class="cursor-pointer text-gray-400 hover:text-[#0e7490] select-none inline-flex items-center gap-1">ℹ️ How is Red/Amber/Green calculated?</summary>
     <div class="mt-2 bg-gray-50 border border-gray-100 rounded-xl p-3 text-gray-600 leading-relaxed max-w-xl">
-      ${rules.forceRed ? `<p class="text-rose-600 font-semibold mb-2">⚠ Admin override is ON — every client currently shows Red regardless of the logic below. Turn this off in Admin → Implementations → RAG Configuration.</p>` : ''}
+      ${rules.forceRed ? `<p class="text-rose-600 font-semibold mb-2">⚠ Emergency override is ON — every client currently shows Red regardless of the logic below. Turn this off in Admin → Implementations → RAG Configuration.</p>` : ''}
       <ul class="list-disc pl-4 space-y-1">
+        ${rules.flagIncomplete ? `<li>Any active phase missing a required field (Assignee, Start/Target Date, Current Activity, Next Action) → <b class="text-rose-600">Red</b> — clears automatically once you open it, fill it in, and save</li>` : ''}
         <li>Any phase marked <b>At Risk</b> → <b class="text-rose-600">Red</b></li>
         <li>Any active phase overdue by <b>${rules.redDays}+ days</b> past its target date → <b class="text-rose-600">Red</b>; overdue by 1–${rules.redDays - 1} days → <b class="text-amber-600">Amber</b></li>
         <li>Any active phase with no posted update in <b>${rules.redDays}+ days</b> → <b class="text-rose-600">Red</b>; ${rules.amberDays}–${rules.redDays - 1} days → <b class="text-amber-600">Amber</b></li>
-        <li>All phases Completed (or no phases in progress) → <b class="text-green-600">Green</b></li>
-        <li>Otherwise → <b class="text-green-600">Green</b></li>
+        <li>Otherwise (all phases Completed, or no phases in progress) → <b class="text-green-600">Green</b></li>
       </ul>
     </div>
   </details>`;
@@ -352,6 +400,9 @@ function ragLogicHtml() {
 // existing ones) per standing policy: effort=1, assigned to the client's
 // Master Assignee. Module-level fields only — per-phase assignees are left
 // for editors to fill in individually (mandatory on save, see renderImplPhaseDetail).
+// singlePhase:true means it's one standing record across the whole project,
+// not the usual 9-phase BPU→Hypercare grid — rendered as one wide row, see
+// renderImplClientDetail.
 function makeGovernanceModule(masterAssignee) {
-  return { id: uid(), name: 'Governance', effort: 1, assignee: masterAssignee || '', phases: PHASES.map(ph => ({ name: ph, status: 'Not Started', startDate: '', targetDate: '', updates: [] })) };
+  return { id: uid(), name: 'Governance', effort: 1, assignee: masterAssignee || '', singlePhase: true, phases: [{ name: 'Governance', status: 'Not Started', startDate: '', targetDate: '', updates: [] }] };
 }

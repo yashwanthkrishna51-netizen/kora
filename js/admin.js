@@ -34,9 +34,13 @@ function renderAdminImpl(){
   <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
     <h2 class="text-base font-bold text-gray-900 mb-1">RAG Configuration</h2>
     <p class="text-xs text-gray-500 mb-4">Controls how Red/Amber/Green is calculated for every Implementation client — shown to users via the "How is RAG calculated?" panel on each client's page.</p>
-    <label class="flex items-center gap-2 mb-4 cursor-pointer">
-      <input id="rag-force-red" type="checkbox" ${rules.forceRed?'checked':''} class="w-4 h-4 accent-[#0e7490]"/>
-      <span class="text-sm text-gray-700">Force all records to <b class="text-rose-600">Red</b>, overriding the calculated status below</span>
+    <label class="flex items-start gap-2 mb-3 cursor-pointer">
+      <input id="rag-flag-incomplete" type="checkbox" ${rules.flagIncomplete?'checked':''} class="w-4 h-4 mt-0.5 accent-[#0e7490]"/>
+      <span class="text-sm text-gray-700">Flag records with missing required fields as <b class="text-rose-600">Red</b> <span class="text-gray-400">— clears automatically per-record once someone opens it, fills in Assignee/Dates/Activity/Next Action, and saves. Recommended: on.</span></span>
+    </label>
+    <label class="flex items-start gap-2 mb-4 cursor-pointer">
+      <input id="rag-force-red" type="checkbox" ${rules.forceRed?'checked':''} class="w-4 h-4 mt-0.5 accent-[#0e7490]"/>
+      <span class="text-sm text-gray-700">Emergency override: force <i>every</i> record to <b class="text-rose-600">Red</b>, ignoring everything else <span class="text-gray-400">— a blunt global switch, not the day-to-day setting. Turn this off once you don't need it — leave "Flag missing fields" above on instead.</span></span>
     </label>
     <div class="grid grid-cols-2 gap-3 mb-4 max-w-md">
       <div><label class="block text-xs font-medium text-gray-500 mb-1">Red after (days overdue / stale)</label><input id="rag-red-days" type="number" min="1" max="365" value="${rules.redDays}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>

@@ -162,12 +162,13 @@ document.addEventListener('click', async e => {
   if (act === 'save-impl-rag-rules') {
     if (!can('admin')) return;
     const forceRed = !!document.getElementById('rag-force-red')?.checked;
+    const flagIncomplete = !!document.getElementById('rag-flag-incomplete')?.checked;
     const redDays = Number(document.getElementById('rag-red-days')?.value);
     const amberDays = Number(document.getElementById('rag-amber-days')?.value);
     if (!Number.isFinite(redDays) || redDays <= 0 || redDays > 365) { showToast('Invalid Red threshold', 'error'); return; }
     if (!Number.isFinite(amberDays) || amberDays <= 0 || amberDays > 365) { showToast('Invalid Amber threshold', 'error'); return; }
     setBtnBusy(el, 'Saving…');
-    try { await saveImplementationRagRules({ forceRed, redDays, amberDays }); showToast('RAG rules saved ✓'); render(); }
+    try { await saveImplementationRagRules({ forceRed, flagIncomplete, redDays, amberDays }); showToast('RAG rules saved ✓'); render(); }
     catch (err) { showToast('Failed: ' + err.message, 'error'); }
     finally { clearBtnBusy(el); }
     return;

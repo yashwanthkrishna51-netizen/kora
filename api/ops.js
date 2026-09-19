@@ -78,11 +78,16 @@ const DEFAULT_DIGEST_RECIPIENTS = { emails: [] };
 // admin tab, same mechanism as capacity_weights.
 const DEFAULT_PIPELINE_STAGE_WEIGHTS = { Lead: 10, Qualified: 30, 'Proposal Sent': 50, Negotiation: 75, Won: 100, Lost: 0 };
 // Implementation RAG rules — admin-editable via Admin → Implementations, same
-// mechanism as capacity_weights. forceRed:true means every implementation
-// record displays Red regardless of its computed status (an explicit,
-// reversible override — defaults ON per the initial rollout request, until
-// an admin turns it off once mandatory-field data quality catches up).
-const DEFAULT_IMPLEMENTATION_RAG_RULES = { forceRed: true, redDays: 14, amberDays: 7 };
+// mechanism as capacity_weights.
+// - flagIncomplete (default ON): any non-Completed phase missing a mandatory
+//   field (assignee/dates/activity/next action) displays Red. Self-resolving
+//   per record — clears the moment that phase is opened, filled in and
+//   saved. This is the intended day-to-day mechanism for "red until fixed".
+// - forceRed (default OFF): a blunt, global emergency override — every
+//   record shows Red no matter what. Not the default; a blanket "everything
+//   is red all the time" was tried first and found too discouraging/alarming
+//   to work with day to day, so flagIncomplete replaced it as the default.
+const DEFAULT_IMPLEMENTATION_RAG_RULES = { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true };
 
 async function handleSettings(req, res, env, check) {
   const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = env;
@@ -142,6 +147,7 @@ async function handleSettings(req, res, env, check) {
     }
     if (key === 'implementation_rag_rules') {
       if (typeof value.forceRed !== 'boolean') return res.status(400).json({ error: 'forceRed must be true/false' });
+      if (typeof value.flagIncomplete !== 'boolean') return res.status(400).json({ error: 'flagIncomplete must be true/false' });
       for (const k of ['redDays', 'amberDays']) {
         const n = Number(value[k]);
         if (!Number.isFinite(n) || n <= 0 || n > 365) return res.status(400).json({ error: `Invalid value for ${k}` });
