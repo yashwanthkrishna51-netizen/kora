@@ -21,6 +21,7 @@ function renderAdminImpl(){
   const totalModules=implClients.reduce((a,c)=>a+(c.modules||[]).length,0);
   const totalAtRisk=implClients.reduce((a,c)=>a+implProgress(c).atRisk,0);
   const noGovernance=implClients.filter(c=>!(c.modules||[]).some(m=>m.name==='Governance')).length;
+  const hasGovernance=implClients.filter(c=>(c.modules||[]).some(m=>m.name==='Governance')).length;
   const rules=S.implementationRagRules||{forceRed:true,redDays:14,amberDays:7};
   return`<div>
   <div class="k-card mb-5" style="padding:18px 0;">
@@ -53,6 +54,7 @@ function renderAdminImpl(){
     <h2 class="text-base font-bold text-gray-900 mb-1">Governance Module</h2>
     <p class="text-xs text-gray-500 mb-3">Every Implementation client should carry a default "Governance" module (effort 1, assigned to the client's Master Assignee). New clients get this automatically — use this to backfill existing ones.</p>
     <button data-act="bulk-add-governance" class="text-sm font-semibold px-4 py-2 rounded-xl ${noGovernance?'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100':'bg-gray-50 border border-gray-200 text-gray-400'} transition">+ Add Governance Module to All Clients${noGovernance?` (${noGovernance} missing)`:' (none missing)'}</button>
+    <button data-act="bulk-remove-governance" class="text-sm font-semibold px-4 py-2 rounded-xl mt-2 ${hasGovernance?'bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100':'bg-gray-50 border border-gray-200 text-gray-400'} transition">🗑 Remove Governance Module from All Clients${hasGovernance?` (${hasGovernance} client${hasGovernance!==1?'s':''})`:' (none)'}</button>
   </div>
 
   <div class="flex items-center justify-between gap-3 mb-4">

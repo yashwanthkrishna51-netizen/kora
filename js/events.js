@@ -186,6 +186,19 @@ document.addEventListener('click', async e => {
     finally { clearBtnBusy(el); }
     return;
   }
+  if (act === 'bulk-remove-governance') {
+    if (!can('admin')) return;
+    const targets = S.clients.filter(c => c.modules !== undefined && (c.modules || []).some(m => m.name === 'Governance'));
+    if (!targets.length) { showToast('No Implementation client currently has a Governance module'); return; }
+    if (!confirm(`Delete the Governance module (and any data in it) from ${targets.length} client${targets.length !== 1 ? 's' : ''}? This cannot be undone. You can re-add a fresh default Governance module afterward with "Add Governance Module to All Clients".`)) return;
+    const snapshot = targets.map(c => c.modules.slice());
+    targets.forEach(c => { c.modules = c.modules.filter(m => m.name !== 'Governance'); });
+    setBtnBusy(el, 'Removing…');
+    try { await saveClients(`Bulk-remove Governance module (${targets.length} clients)`, targets.map(c => c.id)); showToast(`Governance module removed from ${targets.length} client${targets.length !== 1 ? 's' : ''} ✓`); render(); }
+    catch (err) { targets.forEach((c, idx) => { c.modules = snapshot[idx]; }); showToast('Failed: ' + err.message, 'error'); render(); }
+    finally { clearBtnBusy(el); }
+    return;
+  }
   if (act === 'audit-apply') { S.auditPage = 0; loadAuditLog(); return; }
   if (act === 'audit-clear') { S.auditFrom = ''; S.auditTo = ''; S.auditUser = ''; S.auditSearch = ''; S.auditPage = 0; loadAuditLog(); return; }
   if (act === 'audit-preset') {
