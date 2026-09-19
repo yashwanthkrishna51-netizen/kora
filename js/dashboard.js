@@ -1,71 +1,41 @@
 // ─── DASHBOARD ────────────────────────────────────────────────────
-// UI PORT NOTICE: this file's visual structure (markup/CSS classes) is
-// redesigned to match koraV2's actual dashboard components
-// (components/dashboard/admin-dashboard.tsx, kpi.tsx, critical-items.tsx,
-// my-dashboard.tsx). EVERY COMPUTATION BELOW IS UNCHANGED from the previous
-// version — same variables, same formulas, same trend calculation (including
-// its known inversion bug — deliberately not fixed here, that's a separate,
-// isolated change). Only the returned HTML changed. Every data-act, every
-// tile key in `sections{}`, every S.* state field read/written is identical,
-// so the existing tile customization system (DASH_TILE_REGISTRY /
-// getDashLayout()) keeps working exactly as before.
+// The EDITOR view ("Your critical items") is unchanged — it was already
+// doing its job. The ADMIN view is rebuilt as a person-first "Team Review"
+// for the weekly call: team bandwidth on top, pick/search a person, then
+// their items grouped as In the way → Moving → Needs filling in, plus
+// flow-level tiles and a full-screen Call Mode.
+//
+// DESIGN RULE ENFORCED THROUGHOUT: red belongs to WORK, never to a person.
+// A person's load bar only ever reads has room / balanced / at capacity.
+// Missing data is "needs 2 min", not a hygiene failure. Call Mode orders by
+// most-blocked-first, so the person needing most help is served first.
+//
+// Capacity maths is UNCHANGED from the previous version — same capAdd(),
+// same weights (S.capacityWeights), same thresholds (0.6 / 0.9 / cap) that
+// previously drove "Available / Stretched / Over capacity".
+
+let _trTimerHandle = null;
+
 function renderDashboard() {
   ensureSnapshotCaptured();
   fetchSnapshotHistory(14);
   fetchCapacityWeights();
 
   const all = S.clients.flatMap(c => (c.integrations || []).map(i => ({ ...i, clientName: c.name, clientId: c.id })));
-  const ti = all.length;
   const ar = all.filter(i => i.status === 'At Risk').length;
-  const ip = all.filter(i => i.status === 'In Progress').length;
-  const co = all.filter(i => i.status === 'Completed').length;
   const overdue = all.filter(isOverdue);
   const stale = all.filter(i => isStale(i, 7) && !isOverdue(i));
-  const weekAgo = new Date(Date.now() - 7 * 86400000);
-  const thisWeekUpdates = all.reduce((n, i) => n + (i.timeline || []).filter(t => new Date(t.date) >= weekAgo).length, 0);
   const needsAttn = [...overdue.map(i => ({ ...i, reason: 'overdue' })), ...stale.map(i => ({ ...i, reason: 'stale' }))].sort((a, b) => (a.reason === 'overdue' && b.reason !== 'overdue') ? -1 : 1);
   const needsDays = i => i.reason === 'overdue' ? daysOverdue(i) : (lastUpdateDate(i) ? daysDiff(lastUpdateDate(i)) : 0);
 
   const implClients = S.clients.filter(c => c.modules !== undefined);
-  const allModules = implClients.flatMap(c => (c.modules || []).map(m => ({ ...m, clientName: c.name, clientId: c.id })));
-  const allPhases = allModules.flatMap(m => (m.phases || []).map(ph => ({ ...ph })));
-  const implTotalPhases = allPhases.length;
-  const implAtRiskClients = implClients.filter(c => implAutoRag(c) === 'Red');
-
   const amsClients = S.clients.filter(c => c.workLog !== undefined);
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const monthEnd = todayStr();
-  let amsHoursThisMonth = 0, amsRevenueINR = 0, amsRevenueUSD = 0;
-  const amsLowBalance = [];
-  amsClients.forEach(c => {
-    const tm = amsTotals(c, monthStart, monthEnd);
-    amsHoursThisMonth += tm.totalHours;
-    if (tm.totalAmount) {
-      if ((c.currency || 'INR') === 'USD') amsRevenueUSD += tm.totalAmount;
-      else amsRevenueINR += tm.totalAmount;
-    }
-    if (tm.hasBucket && tm.balanceAvailable <= Math.max(2, tm.totalAvailableHours * 0.15)) { amsLowBalance.push({ name: c.name, id: c.id, balance: tm.balanceAvailable, total: tm.totalAvailableHours }); }
-  });
   const allAmsEntries = amsClients.flatMap(c => (c.workLog || []).map(e => ({ ...e, clientName: c.name, clientId: c.id })));
   const openAmsEntries = allAmsEntries.filter(e => e.entryStatus !== 'Closed');
   const isL3orL4 = e => { const q = e.queryLevel || ''; return q.includes('L3') || q.includes('L4'); };
-
   const isAdmin = can('admin');
 
-  const rankRag = v => v == null ? 1 : ({ Red: 0, Amber: 1, Green: 2 }[v] ?? 1);
-  const healthRows = S.clients.map(c => {
-    const iR = integRagLabel(c), implR = c.modules !== undefined ? implAutoRag(c) : null, amsR = c.workLog !== undefined ? amsClientRag(c) : null;
-    const overall = overallRagLabel(iR, implR, amsR);
-    const hist = S.snapshotHistory.filter(s => s.client_id === c.id).sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date));
-    let trend = hist.length ? 'same' : 'new';
-    if (hist.length >= 2) {
-      const d = rankRag(hist[0].overall_rag) - rankRag(hist[hist.length - 1].overall_rag);
-      trend = d > 0 ? 'better' : d < 0 ? 'worse' : 'same';
-    }
-    return { id: c.id, name: c.name, integR: iR, implR, amsR, overall, trend };
-  }).filter(r => r.overall).sort((a, b) => rankRag(a.overall) - rankRag(b.overall));
-
+  // ── critical items (still used verbatim by the editor view) ──
   const criticalItems = [];
   needsAttn.forEach(i => criticalItems.push({ domain: 'Integration', severity: i.reason === 'overdue' ? 0 : 1, title: i.name, client: i.clientName, detail: i.reason === 'overdue' ? `${daysOverdue(i)}d overdue` : `${needsDays(i)}d stale`, owner: i.assignee || 'Unassigned', act: 'open-integ', cid: i.clientId, iid: i.id }));
   implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => {
@@ -79,12 +49,6 @@ function renderDashboard() {
   });
   criticalItems.sort((a, b) => a.severity - b.severity);
 
-  const datestampLine = () => {
-    const d = new Date();
-    const date = d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/,/g, '');
-    const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    return `<p class="kd-datestamp">${esc((date + ' · ' + time).toUpperCase())}</p>`;
-  };
   const critRow = it => `<div class="kd-crit-row" data-act="${it.act}" data-cid="${esc(it.cid)}" data-id="${esc(it.cid)}" ${it.iid ? `data-iid="${esc(it.iid)}"` : ''}>
     <div class="kd-crit-title-wrap">
       ${it.severity === 0 ? `<svg class="kd-crit-flag" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 5v4M8 11h.01M7.1 2.3 1.5 12a1.5 1.5 0 0 0 1.3 2.2h10.4a1.5 1.5 0 0 0 1.3-2.2L8.9 2.3a1 1 0 0 0-1.8 0Z"/></svg>` : ''}
@@ -98,7 +62,8 @@ function renderDashboard() {
     <div class="kd-crit-owner" title="${esc(it.owner)}">${esc(it.owner)}</div>
   </div>`;
 
-  if (!can('admin')) {
+  // ═══ EDITOR VIEW — unchanged ═══
+  if (!isAdmin) {
     const myName = (S.user?.name || '').trim().toLowerCase();
     const myItems = criticalItems.filter(it => {
       const owner = (it.owner || '').trim().toLowerCase();
@@ -126,449 +91,606 @@ function renderDashboard() {
 </div>`;
   }
 
-  const todayS = todayStr();
-  const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
-  const upcoming = [];
-  all.forEach(i => (i.milestones || []).forEach(ms => { if (ms.status === 'Pending' && ms.dueDate >= todayS && ms.dueDate <= in14) upcoming.push({ date: ms.dueDate, title: ms.name, client: i.clientName, tag: 'Milestone' }); }));
-  implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => { if (ph.status !== 'Completed' && ph.targetDate && ph.targetDate >= todayS && ph.targetDate <= in14) upcoming.push({ date: ph.targetDate, title: m.singlePhase ? m.name : `${ph.name} — ${m.name}`, client: c.name, tag: 'Phase' }); })));
-  openAmsEntries.forEach(e => { if (e.dueDate && e.dueDate >= todayS && e.dueDate <= in14) upcoming.push({ date: e.dueDate, title: (e.description || 'AMS item').slice(0, 50), client: e.clientName, tag: 'AMS' }); });
-  upcoming.sort((a, b) => a.date.localeCompare(b.date));
-  const TAG_CLASS = { Milestone: 'kd-tag-teal', Phase: 'kd-tag-primary', AMS: 'kd-tag-amber' };
+  // ═══ ADMIN — TEAM REVIEW ═══
+  const model = trBuildModel(implClients, all, openAmsEntries);
+  if (S.dashCallMode) return trRenderCallMode(model);
 
-  const workMixTotal = allAmsEntries.reduce((a, e) => a + Number(e.hours || 0), 0);
-  const workMixByType = {};
-  allAmsEntries.forEach(e => { const t = entryType(e); workMixByType[t] = (workMixByType[t] || 0) + Number(e.hours || 0); });
-  const workMixSorted = Object.entries(workMixByType).sort((a, b) => b[1] - a[1]).slice(0, 4);
-  const reactiveHours = allAmsEntries.filter(e => ['Bug Fix', 'Support Ticket'].includes(entryType(e))).reduce((a, e) => a + Number(e.hours || 0), 0);
-  const reactivePct = workMixTotal ? Math.round(reactiveHours / workMixTotal * 100) : 0;
+  const q = (S.dashPersonSearch || '').toLowerCase().trim();
+  const shown = model.people.filter(p => p.name.toLowerCase().includes(q));
+  const selected = model.people.find(p => p.name === S.dashPerson)
+    || (q && shown.length === 1 ? shown[0] : null)
+    || trCallOrder(model)[0] || null;
 
-  const severityDist = {};
-  AMS_QUERY_LEVELS.forEach(l => severityDist[l] = 0);
-  allAmsEntries.forEach(e => { const l = e.queryLevel || AMS_QUERY_LEVELS[0]; severityDist[l] = (severityDist[l] || 0) + 1; });
-  const severityTotal = allAmsEntries.length || 1;
-  const oldestCritical = openAmsEntries.filter(isL3orL4).map(e => daysDiff(entryDate(e))).sort((a, b) => b - a)[0];
-  const SEV_CLASS = { 'L1 - Low': 'kd-sev-l1', 'L2 - Medium': 'kd-sev-l2', 'L3 - High': 'kd-sev-l3', 'L4 - Critical': 'kd-sev-l4' };
-
-  const funnelCounts = {};
-  PHASES.forEach(p => funnelCounts[p] = 0);
-  // singlePhase modules (Governance) aren't part of the BPU→Hypercare
-  // delivery funnel — excluded so they don't show up as a stray bucket.
-  implClients.forEach(c => (c.modules || []).forEach(m => { if (m.singlePhase) return; (m.phases || []).forEach(ph => { if (ph.status === 'In Progress' || ph.status === 'At Risk') funnelCounts[ph.name] = (funnelCounts[ph.name] || 0) + 1; }); }));
-  const funnelTotal = Object.values(funnelCounts).reduce((a, b) => a + b, 0) || 1;
-  const funnelSorted = Object.entries(funnelCounts).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
-  const funnelMax = funnelSorted[0];
-
-  const hyg = all.length ? {
-    assignee: all.filter(i => i.assignee && i.assignee.trim()).length / all.length,
-    due: all.filter(i => i.dueDate).length / all.length,
-    fresh: all.filter(i => !isStale(i, 30)).length / all.length,
-  } : { assignee: 1, due: 1, fresh: 1 };
-  const hygieneScore = Math.round((hyg.assignee + hyg.due + hyg.fresh) / 3 * 100);
-
-  const blockers = openAmsEntries.filter(e => e.dependencies && e.dependencies.trim()).map(e => ({ client: e.clientName, text: e.dependencies.trim() }));
-
-  let atRiskDelta = null;
-  if (S.snapshotHistory.length) {
-    const dates = [...new Set(S.snapshotHistory.map(s => s.snapshot_date))].sort();
-    const earliestSum = S.snapshotHistory.filter(s => s.snapshot_date === dates[0]).reduce((a, s) => a + (s.integ_at_risk || 0), 0);
-    atRiskDelta = ar - earliestSum;
-  }
-  const healthSplit = { Red: 0, Amber: 0, Green: 0 };
-  healthRows.forEach(r => { healthSplit[r.overall] = (healthSplit[r.overall] || 0) + 1; });
-  const l3l4OpenCount = openAmsEntries.filter(isL3orL4).length;
-  const portfolioScore = healthRows.length ? Math.round((healthSplit.Green * 100 + healthSplit.Amber * 50) / healthRows.length) : null;
-
+  const cw = S.capacityWeights;
   const sections = {};
 
-  const critDomains = [...new Set(criticalItems.map(it => it.domain.split(' · ')[0]))];
-  let critFiltered = criticalItems;
-  if (S.dashCritSearch.trim()) {
-    const q = S.dashCritSearch.toLowerCase();
-    critFiltered = critFiltered.filter(it => it.title.toLowerCase().includes(q) || it.client.toLowerCase().includes(q) || it.owner.toLowerCase().includes(q));
-  }
-  if (S.dashCritFilter !== 'all') critFiltered = critFiltered.filter(it => it.domain.startsWith(S.dashCritFilter));
+  // ── TEAM BANDWIDTH ──
+  const bands = { room: [], bal: [], full: [] };
+  shown.forEach(p => bands[p.band].push(p));
+  const bandCol = (key, label) => {
+    const list = bands[key];
+    return `<div>
+      <div class="tr-col-h">
+        <span class="kd-dot" style="background:${TR_BAND_C[key]}"></span>
+        <span style="color:${TR_BAND_C[key]}">${label}</span>
+        <span class="tr-col-n">${list.length}</span>
+      </div>
+      ${list.length ? list.map(p => `<button class="tr-chip ${selected && selected.name === p.name ? 'tr-chip-on' : ''}" data-act="tr-pick" data-key="${esc(p.name)}">
+        ${avatarChip(p.name, 26)}
+        <span class="tr-chip-mid">
+          <span class="tr-chip-n">${esc(p.name)}</span>
+          <span class="tr-chip-meta">
+            <span>${p.items.length} item${p.items.length !== 1 ? 's' : ''}</span>
+            ${p.blocked.length ? `<span class="kd-text-red">${p.blocked.length} blocked</span>` : ''}
+          </span>
+          <span class="tr-bar"><i style="width:${Math.min(100, p.load / cw.cap * 100)}%;background:${TR_BAND_C[key]}"></i></span>
+        </span>
+        <span class="kd-mono tr-chip-load">${p.load.toFixed(1)}</span>
+      </button>`).join('') : `<div class="tr-empty">Nobody here right now</div>`}
+    </div>`;
+  };
 
-  sections['critical-items'] = `<section class="kd-card kd-tile">
+  sections['team-bandwidth'] = `<section class="kd-card kd-tile">
     <div class="kd-card-head kd-wrap">
-      <div class="flex items-center gap-2.5">
-        <span class="kd-dot kd-dot-red" aria-hidden="true"></span>
-        <h2 class="kd-card-title">Critical items — start here</h2>
+      <div class="min-w-0">
+        <h2 class="kd-card-title">Team bandwidth</h2>
+        <p class="kd-card-subline">Grouped by room to take on work, not by output. Pick someone to see their items. Module ${cw.module} · PMO ${cw.pmo} · AMS ${cw.ams} · cap ${cw.cap}</p>
       </div>
-      <span class="kd-mono kd-count">${critFiltered.length}${critFiltered.length !== criticalItems.length ? ` / ${criticalItems.length}` : ''}</span>
-    </div>
-    <div class="kd-toolbar">
-      <input type="text" id="dash-crit-search-inp" placeholder="Search item, client, owner…" value="${esc(S.dashCritSearch)}" data-act="dash-crit-search" class="kd-search"/>
-      <div class="kd-chipbar" role="group" aria-label="Filter critical items by domain">
-        <button data-act="dash-crit-filter" data-key="all" class="kd-chip ${S.dashCritFilter === 'all' ? 'kd-chip-active' : ''}">All ${criticalItems.length}</button>
-        ${critDomains.map(d => `<button data-act="dash-crit-filter" data-key="${esc(d)}" class="kd-chip ${S.dashCritFilter === d ? 'kd-chip-active' : ''}">${esc(d)}</button>`).join('')}
+      <div class="flex items-center gap-2 shrink-0">
+        <input type="text" id="dash-person-search-inp" data-act="tr-search" value="${esc(S.dashPersonSearch || '')}" placeholder="Search a person…" class="kd-search"/>
+        <button data-act="modal-open" data-modal="capacity-weights" class="kd-btn kd-btn-outline kd-btn-sm">Weights</button>
       </div>
     </div>
-    <div class="kd-crit-table">
-      <div class="kd-crit-head"><div>Item</div><div>Client</div><div>Status / Age</div><div>Owner</div></div>
-      <div>${critFiltered.length ? critFiltered.map(critRow).join('') : `<div class="kd-empty-inline">${S.dashCritSearch || S.dashCritFilter !== 'all' ? 'No matches' : 'Nothing is overdue, stale or critical'}</div>`}</div>
-    </div>
+    ${model.overCap.length ? `<div class="tr-band">
+      <span class="kd-dot" style="background:var(--dk-amber)"></span>
+      <p class="kd-bold-sm kd-text-amber">${model.overCap.map(p => esc(p.name)).join(', ')} ${model.overCap.length === 1 ? 'is' : 'are'} carrying more than the cap — worth rebalancing before anything new is assigned.</p>
+    </div>` : ''}
+    <div class="tr-cols">${bandCol('room', 'Has room')}${bandCol('bal', 'Balanced')}${bandCol('full', 'At capacity')}</div>
   </section>`;
 
-  sections['health-scorecard'] = `<section class="kd-card kd-tile">
-    <div class="kd-card-head">
-      <h2 class="kd-card-title">Portfolio health scorecard</h2>
-      ${portfolioScore !== null ? `<div class="text-right"><p class="kd-num kd-score" style="color:${portfolioScore >= 75 ? 'var(--dk-green)' : portfolioScore >= 50 ? 'var(--dk-amber)' : 'var(--dk-red)'}">${portfolioScore}</p><p class="kd-score-sub">portfolio score</p></div>` : ''}
-    </div>
-    <div class="kd-thead"><div class="kd-th-client">Client</div><div class="kd-th-c">Int</div><div class="kd-th-c">Impl</div><div class="kd-th-c">AMS</div><div class="kd-th-r">Trend</div></div>
-    <div class="kd-scorebody">
-      ${healthRows.length ? healthRows.map(r => `<div class="kd-scorerow" data-act="open-client" data-id="${esc(r.id)}">
-        <div class="kd-sr-name">${esc(r.name)}</div>
-        <div class="kd-sr-c">${r.integR ? `<span class="kd-dot" style="background:${RAG_HEX[r.integR]}"></span>` : `<span class="kd-dash">—</span>`}</div>
-        <div class="kd-sr-c">${r.implR ? `<span class="kd-dot" style="background:${RAG_HEX[r.implR]}"></span>` : `<span class="kd-dash">—</span>`}</div>
-        <div class="kd-sr-c">${r.amsR ? `<span class="kd-dot" style="background:${RAG_HEX[r.amsR]}"></span>` : `<span class="kd-dash">—</span>`}</div>
-        <div class="kd-sr-trend ${r.trend === 'worse' ? 'kd-text-red' : r.trend === 'better' ? 'kd-text-green' : ''}">${r.trend === 'worse' ? '↓ worse' : r.trend === 'better' ? '↑ better' : r.trend === 'new' ? 'new' : '— same'}</div>
-      </div>`).join('') : `<div class="kd-empty-inline">No client health data yet</div>`}
-    </div>
-    <p class="kd-footnote">100 per Green client + 50 per Amber, averaged. Trend sharpens as daily snapshots accumulate.</p>
-  </section>`;
-
-  sections['upcoming-deadlines'] = `<section class="kd-card kd-tile">
-    <div class="kd-card-head"><h2 class="kd-card-title">Upcoming deadlines — next 14 days</h2><span class="kd-mono kd-count">${upcoming.length}</span></div>
-    ${upcoming.length ? `<ul class="kd-list">${upcoming.map(u => `<li class="kd-deadline-row">
-        <span class="kd-mono kd-deadline-date">${fmtDate(u.date)}</span>
-        <span class="kd-deadline-title" title="${esc(u.title)}">${esc(u.title)}</span>
-        <span class="kd-deadline-client">${esc(u.client)}</span>
-        <span class="kd-tag ${TAG_CLASS[u.tag]}">${u.tag}</span>
-      </li>`).join('')}</ul>` : `<div class="kd-empty"><p class="kd-empty-title">Nothing due in the next fortnight</p></div>`}
-  </section>`;
-
-  sections['ams-workmix'] = `<section class="kd-card kd-tile">
-    <h2 class="kd-card-title mb-3">Work mix</h2>
-    ${workMixSorted.length ? (() => {
-      const donutColors = ['var(--dk-primary)', 'var(--dk-green)', 'var(--dk-amber)', 'var(--dk-red)'];
-      const r = 52, cx = 60, cy = 60, circ = 2 * Math.PI * r;
-      let cumulative = 0;
-      const arcs = workMixSorted.map(([type, hrs], idx) => {
-        const pct = workMixTotal ? hrs / workMixTotal : 0;
-        const dash = pct * circ;
-        const offset = circ - cumulative;
-        cumulative += dash;
-        return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${donutColors[idx % 4]}" stroke-width="14" stroke-dasharray="${dash.toFixed(1)} ${(circ - dash).toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="round"/>`;
-      }).join('');
-      return `<div class="flex items-center gap-5">
-        <svg width="120" height="120" viewBox="0 0 120 120" class="shrink-0">
-          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--dk-line)" stroke-width="14"/>
-          ${arcs}
-          <text x="${cx}" y="${cy - 3}" text-anchor="middle" class="kd-donut-num" fill="var(--dk-ink)">${workMixTotal.toFixed(0)}h</text>
-          <text x="${cx}" y="${cy + 14}" text-anchor="middle" class="kd-donut-sub" fill="var(--dk-mute)">total logged</text>
-        </svg>
-        <div class="flex-1 space-y-1.5">
-          ${workMixSorted.map(([type, hrs], idx) => { const pct = workMixTotal ? Math.round(hrs / workMixTotal * 100) : 0; return `<div class="kd-legend-row"><span class="kd-dot" style="background:${donutColors[idx % 4]}"></span><span class="kd-legend-label">${esc(type)}</span><span class="kd-legend-pct">${pct}%</span></div>`; }).join('')}
-        </div>
+  // ── PERSON PANEL ──
+  sections['person-panel'] = selected ? (() => {
+    const f = S.dashFilter;
+    const list = trApplyFilter(selected.items, f);
+    const blocked = list.filter(i => i.blocker);
+    const missing = list.filter(i => !i.blocker && i.missing);
+    const moving = list.filter(i => !i.blocker && !i.missing);
+    const grp = (label, color, items, why, empty) => `<div class="tr-grp">
+      <div class="tr-grp-h">
+        <span class="kd-dot" style="background:${color}"></span>
+        <span class="tr-grp-t" style="color:${color}">${label}</span>
+        <span class="tr-grp-c">${items.length}</span>
+        <span class="tr-grp-why">${why}</span>
       </div>
-      <p class="kd-footnote">${reactivePct}% reactive (Bug Fix + Support) vs ${100 - reactivePct}% proactive</p>`;
-    })() : `<div class="kd-empty-inline">No AMS hours logged yet</div>`}
-  </section>`;
-
-  sections['severity-aging'] = `<section class="kd-card kd-tile">
-    <h2 class="kd-card-title mb-3">Severity &amp; aging</h2>
-    ${severityTotal > 1 ? `<div class="kd-sevbar">
-      ${AMS_QUERY_LEVELS.map(l => severityDist[l] ? `<div class="${SEV_CLASS[l]}" style="width:${Math.round(severityDist[l] / severityTotal * 100)}%" title="${l}: ${severityDist[l]}"></div>` : '').join('')}
-    </div>
-    <div class="kd-sevlegend">
-      ${AMS_QUERY_LEVELS.map(l => `<span class="${SEV_CLASS[l]}-text">${l.split(' - ')[0]}: ${Math.round(severityDist[l] / severityTotal * 100)}%</span>`).join('')}
-    </div>
-    ${oldestCritical !== undefined ? `<p class="kd-text-red kd-bold-sm">Oldest open L3/L4 ticket: ${oldestCritical}d</p>` : `<p class="kd-text-green kd-bold-sm">No open L3/L4 tickets</p>`}` : `<div class="kd-empty-inline">No AMS entries yet</div>`}
-  </section>`;
-
-  const delayedPhaseCount = allPhases.filter(ph => ph.status === 'Delayed').length;
-  sections['phase-funnel'] = `<section class="kd-card kd-tile">
-    <h2 class="kd-card-title mb-3">Phase-stage funnel</h2>
-    ${funnelSorted.length ? `<div class="space-y-1.5">
-      ${funnelSorted.map(([name, n]) => `<div class="kd-funnel-row"><span class="kd-funnel-label ${name === funnelMax[0] ? 'kd-funnel-max' : ''}">${esc(name)}</span><div class="kd-funnel-track"><div class="kd-funnel-fill ${name === funnelMax[0] ? 'kd-funnel-fill-max' : ''}" style="width:${Math.round(n / funnelTotal * 100)}%"></div></div><span class="kd-funnel-n">${n}</span></div>`).join('')}
-    </div>
-    <p class="kd-footnote kd-text-red">Bottleneck: ${Math.round(funnelMax[1] / funnelTotal * 100)}% of active phases stuck at ${esc(funnelMax[0])}${delayedPhaseCount ? ` · ${delayedPhaseCount} phase${delayedPhaseCount !== 1 ? 's' : ''} marked Delayed` : ''}</p>` : `<div class="kd-empty-inline">No active phases in progress</div>`}
-  </section>`;
-
-  sections['financial-rollup'] = `<section class="kd-card kd-tile">
-    <h2 class="kd-card-title mb-3">Financial rollup</h2>
-    ${isAdmin ? `<div class="grid grid-cols-2 gap-2 mb-3">
-      <div class="kd-fin-box"><p class="kd-fin-num">${amsRevenueINR ? `₹${amsRevenueINR.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—'}</p><p class="kd-fin-label">Billable (INR)</p></div>
-      <div class="kd-fin-box"><p class="kd-fin-num">${amsRevenueUSD ? `$${amsRevenueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}</p><p class="kd-fin-label">Billable (USD)</p></div>
-    </div>` : `<div class="kd-fin-box mb-3"><p class="kd-fin-num">${amsHoursThisMonth.toFixed(1)}h</p><p class="kd-fin-label">Hours this month</p></div>`}
-    ${amsLowBalance.length ? `<p class="kd-text-red kd-bold-sm">${amsLowBalance.length} client pool${amsLowBalance.length !== 1 ? 's' : ''} running low</p>` : amsClients.length ? `<p class="kd-text-green kd-bold-sm">All hour pools healthy</p>` : ''}
-  </section>`;
-
-  sections['data-hygiene'] = `<section class="kd-card kd-tile">
-    <h2 class="kd-card-title mb-3">Hygiene</h2>
-    <p class="kd-num kd-hygiene-num" style="color:${hygieneScore >= 80 ? 'var(--dk-green)' : hygieneScore >= 60 ? 'var(--dk-amber)' : 'var(--dk-red)'}">${hygieneScore}%</p>
-    <dl class="kd-hygiene-rows">
-      <div class="kd-hygiene-row"><dt>Have an assignee</dt><dd class="kd-mono">${Math.round(hyg.assignee * 100)}%</dd></div>
-      <div class="kd-hygiene-row"><dt>Have a due date</dt><dd class="kd-mono">${Math.round(hyg.due * 100)}%</dd></div>
-      <div class="kd-hygiene-row"><dt>Updated recently</dt><dd class="kd-mono">${Math.round(hyg.fresh * 100)}%</dd></div>
-    </dl>
-  </section>`;
-
-  sections['blockers'] = `<section class="kd-card kd-tile">
-    <div class="kd-card-head"><h2 class="kd-card-title">Blockers</h2><span class="kd-mono kd-count">${blockers.length}</span></div>
-    ${blockers.length ? `<ul class="kd-list">${blockers.slice(0, 5).map(b => `<li class="kd-blocker-row"><p class="kd-blocker-text">${esc(b.text)}</p><p class="kd-blocker-client">${esc(b.client)}</p></li>`).join('')}</ul>` : `<div class="kd-empty"><p class="kd-empty-title">Nothing is blocked</p></div>`}
-  </section>`;
-
-  if (isAdmin) {
-    const cw = S.capacityWeights;
-    const capacity = {};
-    const capAdd = (name, type, amount, detail) => {
-      const nm = (name || '').trim(); if (!nm) return;
-      if (!capacity[nm]) capacity[nm] = { name: nm, module: 0, pmo: 0, integ: 0, ams: 0, total: 0, details: [] };
-      capacity[nm][type] += amount; capacity[nm].total += amount;
-      if (detail) capacity[nm].details.push({ type, amount, detail });
-    };
-    const seenModulePairs = new Set();
-    implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => {
-      if (ph.status === 'Completed' || ph.status === 'Not Started' || !ph.assignee) return;
-      const key = `${ph.assignee.trim()}::${m.id}`;
-      if (seenModulePairs.has(key)) return; seenModulePairs.add(key);
-      capAdd(ph.assignee, 'module', cw.module, `${m.name} · ${c.name}`);
-    })));
-    // Module-level effort (e.g. the default Governance module: effort=1,
-    // assigned to the client's Master Assignee) — counted separately from
-    // the phase-driven loop above, since it's a standing responsibility, not
-    // tied to any one phase's status. Uses the module's own effort value
-    // directly as the capacity amount (same convention as an integration's
-    // effortWeight), so "effort = 1" means "1 unit of this person's capacity".
-    implClients.forEach(c => (c.modules || []).forEach(m => {
-      if (m.assignee && m.effort) capAdd(m.assignee, 'module', Number(m.effort) || 0, `${m.name} (module) · ${c.name}`);
-    }));
-    implClients.forEach(c => { if (c.masterAssignee) capAdd(c.masterAssignee, 'pmo', cw.pmo, `PMO · ${c.name}`); });
-    all.filter(i => !['Completed', 'Cancelled'].includes(i.status)).forEach(i => { if (i.assignee) capAdd(i.assignee, 'integ', i.effortWeight ?? 0.5, `${i.name} · ${i.clientName}`); });
-    openAmsEntries.forEach(e => { const rb = entryRaisedBy(e); if (rb && rb !== '—') capAdd(rb, 'ams', cw.ams, `${e.description || 'AMS ticket'} · ${e.clientName}`); });
-    let capacityRows = Object.values(capacity).sort((a, b) => b.total - a.total);
-    const available = capacityRows.filter(r => r.total < cw.cap * 0.6);
-    const stretched = capacityRows.filter(r => r.total >= cw.cap * 0.9);
-    const overCap = capacityRows.filter(r => r.total > cw.cap);
-
-    sections['team-bandwidth'] = `<section class="kd-card kd-tile">
-      <div class="kd-card-head kd-wrap">
+      ${items.length ? items.map(trItemCard).join('') : `<div class="tr-empty">${empty}</div>`}
+    </div>`;
+    return `<section class="kd-card kd-tile" style="padding:0">
+      <div class="tr-pp-top">
+        ${avatarChip(selected.name, 40)}
         <div class="min-w-0">
-          <h2 class="kd-card-title">Team bandwidth</h2>
-          <p class="kd-card-subline">Module = ${cw.module} · PMO = ${cw.pmo} · AMS ticket = ${cw.ams} · Integration = per-item · Cap = ${cw.cap}</p>
+          <div class="tr-pp-name">${esc(selected.name)}</div>
+          <div class="tr-pp-role">${esc(selected.role)}${selected.pmoFor.length ? ` · PMO for ${selected.pmoFor.length} client${selected.pmoFor.length !== 1 ? 's' : ''}` : ''}</div>
         </div>
-        <button data-act="modal-open" data-modal="capacity-weights" class="kd-btn kd-btn-outline kd-btn-sm shrink-0">Configure weights</button>
+        <div class="tr-pp-load">
+          <div class="kd-mono tr-pp-load-n" style="color:${TR_BAND_C[selected.band]}">${TR_BAND_L[selected.band]} · ${selected.load.toFixed(1)}/${cw.cap}</div>
+          <div class="tr-bar" style="width:150px;margin-left:auto"><i style="width:${Math.min(100, selected.load / cw.cap * 100)}%;background:${TR_BAND_C[selected.band]}"></i></div>
+          <div class="tr-pp-load-l">${selected.clients.size} client${selected.clients.size !== 1 ? 's' : ''}${f !== 'all' ? ' · filtered' : ''}</div>
+        </div>
       </div>
-      ${overCap.length ? `<div class="kd-riskband">
-        <span class="kd-dot kd-dot-red" aria-hidden="true"></span>
-        <p class="kd-text-red kd-bold-sm">Delivery risk: ${overCap.length} ${overCap.length === 1 ? 'person is' : 'people are'} over capacity right now — ${overCap.map(r => esc(r.name)).join(', ')}</p>
-      </div>` : ''}
-      ${capacityRows.length ? `<div class="grid grid-cols-2 gap-3 mb-4">
-        <div class="kd-capbox kd-capbox-green">
-          <p class="kd-capbox-title kd-text-green">Available capacity (${available.length})</p>
-          <p class="kd-capbox-body">${available.length ? available.map(r => `${esc(r.name)} (${r.total.toFixed(2)})`).join(', ') : 'Nobody has meaningful spare capacity right now'}</p>
-        </div>
-        <div class="kd-capbox kd-capbox-red">
-          <p class="kd-capbox-title kd-text-red">Stretched (${stretched.length})</p>
-          <p class="kd-capbox-body">${stretched.length ? stretched.map(r => `${esc(r.name)} (${r.total.toFixed(2)})`).join(', ') : 'Nobody is at or near capacity'}</p>
-        </div>
-      </div>` : ''}
-      ${capacityRows.length === 0 ? `<div class="kd-empty"><p class="kd-empty-title">Nothing is assigned</p></div>` : `<div class="kd-scrollbox"><ul>
-        ${capacityRows.map(r => {
-      const pct = Math.min(100, r.total / cw.cap * 100);
-      const over = r.total > cw.cap;
-      const expanded = S.dashCapacityExpanded.has(r.name);
-      return `<li>
-          <div class="kd-bwrow" data-act="dash-capacity-toggle" data-key="${esc(r.name)}">
-            <span class="kd-bw-name ${over ? 'kd-text-red' : ''}">${esc(r.name)}</span>
-            <span class="kd-bw-track"><span class="kd-bw-fill" style="width:${pct}%;background:${loadFillColor(r.total, cw)}"></span></span>
-            <span class="kd-mono kd-bw-total ${over ? 'kd-text-red' : ''}">${r.total.toFixed(2)} / ${cw.cap}</span>
-          </div>
-          ${expanded ? `<div class="kd-bw-detail">${r.details.map(d => `<span class="kd-bw-detail-item"><span class="kd-mono kd-bw-detail-amt">${d.amount}</span> ${esc(d.detail)}</span>`).join('')}</div>` : ''}
-        </li>`;
-    }).join('')}
-      </ul></div>`}
+      ${grp('In the way', 'var(--dk-red)', blocked, 'talk about these first', 'Nothing is blocked right now.')}
+      ${grp('Moving', 'var(--dk-primary)', moving, 'confirm the next action still holds', 'No active items.')}
+      ${grp('Needs filling in', 'var(--dk-mute-2)', missing, 'a data gap, not a performance issue', 'Everything is filled in.')}
     </section>`;
-  }
+  })() : `<section class="kd-card kd-tile"><div class="kd-empty"><p class="kd-empty-title">No one to show</p><p class="kd-empty-hint">No admin or editor users match that search.</p></div></section>`;
+
+  // ── WHERE WORK IS PILING UP ──
+  const stageCounts = {};
+  PHASES.forEach(p => stageCounts[p] = 0);
+  implClients.forEach(c => (c.modules || []).forEach(m => { if (m.singlePhase) return; (m.phases || []).forEach(ph => { if (ph.status === 'In Progress' || ph.status === 'At Risk' || ph.status === 'Delayed') stageCounts[ph.name] = (stageCounts[ph.name] || 0) + 1; }); }));
+  const stagePairs = Object.entries(stageCounts);
+  const stageTotal = stagePairs.reduce((a, s) => a + s[1], 0);
+  const stageMax = Math.max(...stagePairs.map(s => s[1]), 1);
+  const stageTop = stagePairs.slice().sort((a, b) => b[1] - a[1])[0];
+  sections['work-stages'] = `<section class="kd-card kd-tile">
+    <h2 class="kd-card-title">Where work is piling up</h2>
+    <p class="kd-card-subline mb-3">Live phases sitting in each stage. A tall bar is a process queue, not a person.</p>
+    ${stageTotal ? stagePairs.map(([name, n]) => `<div class="tr-stage">
+        <span class="tr-stage-l">${esc(name)}</span>
+        <span class="tr-stage-t"><i class="${name === stageTop[0] && n > 0 ? 'tr-hot' : ''}" style="width:${n / stageMax * 100}%"></i></span>
+        <span class="kd-mono tr-stage-n">${n}</span>
+      </div>`).join('') + `<p class="kd-footnote">Most live work sits at <b>${esc(stageTop[0])}</b> (${Math.round(stageTop[1] / stageTotal * 100)}%). Worth asking what that stage needs to clear it.</p>`
+      : `<div class="tr-empty">No phases are in progress.</div>`}
+  </section>`;
+
+  // ── QUIET THE LONGEST ──
+  const buckets = [['Updated this week', 0, 7], ['8–14 days', 8, 14], ['15–30 days', 15, 30], ['Over 30 days', 31, 99999]];
+  sections['aging'] = `<section class="kd-card kd-tile">
+    <h2 class="kd-card-title">Time since last update</h2>
+    <p class="kd-card-subline mb-3">How long live items have been quiet. A long gap usually means a decision is waiting, not that someone forgot.</p>
+    ${buckets.map(([label, lo, hi]) => {
+    const n = model.items.filter(i => i.age !== null && i.age >= lo && i.age <= hi).length;
+    const hot = lo >= 15;
+    return `<div class="tr-row">
+        <div><div>${label}</div><div class="tr-row-sub">${hot ? 'usually a decision waiting to be made' : 'healthy flow'}</div></div>
+        <span class="tr-pill ${hot && n ? 'tr-pill-hot' : ''}">${n}</span>
+      </div>`;
+  }).join('')}
+    ${model.noUpdate ? `<p class="kd-footnote">${model.noUpdate} item${model.noUpdate !== 1 ? 's have' : ' has'} never been updated, so no gap can be measured yet.</p>` : ''}
+  </section>`;
+
+  // ── NEEDS AN OWNER ──
+  const roomy = model.people.filter(p => p.band === 'room').slice(0, 3).map(p => p.name.split(' ')[0]);
+  sections['needs-owner'] = `<section class="kd-card kd-tile">
+    <div class="kd-card-head"><div>
+      <h2 class="kd-card-title">Needs an owner</h2>
+      <p class="kd-card-subline">Live work with nobody's name on it. Assign it and it leaves this list.</p>
+    </div><span class="kd-mono kd-count">${model.unowned.length}</span></div>
+    ${model.unowned.length ? model.unowned.slice(0, 12).map(i => `<div class="tr-row tr-row-click" data-act="${i.act}" data-cid="${esc(i.cid)}" data-id="${esc(i.cid)}" ${i.mid ? `data-mid="${esc(i.mid)}"` : ''} ${i.iid ? `data-iid="${esc(i.iid)}"` : ''} ${i.phase ? `data-phase="${esc(i.phase)}"` : ''}>
+        <div><div><b>${esc(i.client)}</b> <span class="tr-dim">· ${esc(i.label)}${i.sub ? ' · ' + esc(i.sub) : ''}</span></div>
+        <div class="tr-row-sub">unassigned${i.age !== null ? ` · quiet ${i.age}d` : ''}</div></div>
+        <span class="tr-assign">Assign →</span>
+      </div>`).join('') + (roomy.length ? `<p class="kd-footnote"><b class="kd-text-green">${roomy.map(esc).join(', ')}</b> ${roomy.length === 1 ? 'has' : 'have'} room this week.</p>` : '')
+      : `<div class="tr-empty">Everything has an owner.</div>`}
+  </section>`;
+
+  // ── LANDING SOON ──
+  const todayS = todayStr();
+  const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  const soon = model.items.filter(i => i.due && i.due >= todayS && i.due <= in14).sort((a, b) => a.due.localeCompare(b.due));
+  sections['upcoming-deadlines'] = `<section class="kd-card kd-tile">
+    <div class="kd-card-head"><div>
+      <h2 class="kd-card-title">Landing in the next 14 days</h2>
+      <p class="kd-card-subline">So the call covers what's coming, not only what slipped.</p>
+    </div><span class="kd-mono kd-count">${soon.length}</span></div>
+    ${soon.length ? soon.slice(0, 14).map(i => `<div class="tr-row tr-row-click" data-act="${i.act}" data-cid="${esc(i.cid)}" data-id="${esc(i.cid)}" ${i.mid ? `data-mid="${esc(i.mid)}"` : ''} ${i.iid ? `data-iid="${esc(i.iid)}"` : ''} ${i.phase ? `data-phase="${esc(i.phase)}"` : ''}>
+        <div><div><b>${esc(i.client)}</b> <span class="tr-dim">· ${esc(i.label)}</span></div>
+        <div class="tr-row-sub">${esc(i.owner || 'Unassigned')}</div></div>
+        <span class="kd-mono tr-due">${fmtDate(i.due)}</span>
+      </div>`).join('') : `<div class="tr-empty">Nothing due in the next fortnight.</div>`}
+  </section>`;
 
   const layout = getDashLayout().filter(t => {
     const reg = DASH_TILE_REGISTRY.find(r => r.id === t.id);
-    return reg && t.visible && (!reg.adminOnly || isAdmin);
+    return reg && t.visible && (!reg.adminOnly || isAdmin) && sections[t.id];
   });
-  const orderedSections = layout.map(t => sections[t.id] || '').join('');
+  const paired = ['work-stages', 'aging', 'needs-owner', 'upcoming-deadlines'];
+  const wide = layout.filter(t => !paired.includes(t.id)).map(t => sections[t.id]).join('');
+  const grid = layout.filter(t => paired.includes(t.id)).map(t => sections[t.id]).join('');
 
-  const red = healthSplit.Red, amber = healthSplit.Amber;
+  const d = new Date();
+  const stamp = (d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/,/g, '') + ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })).toUpperCase();
 
   return `<div class="k-page fade kd">
   ${DASH_CSS}
   <header class="flex flex-wrap items-start justify-between gap-3">
     <div class="min-w-0">
-      ${datestampLine()}
-      <h1 class="kd-page-title">Portfolio</h1>
-      <p class="kd-page-sub">${S.clients.length} client${S.clients.length === 1 ? '' : 's'} across three delivery streams — sorted worst-first</p>
+      <p class="kd-datestamp">${esc(stamp)}</p>
+      <h1 class="kd-page-title">Team Review</h1>
+      <p class="kd-page-sub">Who is carrying what, what is in their way, and what moves this week.</p>
     </div>
     <div class="flex items-center gap-2">
-      <button data-act="modal-open" data-modal="dashboard-layout" class="kd-btn kd-btn-outline">Customize</button>
-      ${isAdmin ? `<button data-act="portfolio-export" class="kd-btn kd-btn-primary">Portfolio Export</button>` : ''}
+      <button data-act="modal-open" data-modal="dashboard-layout" class="kd-btn kd-btn-outline">Customise</button>
+      <button data-act="portfolio-export" class="kd-btn kd-btn-outline">Export</button>
+      <button data-act="tr-call-start" class="kd-btn kd-btn-primary">▶ Start weekly call</button>
     </div>
   </header>
 
-  <div class="kd-kpi-sticky">
-    <div class="kd-kpi-strip">
-      <div class="kd-kpi" style="border-left-color:var(--dk-primary)"><span class="kd-num kd-kpi-val">${S.clients.length}</span><span class="kd-kpi-label">Clients</span></div>
-      <div class="kd-kpi" style="border-left-color:var(--dk-red)">
-        <span class="kd-num kd-kpi-val" style="color:${ar ? 'var(--dk-red)' : 'var(--dk-ink)'}">${ar}${atRiskDelta !== null && atRiskDelta !== 0 ? `<span class="kd-kpi-delta ${atRiskDelta > 0 ? 'kd-text-red' : 'kd-text-green'}">${atRiskDelta > 0 ? '↑' : '↓'}${Math.abs(atRiskDelta)}</span>` : ''}</span>
-        <span class="kd-kpi-label">At risk${atRiskDelta !== null ? ' · vs ' + new Date([...new Set(S.snapshotHistory.map(s => s.snapshot_date))].sort()[0]).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</span>
-      </div>
-      <div class="kd-kpi" style="border-left-color:var(--dk-sky)"><span class="kd-num kd-kpi-val">${thisWeekUpdates}</span><span class="kd-kpi-label">Updates, 7 days</span><span class="kd-kpi-sub">hygiene ${hygieneScore}%</span></div>
-      <div class="kd-kpi" style="border-left-color:var(--dk-amber)"><span class="kd-num kd-kpi-val kd-kpi-val-sm">${healthSplit.Red}<span class="kd-text-red"> R</span> · ${healthSplit.Amber}<span class="kd-text-amber"> A</span> · ${healthSplit.Green}<span class="kd-text-green"> G</span></span><span class="kd-kpi-label">Clients off track</span><span class="kd-kpi-sub">${red} red · ${amber} amber</span></div>
-      <div class="kd-kpi" style="border-left-color:var(--dk-red)"><span class="kd-num kd-kpi-val" style="color:${l3l4OpenCount ? 'var(--dk-red)' : 'var(--dk-ink)'}">${l3l4OpenCount}</span><span class="kd-kpi-label">L3/L4 tickets open</span></div>
-      <div class="kd-kpi" style="border-left-color:var(--dk-green)"><span class="kd-num kd-kpi-val" style="color:${hygieneScore >= 80 ? 'var(--dk-green)' : hygieneScore >= 60 ? 'var(--dk-amber)' : 'var(--dk-red)'}">${hygieneScore}%</span><span class="kd-kpi-label">Data hygiene score</span></div>
-    </div>
+  <div class="tr-actionbar">
+    ${TR_FILTERS.map(f => {
+    const n = trApplyFilter(model.items, f.k).length;
+    return `<button data-act="tr-filter" data-key="${f.k}" class="tr-act ${S.dashFilter === f.k ? 'tr-act-on' : ''}">
+      <span class="tr-act-n" style="color:${f.c}">${n}</span>
+      <span class="tr-act-l">${f.l}</span>
+      <span class="tr-act-h">${f.h}</span>
+    </button>`;
+  }).join('')}
   </div>
 
-  ${orderedSections}
+  ${wide}
+  <div class="tr-tiles">${grid}</div>
+  <p class="tr-legend">Red belongs to the work, never to a person — a load bar only ever reads <b class="kd-text-green">has room</b>, <b style="color:var(--dk-primary)">balanced</b> or <b class="kd-text-amber">at capacity</b>. Integration items still count toward load; they carry no blocker field yet, so they can't appear under "In the way".</p>
 </div>`;
 }
 
-function loadFillColor(total, w) {
-  if (total > w.cap) return 'var(--dk-red)';
-  if (total >= w.cap * 0.9) return 'var(--dk-amber)';
-  if (total < w.cap * 0.6) return 'var(--dk-green)';
-  return 'var(--dk-primary)';
+// ─── TEAM REVIEW MODEL ────────────────────────────────────────────
+const TR_BAND_C = { room: 'var(--dk-green)', bal: 'var(--dk-primary)', full: 'var(--dk-amber)' };
+const TR_BAND_L = { room: 'Has room', bal: 'Balanced', full: 'At capacity' };
+const TR_KIND = { gov: ['Governance', 'tr-t-gov'], impl: ['Delivery', 'tr-t-impl'], int: ['Integration', 'tr-t-int'], ams: ['AMS', 'tr-t-ams'] };
+const TR_FILTERS = [
+  { k: 'all', l: 'Live items', h: 'everything in flight', c: 'var(--dk-ink)' },
+  { k: 'blocked', l: 'Need unblocking', h: 'someone is waiting on an answer', c: 'var(--dk-red)' },
+  { k: 'waiting', l: 'Waiting 7 days +', h: 'escalate or change the plan', c: 'var(--dk-amber)' },
+  { k: 'due', l: 'Landing in 14 days', h: 'confirm they are on track', c: 'var(--dk-ink)' },
+  { k: 'missing', l: 'Need 2 min to fill in', h: 'not a performance signal', c: 'var(--dk-mute)' },
+];
+
+function trApplyFilter(items, f) {
+  const todayS = todayStr();
+  const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  if (!f || f === 'all') return items;
+  if (f === 'blocked') return items.filter(i => i.blocker);
+  if (f === 'waiting') return items.filter(i => i.waitingDays !== null && i.waitingDays >= 7);
+  if (f === 'due') return items.filter(i => i.due && i.due >= todayS && i.due <= in14);
+  if (f === 'missing') return items.filter(i => i.missing);
+  return items;
 }
+
+// Most-blocked-first: the person who needs the most help is served first.
+// Never a performance ranking.
+function trCallOrder(model) {
+  return model.people.slice().sort((a, b) => (b.blocked.length - a.blocked.length) || (b.load - a.load) || a.name.localeCompare(b.name));
+}
+
+// Build the person-indexed work model. Capacity maths is unchanged from the
+// previous dashboard — same capAdd, weights and thresholds.
+function trBuildModel(implClients, allIntegrations, openAmsEntries) {
+  const cw = S.capacityWeights;
+  const capacity = {};
+  const capAdd = (name, type, amount, detail) => {
+    const nm = (name || '').trim(); if (!nm) return;
+    if (!capacity[nm]) capacity[nm] = { module: 0, pmo: 0, integ: 0, ams: 0, total: 0, details: [] };
+    capacity[nm][type] += amount; capacity[nm].total += amount;
+    if (detail) capacity[nm].details.push({ type, amount, detail });
+  };
+  const seenModulePairs = new Set();
+  implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => {
+    if (ph.status === 'Completed' || ph.status === 'Not Started' || !ph.assignee) return;
+    const key = `${ph.assignee.trim()}::${m.id}`;
+    if (seenModulePairs.has(key)) return; seenModulePairs.add(key);
+    capAdd(ph.assignee, 'module', cw.module, `${m.name} · ${c.name}`);
+  })));
+  implClients.forEach(c => (c.modules || []).forEach(m => {
+    if (m.assignee && m.effort) capAdd(m.assignee, 'module', Number(m.effort) || 0, `${m.name} (module) · ${c.name}`);
+  }));
+  const pmoFor = {};
+  implClients.forEach(c => {
+    if (!c.masterAssignee) return;
+    capAdd(c.masterAssignee, 'pmo', cw.pmo, `PMO · ${c.name}`);
+    (pmoFor[c.masterAssignee.trim()] = pmoFor[c.masterAssignee.trim()] || []).push(c.name);
+  });
+  allIntegrations.filter(i => !['Completed', 'Cancelled'].includes(i.status)).forEach(i => { if (i.assignee) capAdd(i.assignee, 'integ', i.effortWeight ?? 0.5, `${i.name} · ${i.clientName}`); });
+  openAmsEntries.forEach(e => { const rb = entryRaisedBy(e); if (rb && rb !== '—') capAdd(rb, 'ams', cw.ams, `${e.description || 'AMS ticket'} · ${e.clientName}`); });
+
+  // ── items ──
+  const items = [];
+  const lastPhaseUpdate = ph => {
+    const u = ph.updates || [];
+    if (!u.length) return ph.startDate || null;
+    return u.reduce((a, x) => { const dt = (x.addedAt || x.date || '').slice(0, 10); return dt > a ? dt : a; }, '') || ph.startDate || null;
+  };
+  implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => {
+    if (ph.status === 'Completed') return;
+    const owner = (ph.assignee || (m.singlePhase ? m.assignee : '') || '').trim();
+    const lu = lastPhaseUpdate(ph);
+    items.push({
+      owner, client: c.name, cid: c.id, mid: m.id, phase: ph.name,
+      label: m.name, sub: m.singlePhase ? null : ph.name,
+      kind: m.singlePhase ? 'gov' : 'impl', status: ph.status,
+      activity: ph.currentActivity || '', next: ph.nextAction || '',
+      blocker: ph.blocker || '', waitingOn: ph.waitingOn || '',
+      waitingDays: ph.blockerSince ? daysDiff(ph.blockerSince) : null,
+      age: lu ? daysDiff(lu) : null, due: ph.targetDate || '',
+      missing: typeof phaseIsIncomplete === 'function' ? phaseIsIncomplete(ph) : false,
+      act: 'open-impl-phase',
+    });
+  })));
+  allIntegrations.filter(i => !['Completed', 'Cancelled'].includes(i.status)).forEach(i => {
+    const lu = lastUpdateDate(i);
+    items.push({
+      owner: (i.assignee || '').trim(), client: i.clientName, cid: i.clientId, iid: i.id,
+      label: i.name, sub: null, kind: 'int', status: i.status,
+      activity: i.timeline?.[0]?.update || '', next: '',
+      blocker: '', waitingOn: '', waitingDays: null,
+      age: lu ? daysDiff(lu) : null, due: i.dueDate || '',
+      missing: !i.assignee || !i.dueDate, act: 'open-integ',
+    });
+  });
+  openAmsEntries.forEach(e => {
+    const rb = entryRaisedBy(e);
+    const dep = (e.dependencies || '').trim();
+    items.push({
+      owner: rb && rb !== '—' ? rb.trim() : '', client: e.clientName, cid: e.clientId,
+      label: (e.description || 'AMS item').slice(0, 70), sub: e.queryLevel || null,
+      kind: 'ams', status: e.entryStatus || 'Open',
+      activity: '', next: '',
+      blocker: dep, waitingOn: dep ? 'see dependency' : '', waitingDays: null,
+      age: entryDate(e) ? daysDiff(entryDate(e)) : null, due: e.dueDate || '',
+      missing: false, act: 'open-ams-client',
+    });
+  });
+
+  // ── people: every admin/editor user, so nobody silently vanishes ──
+  const roster = (S.usersForDropdown || []).filter(u => u.role === 'admin' || u.role === 'editor');
+  const names = new Set(roster.map(u => (u.name || '').trim()).filter(Boolean));
+  // anyone holding work but not in the roster still shows, rather than
+  // their items disappearing from the review entirely
+  items.forEach(i => { if (i.owner) names.add(i.owner); });
+  Object.keys(capacity).forEach(n => names.add(n));
+
+  const people = [...names].map(name => {
+    const mine = items.filter(i => i.owner === name);
+    const load = capacity[name]?.total || 0;
+    const band = load < cw.cap * 0.6 ? 'room' : load >= cw.cap * 0.9 ? 'full' : 'bal';
+    const r = roster.find(u => (u.name || '').trim() === name);
+    return {
+      name, role: r ? (r.role === 'admin' ? 'Admin' : 'Editor') : 'Not a Kora user',
+      load, band, items: mine, blocked: mine.filter(i => i.blocker),
+      clients: new Set(mine.map(i => i.client)),
+      details: capacity[name]?.details || [], pmoFor: pmoFor[name] || [],
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    people, items,
+    unowned: items.filter(i => !i.owner),
+    overCap: people.filter(p => p.load > cw.cap),
+    noUpdate: items.filter(i => i.age === null).length,
+  };
+}
+
+function trItemCard(i) {
+  const [kindLabel, kindClass] = TR_KIND[i.kind] || TR_KIND.impl;
+  const quiet = i.age !== null && i.age >= 14;
+  return `<div class="tr-it ${i.blocker ? 'tr-it-blocked' : ''}" data-act="${i.act}" data-cid="${esc(i.cid)}" data-id="${esc(i.cid)}" ${i.mid ? `data-mid="${esc(i.mid)}"` : ''} ${i.iid ? `data-iid="${esc(i.iid)}"` : ''} ${i.phase ? `data-phase="${esc(i.phase)}"` : ''}>
+    <div class="tr-it-h">
+      <span class="tr-it-c">${esc(i.client)}</span>
+      <span class="tr-it-p">${esc(i.label)}${i.sub ? ' · ' + esc(i.sub) : ''}</span>
+      <span class="tr-tag ${kindClass}">${kindLabel}</span>
+      <span class="kd-mono tr-it-age ${quiet ? 'kd-text-amber' : ''}">${i.age === null ? 'no updates yet' : `quiet ${i.age}d`}</span>
+    </div>
+    ${i.missing && !i.activity && !i.next ? `<div class="tr-f-v tr-dim-i">No current activity or next action recorded yet.</div>
+      <span class="tr-fix">＋ Fill this in (takes 2 minutes)</span>`
+      : `<div class="tr-flow">
+        <div><div class="tr-f-l">Where it is now</div><div class="tr-f-v">${i.activity ? esc(i.activity) : '<span class="tr-dim-i">not recorded</span>'}</div></div>
+        <div><div class="tr-f-l">Next action</div><div class="tr-f-v">${i.next ? esc(i.next) : '<span class="tr-dim-i">not recorded</span>'}</div></div>
+      </div>`}
+    ${i.blocker ? `<div class="tr-imp">
+      <div class="tr-imp-l"><span class="kd-dot kd-dot-red"></span>In the way</div>
+      <div class="tr-imp-t">${esc(i.blocker)}</div>
+      <div class="tr-imp-m">
+        ${i.waitingOn ? `<span>Waiting on <span class="tr-who">${esc(i.waitingOn)}</span></span>` : ''}
+        ${i.waitingDays !== null ? `<span class="kd-mono">${i.waitingDays} day${i.waitingDays !== 1 ? 's' : ''}</span>` : ''}
+      </div>
+    </div>` : ''}
+    ${i.due ? `<div class="tr-it-due">Target <b>${fmtDate(i.due)}</b></div>` : ''}
+  </div>`;
+}
+
+// ─── CALL MODE ────────────────────────────────────────────────────
+// Cached so the "Finish" branch in events.js knows where the list ends
+// without rebuilding the whole model.
+let _trOrderLen = 0;
+function trCallOrderLength() { return _trOrderLen; }
+
+function trRenderCallMode(model) {
+  const order = trCallOrder(model);
+  _trOrderLen = order.length;
+  if (!order.length) return `<div class="k-page fade kd">${DASH_CSS}<div class="kd-empty"><p class="kd-empty-title">Nobody to review</p><button data-act="tr-call-end" class="kd-btn kd-btn-outline mt-3">Back</button></div></div>`;
+  const idx = Math.max(0, Math.min(order.length - 1, S.dashCallIdx || 0));
+  const p = order[idx];
+  const blocked = p.items.filter(i => i.blocker);
+  const missing = p.items.filter(i => !i.blocker && i.missing);
+  const moving = p.items.filter(i => !i.blocker && !i.missing);
+  const cw = S.capacityWeights;
+
+  const oldest = blocked.slice().sort((a, b) => (b.waitingDays || 0) - (a.waitingDays || 0))[0];
+  const ask = blocked.length
+    ? `${blocked.length === 1 ? 'One thing is' : blocked.length + ' things are'} blocked. What would clear the oldest one${oldest && oldest.waitingDays !== null ? ` — ${oldest.waitingDays} day${oldest.waitingDays !== 1 ? 's' : ''} waiting${oldest.waitingOn ? ' on ' + esc(oldest.waitingOn) : ''}` : ''}?`
+    : missing.length
+      ? `Nothing is blocked. ${missing.length} item${missing.length !== 1 ? 's need' : ' needs'} its current activity filling in — shall we do that now, together?`
+      : p.items.length
+        ? `Nothing blocked, everything current. Anything coming that we should plan for?`
+        : `Nothing assigned this week — good moment to pick something up from "Needs an owner".`;
+
+  const block = (label, color, items) => items.length ? `<div class="tr-cm-block">
+    <h3 class="tr-cm-sec"><span class="kd-dot" style="background:${color}"></span><span style="color:${color}">${label}</span></h3>
+    ${items.map(trItemCard).join('')}
+  </div>` : '';
+
+  return `<div class="kd tr-cm">
+  ${DASH_CSS}
+  <div class="tr-cm-progress"><i style="width:${(idx + 1) / order.length * 100}%"></i></div>
+  <div class="tr-cm-top">
+    <div>
+      <div class="kd-mono tr-cm-pos">Person ${idx + 1} of ${order.length}</div>
+      <div class="tr-cm-title">Weekly team call</div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <span id="tr-timer" class="kd-mono tr-cm-timer">5:00</span>
+      <button data-act="tr-call-prev" class="kd-btn kd-btn-outline kd-btn-sm"${idx === 0 ? ' disabled style="opacity:.4"' : ''}>← Previous</button>
+      <button data-act="tr-call-next" class="kd-btn kd-btn-primary kd-btn-sm">${idx === order.length - 1 ? 'Finish ✓' : 'Next person →'}</button>
+      <button data-act="tr-call-end" class="kd-btn kd-btn-outline kd-btn-sm">Exit</button>
+    </div>
+  </div>
+  <div class="tr-cm-body"><div class="tr-cm-inner">
+    <div class="tr-cm-who">
+      ${avatarChip(p.name, 46)}
+      <div class="min-w-0">
+        <div class="tr-cm-name">${esc(p.name)}</div>
+        <div class="tr-cm-role">${esc(p.role)}${p.pmoFor.length ? ` · PMO for ${p.pmoFor.length}` : ''}</div>
+      </div>
+      <div class="tr-cm-load">
+        <div class="kd-mono tr-pp-load-n" style="color:${TR_BAND_C[p.band]}">${TR_BAND_L[p.band]}</div>
+        <div class="tr-bar" style="width:160px;margin-top:4px"><i style="width:${Math.min(100, p.load / cw.cap * 100)}%;background:${TR_BAND_C[p.band]}"></i></div>
+        <div class="tr-pp-load-l">${p.items.length} item${p.items.length !== 1 ? 's' : ''} · ${p.clients.size} client${p.clients.size !== 1 ? 's' : ''}</div>
+      </div>
+    </div>
+    <div class="tr-ask"><div class="tr-ask-l">Ask this</div><div class="tr-ask-q">${ask}</div></div>
+    ${block('In the way — decide here', 'var(--dk-red)', blocked)}
+    ${block('Moving — confirm the next action', 'var(--dk-primary)', moving)}
+    ${block('Fill in together', 'var(--dk-mute-2)', missing)}
+    ${!p.items.length ? `<div class="tr-empty" style="font-size:14px;padding:30px 0">Nothing assigned right now.</div>` : ''}
+  </div></div>
+</div>`;
+}
+
+// Per-person pacing. Writes straight to the timer node — it must NEVER call
+// render(), which would replace #app and wipe anything being typed.
+function trStartTimer() {
+  trStopTimer();
+  let left = 300;
+  _trTimerHandle = setInterval(() => {
+    const el = document.getElementById('tr-timer');
+    if (!el) { trStopTimer(); return; }
+    left--;
+    const m = Math.floor(Math.abs(left) / 60), s = String(Math.abs(left) % 60).padStart(2, '0');
+    el.textContent = (left < 0 ? '+' : '') + m + ':' + s;
+    el.classList.toggle('tr-cm-timer-over', left < 0);
+  }, 1000);
+}
+function trStopTimer() { if (_trTimerHandle) { clearInterval(_trTimerHandle); _trTimerHandle = null; } }
 
 const DASH_CSS = `<style>
 .kd{ --dk-primary: var(--teal); --dk-red: var(--red); --dk-amber: var(--amber); --dk-green: var(--green);
      --dk-sky: #43AFCD; --dk-ink: var(--ink); --dk-mute: var(--mute); --dk-mute-2: var(--mute-2); --dk-line: var(--line); --dk-line-2: var(--line-2); --dk-paper: var(--paper); }
-.kd-page-title{ font-size:26px; font-weight:800; color:var(--dk-ink); line-height:1.15; }
-.kd-page-sub{ margin-top:4px; font-size:13px; color:var(--dk-mute); }
-.kd-datestamp{ font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--dk-mute-2); margin-bottom:6px; }
-.kd-btn{ font-size:13px; font-weight:600; padding:8px 16px; border-radius:12px; transition:background .15s; }
-.kd-btn-outline{ border:1px solid var(--dk-line); color:var(--dk-mute); background:var(--dk-paper); }
+.kd-page-title{ font-size:22px; font-weight:700; color:var(--ink-2); line-height:1.15; letter-spacing:-.02em; }
+.kd-page-sub{ margin-top:3px; font-size:12.5px; color:var(--dk-mute); }
+.kd-datestamp{ font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:var(--dk-mute-2); margin-bottom:5px; }
+.kd-btn{ font-size:12.5px; font-weight:500; padding:7px 13px; border-radius:var(--radius); transition:all var(--t-fast); white-space:nowrap; }
+.kd-btn-outline{ border:1px solid var(--dk-line); color:var(--ink-3); background:var(--dk-paper); }
 .kd-btn-outline:hover{ border-color:var(--dk-primary); color:var(--dk-primary); }
-.kd-btn-primary{ background:var(--dk-primary); color:#fff; font-weight:700; }
-.kd-btn-primary:hover{ filter:brightness(.93); }
-.kd-btn-sm{ padding:6px 12px; font-size:12px; }
-.kd-num{ font-family:var(--font-head, inherit); font-weight:800; }
+.kd-btn-primary{ background:var(--dk-primary); color:#fff; font-weight:600; box-shadow:var(--shadow-s); }
+.kd-btn-primary:hover{ filter:brightness(1.08); }
+.kd-btn-sm{ padding:6px 11px; font-size:12px; }
+.kd-num{ font-weight:700; }
 .kd-mono{ font-family:var(--mono); }
 .kd-text-red{ color:var(--dk-red); } .kd-text-amber{ color:var(--dk-amber); } .kd-text-green{ color:var(--dk-green); }
-.kd-bold-sm{ font-size:12px; font-weight:600; }
-.kd-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.kd-bold-sm{ font-size:12px; font-weight:500; }
+.kd-dot{ width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
 .kd-dot-red{ background:var(--dk-red); }
-.kd-dash{ color:var(--dk-mute-2); }
-
-.kd-kpi-sticky{ position:sticky; top:0; z-index:20; background:var(--surface); margin:0 -4px; padding:12px 4px 14px; }
-.kd-kpi-strip{ display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
-@media (max-width:1180px){ .kd-kpi-strip{ grid-template-columns:repeat(3,1fr); } }
-@media (max-width:640px){ .kd-kpi-strip{ grid-template-columns:repeat(2,1fr); } }
-.kd-kpi{ background:var(--dk-paper); border:1px solid var(--dk-line); border-left-width:3px; border-radius:12px; padding:14px 16px; }
-.kd-kpi-val{ display:block; font-size:26px; line-height:1; color:var(--dk-ink); }
-.kd-kpi-val-sm{ font-size:17px; }
-.kd-kpi-delta{ font-size:12px; font-weight:600; margin-left:6px; }
-.kd-kpi-label{ display:block; margin-top:7px; font-size:11px; color:var(--dk-mute); line-height:1.35; }
-.kd-kpi-sub{ display:block; margin-top:2px; font-size:11px; color:var(--dk-mute-2); }
 
 .kd-tile{ margin-top:16px; }
-.kd-card{ background:var(--dk-paper); border:1px solid var(--dk-line); border-radius:14px; padding:18px; }
-.kd-card-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.kd-card{ background:var(--dk-paper); border:1px solid var(--dk-line); border-radius:var(--radius-l); padding:16px; }
+.kd-card-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
 .kd-wrap{ flex-wrap:wrap; row-gap:8px; }
-.kd-card-title{ font-size:14px; font-weight:700; color:var(--dk-ink); }
-.kd-card-subline{ margin-top:3px; font-size:11px; color:var(--dk-mute); }
+.kd-card-title{ font-size:13px; font-weight:600; color:var(--ink-2); letter-spacing:-.01em; }
+.kd-card-subline{ margin-top:2px; font-size:11.5px; color:var(--dk-mute-2); font-weight:400; }
 .kd-count{ font-size:11px; color:var(--dk-mute); }
-.kd-footnote{ margin-top:10px; padding-top:10px; border-top:1px solid var(--dk-line-2); font-size:11px; color:var(--dk-mute); }
-.kd-empty{ text-align:center; padding:32px 12px; }
-.kd-empty-icon{ width:32px; height:32px; margin:0 auto 8px; color:var(--dk-mute-2); }
-.kd-empty-title{ font-size:13px; font-weight:600; color:var(--dk-mute); }
+.kd-footnote{ margin-top:10px; padding-top:9px; border-top:1px solid var(--dk-line-2); font-size:11.5px; color:var(--dk-mute); line-height:1.5; }
+.kd-empty{ text-align:center; padding:30px 12px; }
+.kd-empty-icon{ width:30px; height:30px; margin:0 auto 8px; color:var(--dk-mute-2); }
+.kd-empty-title{ font-size:13px; font-weight:500; color:var(--dk-mute); }
 .kd-empty-hint{ margin-top:4px; font-size:11.5px; color:var(--dk-mute-2); max-width:280px; margin-left:auto; margin-right:auto; }
-.kd-empty-inline{ text-align:center; padding:24px 8px; font-size:13px; color:var(--dk-mute); }
+.kd-search{ font-size:12.5px; border:1px solid var(--dk-line); border-radius:var(--radius); padding:7px 10px; max-width:230px; background:var(--dk-paper); }
+.kd-search:focus{ outline:none; border-color:var(--dk-primary); box-shadow:0 0 0 3px var(--teal-lo); }
 
-.kd-toolbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-.kd-search{ font-size:12px; border:1px solid var(--dk-line); border-radius:10px; padding:6px 10px; max-width:220px; background:var(--dk-paper); }
-.kd-search:focus{ outline:none; box-shadow:0 0 0 2px var(--teal-lo); }
-.kd-chipbar{ display:flex; gap:6px; flex-wrap:wrap; }
-.kd-chip{ font-size:11px; font-weight:600; padding:4px 11px; border-radius:999px; border:1px solid var(--dk-line); color:var(--dk-mute); background:var(--dk-paper); transition:all .12s; }
-.kd-chip:hover{ border-color:var(--dk-primary); color:var(--dk-primary); }
-.kd-chip-active{ background:var(--dk-primary); border-color:var(--dk-primary); color:#fff; }
-
-.kd-crit-table{ border:1px solid var(--dk-line-2); border-radius:10px; overflow:hidden; }
-.kd-crit-head{ display:grid; grid-template-columns:1fr 160px 130px 140px; background:var(--surface); border-bottom:1px solid var(--dk-line); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--dk-mute); padding:8px 14px; }
-.kd-crit-row{ display:grid; grid-template-columns:1fr 160px 130px 140px; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--dk-line-2); cursor:pointer; transition:background .12s; }
+/* editor view — critical items table */
+.kd-crit-table{ border:1px solid var(--dk-line-2); border-radius:var(--radius); overflow:hidden; }
+.kd-crit-head{ display:grid; grid-template-columns:1fr 160px 130px 140px; background:var(--surface); border-bottom:1px solid var(--dk-line); font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--dk-mute); padding:8px 14px; }
+.kd-crit-row{ display:grid; grid-template-columns:1fr 160px 130px 140px; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--dk-line-2); cursor:pointer; transition:background var(--t-fast); }
 .kd-crit-row:last-child{ border-bottom:none; }
 .kd-crit-row:hover{ background:var(--teal-hi); }
 .kd-crit-title-wrap{ display:flex; align-items:flex-start; gap:6px; min-width:0; }
 .kd-crit-flag{ width:13px; height:13px; margin-top:2px; flex-shrink:0; color:var(--dk-red); }
-.kd-crit-title{ font-size:12.5px; font-weight:600; color:var(--dk-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kd-crit-title{ font-size:12.5px; font-weight:500; color:var(--dk-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .kd-crit-domain{ font-size:10.5px; color:var(--dk-mute-2); margin-top:1px; }
 .kd-crit-client{ font-size:12px; color:var(--dk-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.kd-crit-status{ font-family:var(--mono); font-size:11.5px; font-weight:600; }
+.kd-crit-status{ font-family:var(--mono); font-size:11.5px; font-weight:500; }
 .kd-crit-owner{ font-size:12px; color:var(--dk-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 @media (max-width:820px){ .kd-crit-head{ display:none; } .kd-crit-row{ grid-template-columns:1fr; row-gap:2px; } }
 
-.kd-thead{ display:grid; grid-template-columns:1fr 34px 34px 34px 76px; border-bottom:1px solid var(--dk-line); padding:0 4px 6px; }
-.kd-thead > div{ font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--dk-mute); }
-.kd-th-c{ text-align:center; } .kd-th-r{ text-align:right; }
-.kd-scorebody{ max-height:320px; overflow-y:auto; }
-.kd-scrollbox{ max-height:320px; overflow-y:auto; }
-.kd-scorerow{ display:grid; grid-template-columns:1fr 34px 34px 34px 76px; align-items:center; padding:8px 4px; border-bottom:1px solid var(--dk-line-2); font-size:12.5px; cursor:pointer; }
-.kd-scorerow:hover{ background:var(--teal-hi); }
-.kd-scorerow:last-child{ border-bottom:none; }
-.kd-sr-name{ font-weight:500; color:var(--dk-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kd-sr-c{ text-align:center; }
-.kd-sr-trend{ text-align:right; font-size:11px; font-weight:600; color:var(--dk-mute); }
-.kd-score{ font-size:20px; line-height:1; }
-.kd-score-sub{ margin-top:2px; font-size:9.5px; color:var(--dk-mute-2); }
+/* ── team review ── */
+.tr-actionbar{ display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--dk-line); border:1px solid var(--dk-line); border-radius:var(--radius-l); overflow:hidden; margin-top:16px; }
+.tr-act{ background:var(--dk-paper); padding:11px 14px; text-align:left; transition:background var(--t-fast); }
+.tr-act:hover{ background:var(--teal-hi); }
+.tr-act-on{ background:var(--teal-hi); box-shadow:inset 0 -2px 0 var(--dk-primary); }
+.tr-act-n{ display:block; font-size:21px; font-weight:700; line-height:1.1; letter-spacing:-.02em; }
+.tr-act-l{ display:block; font-size:11.5px; color:var(--dk-mute); margin-top:3px; line-height:1.3; }
+.tr-act-h{ display:block; font-size:10.5px; color:var(--dk-mute-2); margin-top:1px; }
 
-.kd-list{ display:flex; flex-direction:column; }
-.kd-deadline-row{ display:grid; grid-template-columns:60px 1fr 110px 78px; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--dk-line-2); font-size:12px; }
-.kd-deadline-row:last-child{ border-bottom:none; }
-.kd-deadline-date{ font-size:11px; font-weight:600; color:var(--dk-primary); }
-.kd-deadline-title{ color:var(--dk-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kd-deadline-client{ color:var(--dk-mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kd-tag{ font-size:10px; font-weight:600; padding:2px 8px; border-radius:999px; text-align:center; }
-.kd-tag-teal{ background:var(--teal-hi); color:var(--dk-primary); }
-.kd-tag-primary{ background:var(--teal-hi); color:var(--dk-primary); }
-.kd-tag-amber{ background:rgba(245,158,11,.12); color:var(--dk-amber); }
+.tr-cols{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:start; }
+.tr-col-h{ display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
+.tr-col-n{ font-family:var(--mono); font-weight:400; color:var(--dk-mute-2); letter-spacing:0; }
+.tr-chip{ display:flex; align-items:center; gap:9px; width:100%; padding:8px 10px; border:1px solid var(--dk-line); border-radius:var(--radius); background:var(--dk-paper); margin-bottom:6px; transition:all var(--t-fast); text-align:left; }
+.tr-chip:hover{ border-color:var(--dk-primary); box-shadow:var(--shadow-s); }
+.tr-chip-on{ border-color:var(--dk-primary); background:var(--teal-hi); box-shadow:inset 2px 0 0 var(--dk-primary); }
+.tr-chip-mid{ flex:1; min-width:0; }
+.tr-chip-n{ display:block; font-size:12.5px; font-weight:500; color:var(--dk-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tr-chip-meta{ display:flex; gap:7px; font-size:10.5px; color:var(--dk-mute-2); margin-top:1px; }
+.tr-chip-load{ font-size:11px; font-weight:600; color:var(--dk-mute); flex-shrink:0; }
+.tr-bar{ display:block; height:4px; border-radius:9999px; background:var(--dk-line-2); overflow:hidden; margin-top:4px; }
+.tr-bar > i{ display:block; height:100%; border-radius:9999px; }
+.tr-band{ display:flex; align-items:center; gap:10px; padding:9px 13px; margin-bottom:12px; border-radius:var(--radius); background:var(--amber-hi); border:1px solid rgba(161,98,7,.2); }
+.tr-empty{ font-size:12px; color:var(--dk-mute-2); padding:10px 2px; font-style:italic; }
 
-.kd-riskband{ display:flex; align-items:center; gap:10px; padding:10px 14px; margin-bottom:12px; border-radius:10px; background:rgba(239,68,68,.06); border:1px solid rgba(239,68,68,.18); }
-.kd-capbox{ border-radius:12px; padding:12px; }
-.kd-capbox-green{ background:rgba(34,153,84,.06); border:1px solid rgba(34,153,84,.15); }
-.kd-capbox-red{ background:rgba(239,68,68,.06); border:1px solid rgba(239,68,68,.15); }
-.kd-capbox-title{ font-size:12px; font-weight:600; margin-bottom:5px; }
-.kd-capbox-body{ font-size:11.5px; line-height:1.5; color:var(--dk-mute); }
-.kd-bwrow{ display:grid; grid-template-columns:130px 1fr 92px; align-items:center; gap:12px; padding:9px 2px; border-bottom:1px solid var(--dk-line-2); cursor:pointer; }
-.kd-bwrow:hover{ background:var(--teal-hi); }
-.kd-bw-name{ font-size:12.5px; font-weight:500; color:var(--dk-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kd-bw-track{ height:8px; border-radius:999px; background:var(--dk-line-2); overflow:hidden; }
-.kd-bw-fill{ display:block; height:100%; border-radius:999px; }
-.kd-bw-total{ font-size:11.5px; font-weight:600; text-align:right; color:var(--dk-mute); }
-.kd-bw-detail{ padding:8px 4px 8px 20px; display:flex; flex-wrap:wrap; gap:8px 16px; background:var(--surface); border-bottom:1px solid var(--dk-line-2); }
-.kd-bw-detail-item{ font-size:11px; color:var(--dk-mute); }
-.kd-bw-detail-amt{ font-size:9px; background:var(--dk-line-2); color:var(--dk-mute); padding:1px 5px; border-radius:6px; margin-right:3px; }
+.tr-pp-top{ display:flex; align-items:center; gap:13px; padding:14px 16px; border-bottom:1px solid var(--dk-line-2); flex-wrap:wrap; }
+.tr-pp-name{ font-size:16px; font-weight:600; color:var(--ink-2); letter-spacing:-.01em; }
+.tr-pp-role{ font-size:11.5px; color:var(--dk-mute); margin-top:1px; }
+.tr-pp-load{ margin-left:auto; text-align:right; min-width:150px; }
+.tr-pp-load-n{ font-size:13px; font-weight:600; }
+.tr-pp-load-l{ font-size:10.5px; color:var(--dk-mute-2); margin-top:2px; }
+.tr-grp{ padding:13px 16px; border-bottom:1px solid var(--dk-line-2); }
+.tr-grp:last-child{ border-bottom:none; }
+.tr-grp-h{ display:flex; align-items:center; gap:7px; margin-bottom:9px; flex-wrap:wrap; }
+.tr-grp-t{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+.tr-grp-c{ font-family:var(--mono); font-size:10.5px; color:var(--dk-mute-2); background:var(--dk-line-2); padding:1px 6px; border-radius:9999px; }
+.tr-grp-why{ font-size:11px; color:var(--dk-mute-2); }
 
-.kd-legend-row{ display:flex; align-items:center; gap:8px; font-size:12px; }
-.kd-legend-label{ flex:1; color:var(--dk-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kd-legend-pct{ font-weight:600; color:var(--dk-mute); }
-.kd-donut-num{ font-size:19px; font-weight:800; }
-.kd-donut-sub{ font-size:9px; }
+.tr-it{ border:1px solid var(--dk-line); border-radius:var(--radius); padding:10px 12px; margin-bottom:7px; background:var(--dk-paper); cursor:pointer; transition:all var(--t-fast); }
+.tr-it:last-child{ margin-bottom:0; }
+.tr-it:hover{ border-color:var(--dk-primary); box-shadow:var(--shadow-s); }
+.tr-it-blocked{ border-left:2px solid var(--dk-red); background:var(--red-hi); }
+.tr-it-h{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:5px; }
+.tr-it-c{ font-size:12.5px; font-weight:600; color:var(--ink-2); }
+.tr-it-p{ font-size:11.5px; color:var(--dk-mute); }
+.tr-it-age{ margin-left:auto; font-size:10.5px; color:var(--dk-mute-2); white-space:nowrap; }
+.tr-it-due{ margin-top:6px; font-size:11px; color:var(--dk-mute); }
+.tr-flow{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px; }
+@media (max-width:700px){ .tr-flow{ grid-template-columns:1fr; } }
+.tr-f-l{ font-size:9.5px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--dk-mute-2); margin-bottom:2px; }
+.tr-f-v{ font-size:12px; color:var(--ink-3); line-height:1.45; }
+.tr-dim{ color:var(--dk-mute); }
+.tr-dim-i{ color:var(--dk-mute-2); font-style:italic; }
+.tr-fix{ display:inline-block; font-size:11px; font-weight:500; color:var(--dk-primary); margin-top:6px; }
+.tr-imp{ margin-top:8px; padding:8px 10px; background:var(--dk-paper); border:1px solid rgba(220,38,38,.22); border-radius:var(--radius); }
+.tr-imp-l{ display:flex; align-items:center; gap:6px; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--dk-red); margin-bottom:3px; }
+.tr-imp-t{ font-size:12.5px; color:var(--dk-ink); line-height:1.45; }
+.tr-imp-m{ font-size:11px; color:var(--dk-mute); margin-top:4px; display:flex; gap:10px; flex-wrap:wrap; }
+.tr-who{ background:var(--amber-hi); color:var(--dk-amber); padding:1px 6px; border-radius:var(--radius-s); font-weight:500; }
+.tr-tag{ font-size:10px; font-weight:500; padding:1px 7px; border-radius:var(--radius-s); white-space:nowrap; }
+.tr-t-gov{ background:var(--teal-hi); color:var(--dk-primary); }
+.tr-t-impl{ background:var(--dk-line-2); color:var(--ink-3); }
+.tr-t-int{ background:var(--dk-line-2); color:var(--ink-3); }
+.tr-t-ams{ background:var(--amber-hi); color:var(--dk-amber); }
 
-.kd-sevbar{ display:flex; height:10px; border-radius:999px; overflow:hidden; background:var(--dk-line-2); margin-bottom:8px; }
-.kd-sevlegend{ display:flex; flex-wrap:wrap; gap:8px; font-size:11px; margin-bottom:10px; }
-.kd-sev-l1{ background:#94A3B8; } .kd-sev-l1-text{ color:#64748B; }
-.kd-sev-l2{ background:var(--dk-primary); } .kd-sev-l2-text{ color:var(--dk-primary); }
-.kd-sev-l3{ background:var(--dk-amber); } .kd-sev-l3-text{ color:var(--dk-amber); }
-.kd-sev-l4{ background:var(--dk-red); } .kd-sev-l4-text{ color:var(--dk-red); }
+.tr-tiles{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; align-items:start; }
+.tr-tiles > .kd-tile{ margin-top:0; }
+@media (max-width:900px){ .tr-tiles{ grid-template-columns:1fr; } .tr-cols{ grid-template-columns:1fr; } .tr-actionbar{ grid-template-columns:repeat(2,1fr); } }
+.tr-row{ display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--dk-line-2); font-size:12.5px; }
+.tr-row:last-of-type{ border-bottom:none; }
+.tr-row-click{ cursor:pointer; }
+.tr-row-click:hover{ background:var(--teal-hi); }
+.tr-row-sub{ font-size:11px; color:var(--dk-mute-2); margin-top:1px; }
+.tr-pill{ font-family:var(--mono); font-size:11px; font-weight:600; padding:2px 8px; border-radius:9999px; background:var(--dk-line-2); color:var(--ink-3); }
+.tr-pill-hot{ background:var(--red-hi); color:var(--dk-red); }
+.tr-assign{ font-size:11px; font-weight:500; color:var(--dk-primary); }
+.tr-due{ font-size:11px; font-weight:600; color:var(--dk-primary); }
+.tr-stage{ display:grid; grid-template-columns:130px 1fr 26px; gap:9px; align-items:center; padding:5px 0; font-size:11.5px; }
+.tr-stage-l{ color:var(--dk-mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tr-stage-t{ height:7px; border-radius:9999px; background:var(--dk-line-2); overflow:hidden; }
+.tr-stage-t > i{ display:block; height:100%; border-radius:9999px; background:var(--dk-primary); }
+.tr-stage-t > i.tr-hot{ background:var(--dk-amber); }
+.tr-stage-n{ font-size:11px; color:var(--dk-mute); text-align:right; }
+.tr-legend{ margin-top:16px; font-size:11px; color:var(--dk-mute-2); line-height:1.6; }
 
-.kd-funnel-row{ display:flex; align-items:center; gap:8px; font-size:11px; }
-.kd-funnel-label{ width:150px; flex-shrink:0; color:var(--dk-mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kd-funnel-max{ color:var(--dk-ink); font-weight:600; }
-.kd-funnel-track{ flex:1; height:10px; border-radius:6px; background:var(--dk-line-2); overflow:hidden; }
-.kd-funnel-fill{ height:100%; border-radius:6px; background:var(--dk-primary); }
-.kd-funnel-fill-max{ background:var(--dk-red); }
-.kd-funnel-n{ width:20px; text-align:right; color:var(--dk-mute); }
-
-.kd-fin-box{ border-radius:12px; padding:12px; background:rgba(34,153,84,.06); }
-.kd-fin-num{ font-size:18px; font-weight:800; color:var(--dk-green); }
-.kd-fin-label{ font-size:11px; color:var(--dk-mute); margin-top:2px; }
-
-.kd-hygiene-num{ font-size:28px; line-height:1; margin-bottom:12px; }
-.kd-hygiene-rows{ display:flex; flex-direction:column; gap:6px; font-size:12px; }
-.kd-hygiene-row{ display:flex; align-items:center; justify-content:space-between; }
-.kd-hygiene-row dt{ color:var(--dk-mute); }
-
-.kd-blocker-row{ padding:8px 0; border-bottom:1px solid var(--dk-line-2); }
-.kd-blocker-row:last-child{ border-bottom:none; }
-.kd-blocker-text{ font-size:12px; color:var(--dk-ink); }
-.kd-blocker-client{ font-size:11px; color:var(--dk-mute); margin-top:1px; }
+/* ── call mode ── */
+.tr-cm{ position:fixed; inset:0; z-index:90; background:var(--surface); display:flex; flex-direction:column; }
+.tr-cm-progress{ height:3px; background:var(--dk-line-2); flex-shrink:0; }
+.tr-cm-progress > i{ display:block; height:100%; background:var(--dk-primary); transition:width var(--t); }
+.tr-cm-top{ display:flex; align-items:center; justify-content:space-between; gap:14px; padding:13px 24px; border-bottom:1px solid var(--dk-line); background:var(--dk-paper); flex-wrap:wrap; }
+.tr-cm-pos{ font-size:11px; color:var(--dk-mute-2); text-transform:uppercase; letter-spacing:.06em; }
+.tr-cm-title{ font-size:14px; font-weight:600; margin-top:2px; color:var(--ink-2); }
+.tr-cm-timer{ font-size:12px; font-weight:600; color:var(--dk-mute); padding:5px 10px; border:1px solid var(--dk-line); border-radius:var(--radius); min-width:62px; text-align:center; }
+.tr-cm-timer-over{ color:var(--dk-amber); border-color:var(--dk-amber); }
+.tr-cm-body{ flex:1; overflow-y:auto; padding:24px; }
+.tr-cm-inner{ max-width:1000px; margin:0 auto; }
+.tr-cm-who{ display:flex; align-items:center; gap:14px; margin-bottom:18px; flex-wrap:wrap; }
+.tr-cm-name{ font-size:26px; font-weight:700; letter-spacing:-.025em; color:var(--ink-2); }
+.tr-cm-role{ font-size:12.5px; color:var(--dk-mute); }
+.tr-cm-load{ margin-left:auto; text-align:right; }
+.tr-ask{ background:var(--teal-hi); border:1px solid var(--teal-lo); border-radius:var(--radius-l); padding:12px 15px; margin-bottom:20px; }
+.tr-ask-l{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--dk-primary); margin-bottom:5px; }
+.tr-ask-q{ font-size:13.5px; color:var(--dk-ink); line-height:1.6; }
+.tr-cm-block{ margin-bottom:22px; }
+.tr-cm-sec{ display:flex; align-items:center; gap:7px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; margin:0 0 10px; }
 </style>`;

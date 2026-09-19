@@ -234,6 +234,20 @@ function renderImplPhaseDetail(clientId, moduleId, phaseName) {
           ${can('editor') ? `<textarea id="ip-next" rows="2" placeholder="What is the next planned step?" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(ph.nextAction || '')}</textarea>` :
       `<p class="text-sm text-gray-700">${esc(ph.nextAction || '—')}</p>`}
         </div>
+        <div class="rounded-xl border ${ph.blocker ? 'border-rose-200 bg-rose-50/60' : 'border-gray-200 bg-gray-50/60'} p-3">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full ${ph.blocker ? 'bg-rose-500' : 'bg-gray-300'}"></span>
+            <span class="text-xs font-semibold ${ph.blocker ? 'text-rose-700' : 'text-gray-500'}">Is anything in the way?</span>
+            ${ph.blocker && ph.blockerSince ? `<span class="ml-auto text-[11px] font-medium text-rose-600">${daysDiff(ph.blockerSince)}d waiting</span>` : ''}
+          </div>
+          ${can('editor') ? `
+          <textarea id="ip-blocker" rows="2" placeholder="Leave blank if nothing is blocked. Describe what is stopping progress, not who is at fault." class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0e7490] resize-none">${esc(ph.blocker || '')}</textarea>
+          <label class="block text-xs font-medium text-gray-400 mt-2 mb-1.5">Waiting on <span class="text-gray-300">(required if blocked)</span></label>
+          <input id="ip-waiting-on" type="text" value="${esc(ph.waitingOn || '')}" placeholder="e.g. Client · Finance, Vendor · SAP BASIS, Internal · Legal" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+          <p class="text-[11px] text-gray-400 mt-2 leading-relaxed">This appears on the admin Team Review so the blocker gets picked up in the weekly call. Clearing this box marks it unblocked and resets the waiting counter.</p>` : `
+          <p class="text-sm ${ph.blocker ? 'text-gray-700' : 'text-gray-400'} leading-relaxed">${esc(ph.blocker || 'Nothing blocked')}</p>
+          ${ph.waitingOn ? `<p class="text-xs text-gray-500 mt-1.5">Waiting on <b>${esc(ph.waitingOn)}</b></p>` : ''}`}
+        </div>
         ${can('editor') ? `<button data-act="save-impl-phase" data-cid="${esc(c.id)}" data-mid="${esc(mod.id)}" data-phase="${esc(phaseName)}" class="w-full btn-grad text-white font-semibold rounded-xl py-2.5 text-sm transition flex items-center justify-center gap-2">Save Details <kbd class="text-[10px] font-normal opacity-60 border border-white/30 rounded px-1.5 py-0.5">${kbdHint('S')}</kbd></button>` : ''}
       </div>
     </div>

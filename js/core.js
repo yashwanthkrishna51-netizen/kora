@@ -1,7 +1,7 @@
 const KOGNOZ_LOGO = "/kognoz_Iogo.png";
 let _bgRefreshTimer = null; // Phase 2 staleness-reduction poll, started on login, stopped on logout
 // ─── STATE ────────────────────────────────────────────────────────
-const S = { user: null, clients: [], archivedClients: [], users: [], usersForDropdown: [], shas: { clients: null, users: null }, sessionToken: null, view: 'login', params: {}, adminTab: 'integrations', filter: 'all', search: '', modal: null, toast: null, sidebarCollapsed: false, mobileSidebarOpen: false, sidebarClientsOpen: false, sort: { key: 'name', dir: 'asc' }, editingTimelineId: null, expandedHistory: new Set(), amsFrom: '', amsTo: '', amsQuick: '', editingAmsEntryId: null, expandedAmsHistory: new Set(), selectedAmsEntryId: null, selectedIntegId: null, openExportMenu: null, cmdPaletteOpen: false, cmdQuery: '', cmdSelectedIdx: 0, recentlyViewed: [], darkMode: false, shortcutsHelpOpen: false, bulkImplMode: false, bulkImplCid: null, bulkSelected: new Set(), offlineMode: false, bulkIntegMode: false, bulkIntegCid: null, bulkIntegSelected: new Set(), dashAttnSort: { key: 'reason', dir: 'desc' }, dashClientSort: { key: 'name', dir: 'asc' }, dashAssigneeSort: { key: 'total', dir: 'desc' }, dashAssigneeSearch: '', dashAssigneeExpanded: new Set(), dashCapacityExpanded: new Set(), dashAssigneeFilter: 'all', dashCritSearch: '', dashCritFilter: 'all', adminSearch: '', auditRows: [], auditTotal: 0, auditPage: 0, auditPageSize: 50, auditFrom: '', auditTo: '', auditUser: '', auditSearch: '', auditLoading: false, auditLoaded: false, snapshotHistory: [], snapshotChecked: false, snapshotHistoryFetched: false, capacityWeights: { module: 1, pmo: 0.5, ams: 0.25, cap: 5 }, capacityWeightsFetched: false, digestRecipients: { emails: [] }, digestRecipientsFetched: false, pipelineEntries: [], pipelineEntriesFetched: false, pipelineStageWeights: { 'Lead': 10, 'Qualified': 30, 'Proposal Sent': 50, 'Negotiation': 75, 'Won': 100, 'Lost': 0 }, pipelineStageWeightsFetched: false, implementationRagRules: { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true }, implementationRagRulesFetched: false, pipelineFilter: 'all', pipelineSort: 'created', selectedPipelineId: null, pipelineStats: null, pipelineStatsFetched: false, pendingPath: null, authMessage: null, integRailFilter: '', integRailSort: 'name', integMineOnly: false, lastActiveMap: {}, lastActiveFetched: false, viewAsRole: null, bulkUserMode: false, bulkUserSelected: new Set(), pomodoro: null, pomodoroModePref: 'simple' };
+const S = { user: null, clients: [], archivedClients: [], users: [], usersForDropdown: [], shas: { clients: null, users: null }, sessionToken: null, view: 'login', params: {}, adminTab: 'integrations', filter: 'all', search: '', modal: null, toast: null, sidebarCollapsed: false, mobileSidebarOpen: false, sidebarClientsOpen: false, sort: { key: 'name', dir: 'asc' }, editingTimelineId: null, expandedHistory: new Set(), amsFrom: '', amsTo: '', amsQuick: '', editingAmsEntryId: null, expandedAmsHistory: new Set(), selectedAmsEntryId: null, selectedIntegId: null, openExportMenu: null, cmdPaletteOpen: false, cmdQuery: '', cmdSelectedIdx: 0, recentlyViewed: [], darkMode: false, shortcutsHelpOpen: false, bulkImplMode: false, bulkImplCid: null, bulkSelected: new Set(), offlineMode: false, bulkIntegMode: false, bulkIntegCid: null, bulkIntegSelected: new Set(), dashAttnSort: { key: 'reason', dir: 'desc' }, dashClientSort: { key: 'name', dir: 'asc' }, dashAssigneeSort: { key: 'total', dir: 'desc' }, dashAssigneeSearch: '', dashAssigneeExpanded: new Set(), dashCapacityExpanded: new Set(), dashAssigneeFilter: 'all', dashCritSearch: '', dashCritFilter: 'all', dashPerson: null, dashPersonSearch: '', dashFilter: 'all', dashCallMode: false, dashCallIdx: 0, adminSearch: '', auditRows: [], auditTotal: 0, auditPage: 0, auditPageSize: 50, auditFrom: '', auditTo: '', auditUser: '', auditSearch: '', auditLoading: false, auditLoaded: false, snapshotHistory: [], snapshotChecked: false, snapshotHistoryFetched: false, capacityWeights: { module: 1, pmo: 0.5, ams: 0.25, cap: 5 }, capacityWeightsFetched: false, digestRecipients: { emails: [] }, digestRecipientsFetched: false, pipelineEntries: [], pipelineEntriesFetched: false, pipelineStageWeights: { 'Lead': 10, 'Qualified': 30, 'Proposal Sent': 50, 'Negotiation': 75, 'Won': 100, 'Lost': 0 }, pipelineStageWeightsFetched: false, implementationRagRules: { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true }, implementationRagRulesFetched: false, pipelineFilter: 'all', pipelineSort: 'created', selectedPipelineId: null, pipelineStats: null, pipelineStatsFetched: false, pendingPath: null, authMessage: null, integRailFilter: '', integRailSort: 'name', integMineOnly: false, lastActiveMap: {}, lastActiveFetched: false, viewAsRole: null, bulkUserMode: false, bulkUserSelected: new Set(), pomodoro: null, pomodoroModePref: 'simple' };
 
 try { S.sidebarCollapsed = localStorage.getItem('itk_sb_collapsed') === '1'; } catch (e) { }
 try { const r = localStorage.getItem('itk_recent'); if (r) S.recentlyViewed = JSON.parse(r); } catch (e) { }
@@ -358,17 +358,19 @@ async function fetchSnapshotHistory(days = 14) {
 // tile order + show/hide, stored in localStorage like dark-mode/sidebar
 // prefs already are. Registry is the default order/set — anything the
 // person hasn't customized yet just uses this.
+// Team Review tiles. The old portfolio tiles (critical-items,
+// health-scorecard, ams-workmix, severity-aging, phase-funnel,
+// financial-rollup, data-hygiene, blockers) were retired — none of them
+// survived a 5-minute-per-person review, and the AMS/financial ones belong
+// on their own pages. getDashLayout() already drops ids that are no longer
+// in this registry, so anyone with a saved custom layout heals silently.
 const DASH_TILE_REGISTRY = [
-  { id: 'critical-items', label: 'Critical Items' },
-  { id: 'health-scorecard', label: 'Portfolio Health Scorecard' },
-  { id: 'upcoming-deadlines', label: 'Upcoming Deadlines' },
-  { id: 'ams-workmix', label: 'AMS Work-Mix' },
-  { id: 'severity-aging', label: 'Severity & Aging' },
-  { id: 'phase-funnel', label: 'Phase-Stage Funnel' },
-  { id: 'financial-rollup', label: 'Financial Rollup' },
-  { id: 'data-hygiene', label: 'Data Hygiene Score' },
-  { id: 'blockers', label: 'Blockers / Dependencies' },
   { id: 'team-bandwidth', label: 'Team Bandwidth', adminOnly: true },
+  { id: 'person-panel', label: 'Selected Person', adminOnly: true },
+  { id: 'work-stages', label: 'Where Work Is Piling Up', adminOnly: true },
+  { id: 'aging', label: 'Time Since Last Update', adminOnly: true },
+  { id: 'needs-owner', label: 'Needs An Owner', adminOnly: true },
+  { id: 'upcoming-deadlines', label: 'Landing In 14 Days', adminOnly: true },
 ];
 function dashLayoutKey() { return `itk_dash_layout_${(S.user?.username || 'default').toLowerCase()}`; }
 function getDashLayout() {

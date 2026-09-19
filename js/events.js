@@ -140,6 +140,18 @@ document.addEventListener('click', async e => {
   if (act === 'sort-dash-attn') { const k = el.dataset.key; if (S.dashAttnSort.key === k) { S.dashAttnSort.dir = S.dashAttnSort.dir === 'asc' ? 'desc' : 'asc'; } else { S.dashAttnSort = { key: k, dir: 'asc' }; } render(); return; }
   if (act === 'dash-assignee-filter') { S.dashAssigneeFilter = el.dataset.key; render(); return; }
   if (act === 'dash-crit-filter') { S.dashCritFilter = el.dataset.key; render(); return; }
+  // ── Team Review (admin dashboard) ──
+  if (act === 'tr-pick') { S.dashPerson = el.dataset.key; render(); return; }
+  if (act === 'tr-filter') { S.dashFilter = S.dashFilter === el.dataset.key ? 'all' : el.dataset.key; render(); return; }
+  if (act === 'tr-call-start') { if (!can('admin')) return; S.dashCallMode = true; S.dashCallIdx = 0; render(); trStartTimer(); return; }
+  if (act === 'tr-call-end') { S.dashCallMode = false; trStopTimer(); render(); return; }
+  if (act === 'tr-call-prev') { if (S.dashCallIdx > 0) { S.dashCallIdx--; render(); trStartTimer(); } return; }
+  if (act === 'tr-call-next') {
+    // Last person: "Finish" ends the call rather than sticking on the final card.
+    const n = trCallOrderLength();
+    if (S.dashCallIdx >= n - 1) { S.dashCallMode = false; trStopTimer(); render(); showToast('Call wrapped ✓'); return; }
+    S.dashCallIdx++; render(); trStartTimer(); return;
+  }
   if (act === 'sort-dash-assignee') { const k = el.dataset.key; if (S.dashAssigneeSort.key === k) { S.dashAssigneeSort.dir = S.dashAssigneeSort.dir === 'asc' ? 'desc' : 'asc'; } else { S.dashAssigneeSort = { key: k, dir: 'desc' }; } render(); return; }
   if (act === 'dash-assignee-toggle') { const key = el.dataset.key; if (S.dashAssigneeExpanded.has(key)) S.dashAssigneeExpanded.delete(key); else S.dashAssigneeExpanded.add(key); render(); return; }
   if (act === 'dash-capacity-toggle') { const key = el.dataset.key; if (S.dashCapacityExpanded.has(key)) S.dashCapacityExpanded.delete(key); else S.dashCapacityExpanded.add(key); render(); return; }
@@ -361,6 +373,27 @@ document.addEventListener('click', async e => {
     ph.targetDate = document.getElementById('ip-target')?.value || '';
     ph.currentActivity = document.getElementById('ip-activity')?.value?.trim() || '';
     ph.nextAction = document.getElementById('ip-next')?.value?.trim() || '';
+    // ── Blocker / impediment (optional) ────────────────────────────
+    // blockerSince is stamped by the app, never typed, so "N days waiting"
+    // on the admin Team Review is real elapsed time rather than something
+    // anyone has to remember to maintain. Editing the text of an existing
+    // blocker keeps the original date (it's still the same impediment);
+    // clearing the box resets the whole set, which is how an item gets
+    // marked unblocked.
+    const blockerEl = document.getElementById('ip-blocker');
+    if (blockerEl) {
+      const blocker = blockerEl.value.trim();
+      const waitingOn = document.getElementById('ip-waiting-on')?.value?.trim() || '';
+      if (blocker && !waitingOn) { showToast('Add who this is waiting on, or clear the blocker box', 'error'); return; }
+      if (blocker) {
+        ph.blocker = blocker;
+        ph.waitingOn = waitingOn;
+        if (!prev.blocker || !prev.blockerSince) ph.blockerSince = todayStr();
+        else ph.blockerSince = prev.blockerSince;
+      } else {
+        delete ph.blocker; delete ph.waitingOn; delete ph.blockerSince;
+      }
+    }
     // All fields mandatory on save
     const missing = [];
     if (!ph.status) missing.push('Status');
@@ -1470,6 +1503,7 @@ let _st;
 let _ct;
 let _dat;
 let _dct;
+let _trst;
 let _adt;
 let _irft;
 document.addEventListener('input', e => {
@@ -1484,6 +1518,10 @@ document.addEventListener('input', e => {
   if (e.target.dataset?.act === 'dash-assignee-search') {
     clearTimeout(_dat); const v = e.target.value;
     _dat = setTimeout(() => { S.dashAssigneeSearch = v; render(); setTimeout(() => { const el = document.getElementById('dash-assignee-search-inp'); if (el) { el.focus(); try { el.setSelectionRange(v.length, v.length); } catch { } } }, 10); }, 120);
+  }
+  if (e.target.dataset?.act === 'tr-search') {
+    clearTimeout(_trst); const v = e.target.value;
+    _trst = setTimeout(() => { S.dashPersonSearch = v; render(); setTimeout(() => { const el = document.getElementById('dash-person-search-inp'); if (el) { el.focus(); try { el.setSelectionRange(v.length, v.length); } catch { } } }, 10); }, 120);
   }
   if (e.target.dataset?.act === 'dash-crit-search') {
     clearTimeout(_dct); const v = e.target.value;
@@ -1507,6 +1545,13 @@ document.addEventListener('keydown', e => {
     if (saveBtn) saveBtn.click();
     else showToast('Nothing to save on this page', 'info');
     return;
+  }
+  // Call Mode: arrow through people, Esc exits. Guarded so it never fires
+  // while someone is typing in a field.
+  if (S.dashCallMode && !['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName) && !e.target?.isContentEditable) {
+    if (e.key === 'ArrowRight') { e.preventDefault(); document.querySelector('[data-act="tr-call-next"]')?.click(); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); document.querySelector('[data-act="tr-call-prev"]')?.click(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); document.querySelector('[data-act="tr-call-end"]')?.click(); return; }
   }
   if (e.key === 'Enter' && S.view === 'login') document.querySelector('[data-act="login"]')?.click();
   if (e.key === 'Escape' && S.modal && !S.modal.busy) { S.modal = null; render(); return; }
