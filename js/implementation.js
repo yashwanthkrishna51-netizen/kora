@@ -85,18 +85,22 @@ function renderImplClientDetail(clientId) {
   ${pr.total > 0 ? `<div class="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-5"><div class="h-full bg-[#0e7490] rounded-full bar-fill" style="width:${pr.pct}%"></div></div>` : ''}
   <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden overflow-x-auto${bulk ? ' ring-2 ring-amber-300' : ''}" style="padding:18px 18px 22px;">
     <table class="text-sm" style="border-collapse:separate;border-spacing:6px 8px;table-layout:fixed;width:100%;min-width:900px;">
-      <colgroup><col style="width:150px;">${PHASES.map(() => '<col style="width:auto;">').join('')}</colgroup>
+      <colgroup><col style="width:190px;">${PHASES.map(() => '<col style="width:auto;">').join('')}</colgroup>
       <thead>
         <tr><th class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide sticky left-0 bg-white">Module</th>
         ${PHASES.map(ph => `<th class="text-center text-xs font-semibold text-gray-500 uppercase tracking-wide" style="font-size:10px;line-height:1.3;">${esc(ph)}</th>`).join('')}</tr>
       </thead>
       <tbody>
         ${(c.modules || []).length ? (c.modules || []).map((m, mi) => {
-        const moduleHeaderCell = `<td class="font-medium text-gray-900 whitespace-nowrap sticky left-0 bg-white">
-            <div class="flex items-center justify-between gap-2">
-              <div class="min-w-0">
-                <span>${esc(m.name)}</span>
-                <div class="text-[10px] font-normal text-gray-400 truncate">Effort ${esc(String(moduleWeight(m)))}${moduleWeightUnset(m) ? ' <span class="text-gray-300">(catalog default)</span>' : ''}${m.assignee ? ' · ' + esc(m.assignee) : ''}</div>
+        // Module names wrap rather than clip — "Helpdesk and Social Network"
+        // has nowhere to go in a fixed-width column with whitespace-nowrap.
+        // align-items:start keeps the ✎/✕ buttons on the first line when the
+        // name runs to two.
+        const moduleHeaderCell = `<td class="font-medium text-gray-900 sticky left-0 bg-white align-top">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0 flex-1">
+                <span class="block leading-tight" style="overflow-wrap:anywhere;" title="${esc(m.name)}">${esc(m.name)}</span>
+                <div class="text-[10px] font-normal text-gray-400 leading-tight mt-0.5">Effort ${esc(String(moduleWeight(m)))}${moduleWeightUnset(m) ? ' <span class="text-gray-300">(catalog default)</span>' : ''}${m.assignee ? ' · ' + esc(m.assignee) : ''}</div>
               </div>
               ${!bulk && can('editor') ? `<button data-act="modal-open" data-modal="edit-impl-module" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" title="Edit module name and effort weight" class="text-gray-200 hover:text-[#0e7490] transition text-xs leading-none shrink-0">✎</button>` : ''}
               ${!bulk && can('admin') ? `<button data-act="delete-impl-module" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" title="Delete module" class="text-gray-200 hover:text-rose-500 transition text-sm leading-none shrink-0">✕</button>` : ''}
