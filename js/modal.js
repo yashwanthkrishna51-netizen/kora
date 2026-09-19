@@ -178,10 +178,34 @@ function renderModal() {
     </div>`;
   } else if (m.type === 'add-impl-module') {
     title = 'Add Module';
+    const cat = S.moduleWeights || {};
+    const names = Object.keys(cat).sort();
     body = `<div class="space-y-3">
-      <div><label class="block text-xs font-medium text-gray-500 mb-1">Module Name *</label><input id="m1" type="text" placeholder="e.g. Core HR, Payroll, Leave & Attendance" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Module Name *</label>
+        <input id="m1" type="text" list="mw-catalog" data-act="module-name-typed" placeholder="e.g. Core HR, Payroll, Leave & Attendance" autocomplete="off" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+        ${names.length ? `<datalist id="mw-catalog">${names.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+        <p class="text-[11px] text-gray-400 mt-1">Pick an existing name to inherit its standard weight, or type a new one.</p>` : ''}
+      </div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Effort Weight *</label>
+        <input id="m2" type="number" step="0.25" min="0.25" max="50" value="1" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+        <p class="text-[11px] text-gray-400 mt-1">How much of one person's capacity this module takes. Change it later from the module row when actual effort turns out different.</p>
+      </div>
       <p class="text-xs text-gray-400">All ${PHASES.length} phases (BPU through Hypercare) will start as "Not Started" for this module.</p>
     </div>`;
+  } else if (m.type === 'edit-impl-module') {
+    title = 'Edit Module';
+    const c0 = S.clients.find(x => x.id === m.cid);
+    const mod0 = (c0?.modules || []).find(x => x.id === m.mid);
+    const cat0 = Number((S.moduleWeights || {})[mod0?.name]);
+    body = `<div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Module Name *</label><input id="m1" type="text" value="${esc(mod0?.name || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Effort Weight *</label>
+        <input id="m2" type="number" step="0.25" min="0.25" max="50" value="${esc(String(mod0 ? moduleWeight(mod0) : 1))}" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
+        <p class="text-[11px] text-gray-400 mt-1">${mod0 && moduleWeightUnset(mod0) ? `Currently running on the catalog default${Number.isFinite(cat0) && cat0 > 0 ? ` of ${cat0}` : ''}. Saving here sets a weight on this module specifically.` : `Set on this module, so the catalog default no longer applies to it.`}</p>
+      </div>
+      <p class="text-xs text-gray-400">Changing the weight updates Team Bandwidth for everyone assigned to this module.</p>
+    </div>`;
+    btnLabel = 'Save';
   } else if (m.type === 'edit-impl-client') {
     title = 'Edit Implementation Client';
     body = `<div class="space-y-3">

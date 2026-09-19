@@ -198,6 +198,59 @@ document.addEventListener('click', async e => {
     finally { clearBtnBusy(el); }
     return;
   }
+  if (act === 'save-capacity-weights-admin') {
+    if (!can('admin')) return;
+    const pmo = Number(document.getElementById('cw-pmo')?.value);
+    const ams = Number(document.getElementById('cw-ams')?.value);
+    const cap = Number(document.getElementById('cw-cap')?.value);
+    for (const [label, v] of [['PMO', pmo], ['AMS', ams], ['Cap', cap]]) {
+      if (!Number.isFinite(v) || v <= 0 || v > 50) { showToast(`Invalid ${label} weight`, 'error'); return; }
+    }
+    setBtnBusy(el, 'Saving…');
+    // `module` is kept in the stored object for backward compatibility — the
+    // server still validates all four keys — but nothing reads it any more.
+    try { await saveCapacityWeights({ ...S.capacityWeights, pmo, ams, cap }); showToast('Capacity weights saved ✓'); render(); }
+    catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    finally { clearBtnBusy(el); }
+    return;
+  }
+  if (act === 'save-module-weights') {
+    if (!can('admin')) return;
+    const next = {};
+    for (const inp of document.querySelectorAll('[data-mwname]')) {
+      const nm = inp.dataset.mwname;
+      const v = Number(inp.value);
+      if (!Number.isFinite(v) || v <= 0 || v > 50) { showToast(`Invalid weight for ${nm}`, 'error'); return; }
+      next[nm] = v;
+    }
+    setBtnBusy(el, 'Saving…');
+    try { await saveModuleWeights(next); showToast('Module catalog saved ✓'); render(); }
+    catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    finally { clearBtnBusy(el); }
+    return;
+  }
+  if (act === 'apply-module-weights') {
+    if (!can('admin')) return;
+    // One-time backfill: stamp the catalog weight onto every module that has
+    // no weight of its own. Modules that already carry one are left alone —
+    // an explicit weight always outranks the catalog.
+    const cat = S.moduleWeights || {};
+    const targets = [];
+    S.clients.filter(c => c.modules !== undefined).forEach(c => (c.modules || []).forEach(m => {
+      if (!moduleWeightUnset(m)) return;
+      const w = Number(cat[(m.name || '').trim()]);
+      targets.push({ c, m, w: Number.isFinite(w) && w > 0 ? w : 1 });
+    }));
+    if (!targets.length) { showToast('Every module already has its own weight'); return; }
+    const clientCount = new Set(targets.map(t => t.c.id)).size;
+    if (!confirm(`Set a weight on ${targets.length} module${targets.length !== 1 ? 's' : ''} across ${clientCount} client${clientCount !== 1 ? 's' : ''}, using the catalog value for each name (1 where the catalog has none)?\n\nModules that already carry their own weight are not touched. This changes Team Bandwidth.`)) return;
+    targets.forEach(t => { t.m.effort = t.w; });
+    setBtnBusy(el, 'Applying…');
+    try { await saveClients(`Backfill module weights (${targets.length} modules)`, [...new Set(targets.map(t => t.c.id))]); showToast(`Weight set on ${targets.length} module${targets.length !== 1 ? 's' : ''} ✓`); render(); }
+    catch (err) { targets.forEach(t => { delete t.m.effort; }); showToast('Failed: ' + err.message, 'error'); render(); }
+    finally { clearBtnBusy(el); }
+    return;
+  }
   if (act === 'bulk-remove-governance') {
     if (!can('admin')) return;
     const targets = S.clients.filter(c => c.modules !== undefined && (c.modules || []).some(m => m.name === 'Governance'));
@@ -1295,11 +1348,29 @@ document.addEventListener('click', async e => {
     } else if (m.type === 'add-impl-module') {
       const name = document.getElementById('m1')?.value.trim();
       if (!name) { showToast('Name required', 'error'); return; }
+      const effort = Number(document.getElementById('m2')?.value);
+      if (!Number.isFinite(effort) || effort <= 0 || effort > 50) { showToast('Effort weight is required (between 0 and 50)', 'error'); return; }
       const c = S.clients.find(x => x.id === m.cid); if (!c) return;
-      const nm = { id: uid(), name, phases: PHASES.map(ph => ({ name: ph, status: 'Not Started', startDate: '', targetDate: '', updates: [] })) };
+      const nm = { id: uid(), name, effort, phases: PHASES.map(ph => ({ name: ph, status: 'Not Started', startDate: '', targetDate: '', updates: [] })) };
       if (!c.modules) c.modules = []; c.modules.push(nm); S.modal = { ...m, busy: true }; render();
-      try { await saveClients(`Add module ${name}`, [c.id]); S.modal = null; showToast(`${name} added`); navigate('impl-client-detail', { clientId: c.id }); }
+      try { await saveClients(`Add module ${name} (effort ${effort})`, [c.id]); S.modal = null; showToast(`${name} added`); navigate('impl-client-detail', { clientId: c.id }); }
       catch (err) { c.modules.pop(); S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
+    } else if (m.type === 'edit-impl-module') {
+      const name = document.getElementById('m1')?.value.trim();
+      if (!name) { showToast('Name required', 'error'); return; }
+      const effort = Number(document.getElementById('m2')?.value);
+      if (!Number.isFinite(effort) || effort <= 0 || effort > 50) { showToast('Effort weight is required (between 0 and 50)', 'error'); return; }
+      const c = S.clients.find(x => x.id === m.cid); if (!c) return;
+      const mod = (c.modules || []).find(x => x.id === m.mid); if (!mod) return;
+      const snapshot = { name: mod.name, effort: mod.effort };
+      mod.name = name; mod.effort = effort;
+      S.modal = { ...m, busy: true }; render();
+      try { await saveClients(`Edit module ${name} (effort ${effort})`, [c.id]); S.modal = null; showToast('Module saved ✓'); navigate('impl-client-detail', { clientId: c.id }); }
+      catch (err) {
+        mod.name = snapshot.name;
+        if (snapshot.effort === undefined) delete mod.effort; else mod.effort = snapshot.effort;
+        S.modal = null; showToast('Failed: ' + err.message, 'error'); render();
+      }
     } else if (m.type === 'edit-impl-client') {
       const c = S.clients.find(x => x.id === m.cid); if (!c) return;
       const assignee = document.getElementById('m1')?.value || '';
@@ -1518,6 +1589,14 @@ document.addEventListener('input', e => {
   if (e.target.dataset?.act === 'dash-assignee-search') {
     clearTimeout(_dat); const v = e.target.value;
     _dat = setTimeout(() => { S.dashAssigneeSearch = v; render(); setTimeout(() => { const el = document.getElementById('dash-assignee-search-inp'); if (el) { el.focus(); try { el.setSelectionRange(v.length, v.length); } catch { } } }, 10); }, 120);
+  }
+  // Typing / picking a catalogued module name pre-fills its standard weight.
+  // Writes straight to the input — never render(), which would blow away
+  // what is being typed.
+  if (e.target.dataset?.act === 'module-name-typed') {
+    const w = Number((S.moduleWeights || {})[e.target.value.trim()]);
+    const wEl = document.getElementById('m2');
+    if (wEl && Number.isFinite(w) && w > 0) wEl.value = w;
   }
   if (e.target.dataset?.act === 'tr-search') {
     clearTimeout(_trst); const v = e.target.value;

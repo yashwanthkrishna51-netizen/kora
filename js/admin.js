@@ -15,6 +15,8 @@ function adminSearchBar(placeholder){
 
 function renderAdminImpl(){
   fetchImplementationRagRules();
+  fetchCapacityWeights();
+  fetchModuleWeights();
   const implClients=S.clients.filter(c=>c.modules!==undefined);
   const q=S.adminSearch.toLowerCase();
   const filtered=q?implClients.filter(c=>c.name.toLowerCase().includes(q)):implClients;
@@ -49,6 +51,62 @@ function renderAdminImpl(){
     </div>
     <button data-act="save-impl-rag-rules" class="text-sm font-semibold px-4 py-2 rounded-xl bg-[#0e7490] text-white hover:bg-[#0d3d4f]">Save RAG Rules</button>
   </div>
+
+  ${(()=>{
+    const cw=S.capacityWeights;
+    // Every unique module name in use, with how many clients carry one and
+    // how many of those are still running on the catalog default.
+    const catalog={};
+    implClients.forEach(c=>(c.modules||[]).forEach(m=>{
+      const k=(m.name||'').trim(); if(!k) return;
+      if(!catalog[k]) catalog[k]={name:k,count:0,unset:0};
+      catalog[k].count++;
+      if(moduleWeightUnset(m)) catalog[k].unset++;
+    }));
+    const rows=Object.values(catalog).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
+    const totalUnset=rows.reduce((a,r)=>a+r.unset,0);
+    const saved=S.moduleWeights||{};
+    return `
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
+    <h2 class="text-base font-bold text-gray-900 mb-1">Capacity Weights</h2>
+    <p class="text-xs text-gray-500 mb-4">Feeds Team Bandwidth on the dashboard. Module effort is no longer a flat number here — it comes from the catalog below, or from a weight set on the module itself.</p>
+    <div class="grid grid-cols-3 gap-3 mb-4 max-w-xl">
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">PMO per client</label><input id="cw-pmo" type="number" step="0.25" min="0.25" max="50" value="${cw.pmo}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">AMS per open ticket</label><input id="cw-ams" type="number" step="0.25" min="0.25" max="50" value="${cw.ams}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Capacity cap per person</label><input id="cw-cap" type="number" step="0.5" min="0.5" max="50" value="${cw.cap}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+    </div>
+    <button data-act="save-capacity-weights-admin" class="text-sm font-semibold px-4 py-2 rounded-xl bg-[#0e7490] text-white hover:bg-[#0d3d4f]">Save Capacity Weights</button>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
+    <h2 class="text-base font-bold text-gray-900 mb-1">Module Weight Catalog</h2>
+    <p class="text-xs text-gray-500 mb-1">Every unique module name across your ${implClients.length} Implementation client${implClients.length!==1?'s':''}. The weight here is the <b>default</b> applied when a module of that name is created.</p>
+    <p class="text-xs text-gray-400 mb-4">A weight set on an individual module always wins, so editing this table never silently re-weights work already running. Use "Apply to unset modules" for the one-time backfill.</p>
+    ${rows.length?`
+    <div class="border border-gray-100 rounded-xl overflow-hidden mb-3">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100"><tr>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Module</th>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Used by</th>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">On default</th>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Standard weight</th>
+        </tr></thead>
+        <tbody class="divide-y divide-gray-50">
+          ${rows.map((r,i)=>`<tr>
+            <td class="px-3 py-2 font-medium text-gray-900">${esc(r.name)}</td>
+            <td class="px-3 py-2 text-gray-500">${r.count} client${r.count!==1?'s':''}</td>
+            <td class="px-3 py-2">${r.unset?`<span class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5">${r.unset}</span>`:`<span class="text-xs text-gray-300">—</span>`}</td>
+            <td class="px-3 py-2"><input data-mwname="${esc(r.name)}" id="mw-${i}" type="number" step="0.25" min="0.25" max="50" value="${esc(String(saved[r.name] ?? 1))}" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button data-act="save-module-weights" class="text-sm font-semibold px-4 py-2 rounded-xl bg-[#0e7490] text-white hover:bg-[#0d3d4f]">Save Catalog</button>
+      <button data-act="apply-module-weights" class="text-sm font-semibold px-4 py-2 rounded-xl ${totalUnset?'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100':'bg-gray-50 border border-gray-200 text-gray-400'} transition">Apply to unset modules${totalUnset?` (${totalUnset})`:' (none)'}</button>
+    </div>`:`<p class="text-sm text-gray-400">No modules yet.</p>`}
+  </div>`;
+  })()}
 
   <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
     <h2 class="text-base font-bold text-gray-900 mb-1">Governance Module</h2>

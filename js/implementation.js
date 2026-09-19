@@ -96,8 +96,9 @@ function renderImplClientDetail(clientId) {
             <div class="flex items-center justify-between gap-2">
               <div class="min-w-0">
                 <span>${esc(m.name)}</span>
-                ${(m.effort !== undefined || m.assignee) ? `<div class="text-[10px] font-normal text-gray-400 truncate">${m.effort !== undefined ? `Effort ${esc(String(m.effort))}` : ''}${m.effort !== undefined && m.assignee ? ' · ' : ''}${m.assignee ? esc(m.assignee) : ''}</div>` : ''}
+                <div class="text-[10px] font-normal text-gray-400 truncate">Effort ${esc(String(moduleWeight(m)))}${moduleWeightUnset(m) ? ' <span class="text-gray-300">(catalog default)</span>' : ''}${m.assignee ? ' · ' + esc(m.assignee) : ''}</div>
               </div>
+              ${!bulk && can('editor') ? `<button data-act="modal-open" data-modal="edit-impl-module" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" title="Edit module name and effort weight" class="text-gray-200 hover:text-[#0e7490] transition text-xs leading-none shrink-0">✎</button>` : ''}
               ${!bulk && can('admin') ? `<button data-act="delete-impl-module" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" title="Delete module" class="text-gray-200 hover:text-rose-500 transition text-sm leading-none shrink-0">✕</button>` : ''}
             </div>
           </td>`;

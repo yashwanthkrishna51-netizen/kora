@@ -134,11 +134,10 @@ function renderDashboard() {
     <div class="kd-card-head kd-wrap">
       <div class="min-w-0">
         <h2 class="kd-card-title">Team bandwidth</h2>
-        <p class="kd-card-subline">Grouped by room to take on work, not by output. Pick someone to see their items. Module ${cw.module} · PMO ${cw.pmo} · AMS ${cw.ams} · cap ${cw.cap}</p>
+        <p class="kd-card-subline">Grouped by room to take on work, not by output. Pick someone to see their items. Module effort per module · PMO ${cw.pmo} · AMS ${cw.ams} · cap ${cw.cap} — set in Admin → Implementations</p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
         <input type="text" id="dash-person-search-inp" data-act="tr-search" value="${esc(S.dashPersonSearch || '')}" placeholder="Search a person…" class="kd-search"/>
-        <button data-act="modal-open" data-modal="capacity-weights" class="kd-btn kd-btn-outline kd-btn-sm">Weights</button>
       </div>
     </div>
     ${model.overCap.length ? `<div class="tr-band">
@@ -332,15 +331,27 @@ function trBuildModel(implClients, allIntegrations, openAmsEntries) {
     capacity[nm][type] += amount; capacity[nm].total += amount;
     if (detail) capacity[nm].details.push({ type, amount, detail });
   };
+  // A module contributes its OWN weight (instance effort, else the catalog
+  // default, else 1) to every person attached to it — module owner or phase
+  // assignee — counted once each. The old flat cw.module weight is retired;
+  // it was also being added ON TOP of m.effort, which double-counted anyone
+  // who both owned a module and worked a phase in it (every Governance
+  // module, once its phase moved off Not Started).
   const seenModulePairs = new Set();
-  implClients.forEach(c => (c.modules || []).forEach(m => (m.phases || []).forEach(ph => {
-    if (ph.status === 'Completed' || ph.status === 'Not Started' || !ph.assignee) return;
-    const key = `${ph.assignee.trim()}::${m.id}`;
-    if (seenModulePairs.has(key)) return; seenModulePairs.add(key);
-    capAdd(ph.assignee, 'module', cw.module, `${m.name} · ${c.name}`);
-  })));
   implClients.forEach(c => (c.modules || []).forEach(m => {
-    if (m.assignee && m.effort) capAdd(m.assignee, 'module', Number(m.effort) || 0, `${m.name} (module) · ${c.name}`);
+    const w = moduleWeight(m);
+    const owners = new Set();
+    if (m.assignee) owners.add(m.assignee.trim());
+    (m.phases || []).forEach(ph => {
+      if (ph.status === 'Completed' || ph.status === 'Not Started' || !ph.assignee) return;
+      owners.add(ph.assignee.trim());
+    });
+    owners.forEach(name => {
+      if (!name) return;
+      const key = `${name}::${m.id}`;
+      if (seenModulePairs.has(key)) return; seenModulePairs.add(key);
+      capAdd(name, 'module', w, `${m.name} · ${c.name}`);
+    });
   }));
   const pmoFor = {};
   implClients.forEach(c => {

@@ -1,7 +1,7 @@
 const KOGNOZ_LOGO = "/kognoz_Iogo.png";
 let _bgRefreshTimer = null; // Phase 2 staleness-reduction poll, started on login, stopped on logout
 // ─── STATE ────────────────────────────────────────────────────────
-const S = { user: null, clients: [], archivedClients: [], users: [], usersForDropdown: [], shas: { clients: null, users: null }, sessionToken: null, view: 'login', params: {}, adminTab: 'integrations', filter: 'all', search: '', modal: null, toast: null, sidebarCollapsed: false, mobileSidebarOpen: false, sidebarClientsOpen: false, sort: { key: 'name', dir: 'asc' }, editingTimelineId: null, expandedHistory: new Set(), amsFrom: '', amsTo: '', amsQuick: '', editingAmsEntryId: null, expandedAmsHistory: new Set(), selectedAmsEntryId: null, selectedIntegId: null, openExportMenu: null, cmdPaletteOpen: false, cmdQuery: '', cmdSelectedIdx: 0, recentlyViewed: [], darkMode: false, shortcutsHelpOpen: false, bulkImplMode: false, bulkImplCid: null, bulkSelected: new Set(), offlineMode: false, bulkIntegMode: false, bulkIntegCid: null, bulkIntegSelected: new Set(), dashAttnSort: { key: 'reason', dir: 'desc' }, dashClientSort: { key: 'name', dir: 'asc' }, dashAssigneeSort: { key: 'total', dir: 'desc' }, dashAssigneeSearch: '', dashAssigneeExpanded: new Set(), dashCapacityExpanded: new Set(), dashAssigneeFilter: 'all', dashCritSearch: '', dashCritFilter: 'all', dashPerson: null, dashPersonSearch: '', dashFilter: 'all', dashCallMode: false, dashCallIdx: 0, adminSearch: '', auditRows: [], auditTotal: 0, auditPage: 0, auditPageSize: 50, auditFrom: '', auditTo: '', auditUser: '', auditSearch: '', auditLoading: false, auditLoaded: false, snapshotHistory: [], snapshotChecked: false, snapshotHistoryFetched: false, capacityWeights: { module: 1, pmo: 0.5, ams: 0.25, cap: 5 }, capacityWeightsFetched: false, digestRecipients: { emails: [] }, digestRecipientsFetched: false, pipelineEntries: [], pipelineEntriesFetched: false, pipelineStageWeights: { 'Lead': 10, 'Qualified': 30, 'Proposal Sent': 50, 'Negotiation': 75, 'Won': 100, 'Lost': 0 }, pipelineStageWeightsFetched: false, implementationRagRules: { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true }, implementationRagRulesFetched: false, pipelineFilter: 'all', pipelineSort: 'created', selectedPipelineId: null, pipelineStats: null, pipelineStatsFetched: false, pendingPath: null, authMessage: null, integRailFilter: '', integRailSort: 'name', integMineOnly: false, lastActiveMap: {}, lastActiveFetched: false, viewAsRole: null, bulkUserMode: false, bulkUserSelected: new Set(), pomodoro: null, pomodoroModePref: 'simple' };
+const S = { user: null, clients: [], archivedClients: [], users: [], usersForDropdown: [], shas: { clients: null, users: null }, sessionToken: null, view: 'login', params: {}, adminTab: 'integrations', filter: 'all', search: '', modal: null, toast: null, sidebarCollapsed: false, mobileSidebarOpen: false, sidebarClientsOpen: false, sort: { key: 'name', dir: 'asc' }, editingTimelineId: null, expandedHistory: new Set(), amsFrom: '', amsTo: '', amsQuick: '', editingAmsEntryId: null, expandedAmsHistory: new Set(), selectedAmsEntryId: null, selectedIntegId: null, openExportMenu: null, cmdPaletteOpen: false, cmdQuery: '', cmdSelectedIdx: 0, recentlyViewed: [], darkMode: false, shortcutsHelpOpen: false, bulkImplMode: false, bulkImplCid: null, bulkSelected: new Set(), offlineMode: false, bulkIntegMode: false, bulkIntegCid: null, bulkIntegSelected: new Set(), dashAttnSort: { key: 'reason', dir: 'desc' }, dashClientSort: { key: 'name', dir: 'asc' }, dashAssigneeSort: { key: 'total', dir: 'desc' }, dashAssigneeSearch: '', dashAssigneeExpanded: new Set(), dashCapacityExpanded: new Set(), dashAssigneeFilter: 'all', dashCritSearch: '', dashCritFilter: 'all', dashPerson: null, dashPersonSearch: '', dashFilter: 'all', dashCallMode: false, dashCallIdx: 0, adminSearch: '', auditRows: [], auditTotal: 0, auditPage: 0, auditPageSize: 50, auditFrom: '', auditTo: '', auditUser: '', auditSearch: '', auditLoading: false, auditLoaded: false, snapshotHistory: [], snapshotChecked: false, snapshotHistoryFetched: false, capacityWeights: { module: 1, pmo: 0.5, ams: 0.25, cap: 5 }, capacityWeightsFetched: false, digestRecipients: { emails: [] }, digestRecipientsFetched: false, pipelineEntries: [], pipelineEntriesFetched: false, pipelineStageWeights: { 'Lead': 10, 'Qualified': 30, 'Proposal Sent': 50, 'Negotiation': 75, 'Won': 100, 'Lost': 0 }, pipelineStageWeightsFetched: false, implementationRagRules: { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true }, implementationRagRulesFetched: false, moduleWeights: {}, moduleWeightsFetched: false, pipelineFilter: 'all', pipelineSort: 'created', selectedPipelineId: null, pipelineStats: null, pipelineStatsFetched: false, pendingPath: null, authMessage: null, integRailFilter: '', integRailSort: 'name', integMineOnly: false, lastActiveMap: {}, lastActiveFetched: false, viewAsRole: null, bulkUserMode: false, bulkUserSelected: new Set(), pomodoro: null, pomodoroModePref: 'simple' };
 
 try { S.sidebarCollapsed = localStorage.getItem('itk_sb_collapsed') === '1'; } catch (e) { }
 try { const r = localStorage.getItem('itk_recent'); if (r) S.recentlyViewed = JSON.parse(r); } catch (e) { }
@@ -469,6 +469,42 @@ async function saveImplementationRagRules(newValue) {
   if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Failed to save RAG rules'); }
   S.implementationRagRules = newValue;
 }
+// ── Module weight catalog ─────────────────────────────────────────
+// { "<module name>": <standard weight> }. This is the DEFAULT used when a
+// module of that name is created — the module's own `effort` is the truth
+// once set, so editing the catalog never silently re-weights live modules
+// across clients. moduleWeight() below is the single resolver everything
+// (capacity, admin, exports) should go through.
+async function fetchModuleWeights() {
+  if (S.moduleWeightsFetched) return;
+  S.moduleWeightsFetched = true;
+  try {
+    const r = await fetch('/api/ops?op=settings', { headers: { 'x-session-token': S.sessionToken || '' } });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.moduleWeights) { S.moduleWeights = d.moduleWeights; render(); }
+  } catch (e) {/* empty catalog is a valid state */ }
+}
+async function saveModuleWeights(newValue) {
+  const r = await fetch('/api/ops?op=settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ key: 'module_weights', value: newValue }) });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Failed to save module weights'); }
+  S.moduleWeights = newValue;
+}
+// Instance weight wins, catalog is the fallback, 1 is the floor.
+function moduleWeight(m) {
+  const own = Number(m?.effort);
+  if (Number.isFinite(own) && own > 0) return own;
+  const cat = Number((S.moduleWeights || {})[m?.name]);
+  if (Number.isFinite(cat) && cat > 0) return cat;
+  return 1;
+}
+// True when this module is running on the catalog default rather than a
+// weight someone actually set on it — what the backfill button targets.
+function moduleWeightUnset(m) {
+  const own = Number(m?.effort);
+  return !(Number.isFinite(own) && own > 0);
+}
+
 async function fetchPipelineStats(force = false) {
   if (S.pipelineStatsFetched && !force) return;
   S.pipelineStatsFetched = true;

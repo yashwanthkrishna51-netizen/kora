@@ -71,7 +71,7 @@ async function handleAudit(req, res, env, check) {
 }
 
 // ─── op=settings — verbatim from the current api/settings.js ──────────
-const SETTINGS_ALLOWED_KEYS = ['capacity_weights', 'digest_recipients', 'pipeline_stage_weights', 'implementation_rag_rules'];
+const SETTINGS_ALLOWED_KEYS = ['capacity_weights', 'digest_recipients', 'pipeline_stage_weights', 'implementation_rag_rules', 'module_weights'];
 const DEFAULT_CAPACITY_WEIGHTS = { module: 1, pmo: 0.5, ams: 0.25, cap: 5 };
 const DEFAULT_DIGEST_RECIPIENTS = { emails: [] };
 // Default win-probability % per stage — admin-editable via the Pipeline
@@ -99,18 +99,20 @@ async function handleSettings(req, res, env, check) {
 
   if (req.method === 'GET') {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?key=in.(capacity_weights,digest_recipients,pipeline_stage_weights,implementation_rag_rules)&select=*`, { headers: sbHeaders });
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?key=in.(capacity_weights,digest_recipients,pipeline_stage_weights,implementation_rag_rules,module_weights)&select=*`, { headers: sbHeaders });
       if (!r.ok) return res.status(r.status).json({ error: 'Settings read error' });
       const rows = await r.json();
       const cw = rows.find(row => row.key === 'capacity_weights')?.value || DEFAULT_CAPACITY_WEIGHTS;
       const dr = rows.find(row => row.key === 'digest_recipients')?.value || DEFAULT_DIGEST_RECIPIENTS;
       const psw = rows.find(row => row.key === 'pipeline_stage_weights')?.value || DEFAULT_PIPELINE_STAGE_WEIGHTS;
       const irr = rows.find(row => row.key === 'implementation_rag_rules')?.value || DEFAULT_IMPLEMENTATION_RAG_RULES;
+      const mw = rows.find(row => row.key === 'module_weights')?.value || {};
       return res.status(200).json({
         capacityWeights: { ...DEFAULT_CAPACITY_WEIGHTS, ...cw },
         digestRecipients: { ...DEFAULT_DIGEST_RECIPIENTS, ...dr },
         pipelineStageWeights: { ...DEFAULT_PIPELINE_STAGE_WEIGHTS, ...psw },
         implementationRagRules: { ...DEFAULT_IMPLEMENTATION_RAG_RULES, ...irr },
+        moduleWeights: mw,
       });
     } catch (err) {
       return serverError(res, err, 'ops.js settings GET');
@@ -129,6 +131,18 @@ async function handleSettings(req, res, env, check) {
       for (const k of ['module', 'pmo', 'ams', 'cap']) {
         const n = Number(value[k]);
         if (!Number.isFinite(n) || n <= 0 || n > 50) return res.status(400).json({ error: `Invalid value for ${k}` });
+      }
+    }
+    if (key === 'module_weights') {
+      // { "<module name>": <weight> } — the standard effort for a module name,
+      // used as the default when a module of that name is created. Per-module
+      // overrides live on the module itself, not here.
+      const entries = Object.entries(value);
+      if (entries.length > 300) return res.status(400).json({ error: 'Too many modules (max 300)' });
+      for (const [name, w] of entries) {
+        if (typeof name !== 'string' || !name.trim() || name.length > 120) return res.status(400).json({ error: `Invalid module name: ${String(name).slice(0, 40)}` });
+        const n = Number(w);
+        if (!Number.isFinite(n) || n <= 0 || n > 50) return res.status(400).json({ error: `Invalid weight for ${name} (must be between 0 and 50)` });
       }
     }
     if (key === 'digest_recipients') {
