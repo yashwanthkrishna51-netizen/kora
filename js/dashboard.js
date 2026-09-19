@@ -323,6 +323,15 @@ function renderDashboard() {
       if (seenModulePairs.has(key)) return; seenModulePairs.add(key);
       capAdd(ph.assignee, 'module', cw.module, `${m.name} · ${c.name}`);
     })));
+    // Module-level effort (e.g. the default Governance module: effort=1,
+    // assigned to the client's Master Assignee) — counted separately from
+    // the phase-driven loop above, since it's a standing responsibility, not
+    // tied to any one phase's status. Uses the module's own effort value
+    // directly as the capacity amount (same convention as an integration's
+    // effortWeight), so "effort = 1" means "1 unit of this person's capacity".
+    implClients.forEach(c => (c.modules || []).forEach(m => {
+      if (m.assignee && m.effort) capAdd(m.assignee, 'module', Number(m.effort) || 0, `${m.name} (module) · ${c.name}`);
+    }));
     implClients.forEach(c => { if (c.masterAssignee) capAdd(c.masterAssignee, 'pmo', cw.pmo, `PMO · ${c.name}`); });
     all.filter(i => !['Completed', 'Cancelled'].includes(i.status)).forEach(i => { if (i.assignee) capAdd(i.assignee, 'integ', i.effortWeight ?? 0.5, `${i.name} · ${i.clientName}`); });
     openAmsEntries.forEach(e => { const rb = entryRaisedBy(e); if (rb && rb !== '—') capAdd(rb, 'ams', cw.ams, `${e.description || 'AMS ticket'} · ${e.clientName}`); });

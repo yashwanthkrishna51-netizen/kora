@@ -8,6 +8,7 @@ function implProgress(client) {
 // which now also handles the bare "no client selected yet" case ───
 function renderImplClientDetail(clientId) {
   fetchImplementationRagRules();
+  const forceRedCells = !!(S.implementationRagRules || {}).forceRed;
   const implClients = S.clients.filter(x => x.modules !== undefined);
   const c = S.clients.find(x => x.id === clientId) || implClients[0];
   if (!c) return `<div class="k-page fade"><div class="bg-white rounded-2xl border border-gray-100 text-center py-16 text-gray-400 text-sm">${emptyIcon('inbox')}No implementation clients yet. <button data-act="modal-open" data-modal="add-impl-client" class="text-[#0e7490] font-medium ml-1">Add one</button></div></div>`;
@@ -94,10 +95,14 @@ function renderImplClientDetail(clientId) {
         const isDone = ph.status === 'Completed';
         const key = `${m.id}:${phName}`;
         const isSel = sel.has(key);
-        const bg = ph.status === 'Not Started' ? '#e5e7eb' : `#${SHEX[ph.status] || '64748b'}`;
+        // Cell color: normal per-status color, unless the admin RAG override
+        // (forceRed) is on — then every cell shows red, irrespective of its
+        // actual status, matching the client-level RAG override above. This
+        // is purely a display override; ph.status itself is never touched.
+        const bg = forceRedCells ? 'var(--red)' : (ph.status === 'Not Started' ? '#e5e7eb' : `#${SHEX[ph.status] || '64748b'}`);
         const overdue = ph.targetDate && !isDone && new Date(ph.targetDate) < new Date();
         const initialsTxt = ph.assignee ? initials(ph.assignee) : '';
-        const initialsColor = ph.status === 'Not Started' ? '#9ca3af' : '#ffffff';
+        const initialsColor = (!forceRedCells && ph.status === 'Not Started') ? '#9ca3af' : '#ffffff';
         const initialsLabel = initialsTxt ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${initialsColor};pointer-events:none;">${esc(initialsTxt)}</span>` : '';
         const tip = `<div class="heat-tip">
               <div class="tip-title">${esc(phName)}</div>
