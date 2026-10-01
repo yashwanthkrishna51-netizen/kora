@@ -165,9 +165,15 @@ function renderBreadcrumb() {
     return `${sep}<a data-act="${cr.act}"${cr.id ? ` data-id="${esc(cr.id)}"` : ''} style="cursor:pointer;">${esc(cr.label)}</a>`;
   }).join('')}</div>`;
 }
+let _lastRenderKey = null;
 function render() {
   const app = document.getElementById('app');
   if (!app) return;
+  // Re-rendering the same view (inline edit, data landing) shouldn't replay
+  // the page fade-in — that replay is the "blink". Real navigation still fades.
+  const renderKey = S.view + '|' + JSON.stringify(S.params || {});
+  app.classList.toggle('k-no-fade', renderKey === _lastRenderKey);
+  _lastRenderKey = renderKey;
   if (!S.user || S.view === 'login') { app.innerHTML = renderLogin(); return; }
   let content = '';
   if (S.view === 'dashboard') content = renderDashboard();

@@ -1243,6 +1243,10 @@ th[data-sort]:hover {
   animation: fade-in 200ms cubic-bezier(.2, .7, .3, 1);
 }
 
+#app.k-no-fade .fade:not(.k-modal-overlay):not(#cmdp-overlay) {
+  animation: none;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

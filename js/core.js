@@ -303,9 +303,11 @@ function buildSnapshotRows() {
   });
 }
 async function ensureSnapshotCaptured() {
-  const today = todayStr();
   if (S.snapshotChecked) return;
   S.snapshotChecked = true;
+  // In-memory flag resets on every refresh, so also throttle across reloads:
+  // the server upserts by date, an hourly refresh of today's row is plenty.
+  try { const last = +localStorage.getItem('itk_snap_at') || 0; if (Date.now() - last < 3600000) return; localStorage.setItem('itk_snap_at', String(Date.now())); } catch (e) { }
   try {
     const rows = buildSnapshotRows();
     if (!rows.length) return;
@@ -341,7 +343,7 @@ async function loadLastActive() {
     render();
   } catch (e) {/* non-critical, table just shows "Never" */ }
 }
-async function fetchSnapshotHistory(days = 14) {
+async function fetchSnapshotHistory(days = 14, quiet = false) {
   if (S.snapshotHistoryFetched) return;
   S.snapshotHistoryFetched = true;
   try {
@@ -350,7 +352,7 @@ async function fetchSnapshotHistory(days = 14) {
     if (!r.ok) return;
     const d = await r.json();
     S.snapshotHistory = d.rows || [];
-    render();
+    if (!quiet) render();
   } catch (e) {/* trend is a nice-to-have, never block on it */ }
 }
 // ─── DASHBOARD TILE CUSTOMIZATION ──────────────────────────────────
@@ -389,7 +391,16 @@ function saveDashLayout(tileOrder) {
   try { localStorage.setItem(dashLayoutKey(), JSON.stringify(tileOrder.map(t => ({ id: t.id, visible: t.visible })))); } catch (e) { }
 }
 
-async function fetchCapacityWeights() {
+// Fetched during boot alongside clients/users so the dashboard's first
+// render already has them — otherwise each one lands later and re-renders.
+function prefetchBootExtras() {
+  // Capped so a slow/hung extras call never holds up the first render.
+  return Promise.race([
+    Promise.all([fetchSnapshotHistory(14, true), fetchCapacityWeights(true)]).catch(() => { }),
+    new Promise(r => setTimeout(r, 4000)),
+  ]);
+}
+async function fetchCapacityWeights(quiet = false) {
   if (S.capacityWeightsFetched) return;
   S.capacityWeightsFetched = true;
   try {
@@ -397,7 +408,7 @@ async function fetchCapacityWeights() {
     if (!r.ok) return;
     const d = await r.json();
     if (d.capacityWeights) S.capacityWeights = d.capacityWeights;
-    render();
+    if (!quiet) render();
   } catch (e) {/* falls back to defaults already in state, never block on it */ }
 }
 async function saveCapacityWeights(newWeights) {

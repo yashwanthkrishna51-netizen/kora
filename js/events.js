@@ -9,6 +9,10 @@
 async function finishLogin(ld, errEl) {
   S.sessionToken = ld.token; S.user = ld.user; S.shas.users = ld.usersSha;
   document.getElementById('app').innerHTML = renderAppSkeleton();
+  // Start users + dashboard extras alongside clients, not after — one
+  // loading-overlay cycle instead of two, and no extra re-renders later.
+  const usersP = apiRead('data/users.json').catch(e => e);
+  const extrasP = prefetchBootExtras();
   try {
     const cl = await apiRead('data/clients.json'); S.clients = cl.content; S.shas.clients = cl.sha;
   } catch (err) {
@@ -19,12 +23,13 @@ async function finishLogin(ld, errEl) {
     return false;
   }
   try {
-    const ul = await apiRead('data/users.json');
+    const ul = await usersP; if (ul instanceof Error) throw ul;
     S.usersForDropdown = ul.content.map(u => ({ id: u.id, name: u.name || u.username, role: u.role, username: u.username }));
     if (can('admin')) { S.users = ul.content; S.shas.users = ul.sha; }
   } catch (err) {
     S.usersForDropdown = [{ id: S.user.id, name: S.user.name || S.user.username, role: S.user.role, username: S.user.username }];
   }
+  await extrasP;
   persistSession(S.sessionToken, S.user);
   const resumed = S.pendingPath ? pathToView(S.pendingPath) : null;
   S.pendingPath = null;
@@ -1735,9 +1740,12 @@ document.addEventListener('drop', e => {
     S.sessionToken = sess.token; S.user = sess.user;
     document.getElementById('app').innerHTML = renderAppSkeleton();
     try {
+      const usersP = apiRead('data/users.json').catch(e => e);
+      const extrasP = prefetchBootExtras();
       const cl = await apiRead('data/clients.json'); S.clients = cl.content; S.shas.clients = cl.sha;
-      try { const ul = await apiRead('data/users.json'); S.usersForDropdown = ul.content.map(u => ({ id: u.id, name: u.name || u.username, role: u.role, username: u.username })); if (can('admin')) { S.users = ul.content; S.shas.users = ul.sha; } }
+      try { const ul = await usersP; if (ul instanceof Error) throw ul; S.usersForDropdown = ul.content.map(u => ({ id: u.id, name: u.name || u.username, role: u.role, username: u.username })); if (can('admin')) { S.users = ul.content; S.shas.users = ul.sha; } }
       catch (e) { S.usersForDropdown = [{ id: S.user.id, name: S.user.name || S.user.username, role: S.user.role, username: S.user.username }]; }
+      await extrasP;
       const fromUrl = location.pathname && location.pathname !== '/' ? pathToView(location.pathname) : null;
       if (fromUrl && validateView(fromUrl.view, fromUrl.params || {})) { navigate(fromUrl.view, fromUrl.params || {}, { fromPopState: true, skipTransition: true }); history.replaceState({ view: fromUrl.view, params: fromUrl.params }, '', viewToPath(fromUrl.view, fromUrl.params)); }
       else {
