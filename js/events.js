@@ -14,7 +14,7 @@ async function finishLogin(ld, errEl) {
   const usersP = apiRead('data/users.json').catch(e => e);
   const extrasP = prefetchBootExtras();
   try {
-    const cl = await apiRead('data/clients.json'); S.clients = cl.content; S.shas.clients = cl.sha;
+    const cl = await apiRead('data/clients.json'); S.clients = normalizeModulePhases(cl.content); S.shas.clients = cl.sha;
   } catch (err) {
     S.user = null; S.sessionToken = null; S.view = 'login'; render();
     const msg = 'Loaded user but failed to load clients.';
@@ -1742,7 +1742,7 @@ document.addEventListener('drop', e => {
     try {
       const usersP = apiRead('data/users.json').catch(e => e);
       const extrasP = prefetchBootExtras();
-      const cl = await apiRead('data/clients.json'); S.clients = cl.content; S.shas.clients = cl.sha;
+      const cl = await apiRead('data/clients.json'); S.clients = normalizeModulePhases(cl.content); S.shas.clients = cl.sha;
       try { const ul = await usersP; if (ul instanceof Error) throw ul; S.usersForDropdown = ul.content.map(u => ({ id: u.id, name: u.name || u.username, role: u.role, username: u.username })); if (can('admin')) { S.users = ul.content; S.shas.users = ul.sha; } }
       catch (e) { S.usersForDropdown = [{ id: S.user.id, name: S.user.name || S.user.username, role: S.user.role, username: S.user.username }]; }
       await extrasP;

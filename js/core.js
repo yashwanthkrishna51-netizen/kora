@@ -17,6 +17,24 @@ const PIPELINE_STAGE_HEX = { 'Lead': '94a3b8', 'Qualified': '0284c7', 'Proposal 
 const ROLES = ['viewer', 'editor', 'admin'];
 const PHASES = ['BPU', 'BPU Signoff', 'Staging Config', 'CRP', 'CRP Signoff', 'UAT', 'UAT Signoff', 'Data Migration / Production Migration', 'Go Live', 'Hypercare'];
 const SIGNOFF_PHASES = ['BPU Signoff', 'CRP Signoff', 'UAT Signoff'];
+// Brings modules stored before a phase was added to PHASES (e.g. Staging
+// Config) up to the full list, in PHASES order, so every reader of m.phases
+// (Excel export, RAG, Team Review, digest) sees the same stages as the grid.
+// In-memory only; it reaches the DB the next time that client is saved.
+// Skips Governance (singlePhase) and pipeline-created modules whose phases
+// aren't from PHASES (e.g. a lone "Kickoff"); any non-PHASES phases are kept
+// at the end in their original order.
+function normalizeModulePhases(clients) {
+  (clients || []).forEach(c => (c.modules || []).forEach(m => {
+    if (m.singlePhase || !Array.isArray(m.phases) || !m.phases.some(ph => PHASES.includes(ph.name))) return;
+    const byName = new Map(m.phases.map(ph => [ph.name, ph]));
+    m.phases = [
+      ...PHASES.map(name => byName.get(name) || { name, status: 'Not Started', startDate: '', targetDate: '', updates: [] }),
+      ...m.phases.filter(ph => !PHASES.includes(ph.name)),
+    ];
+  }));
+  return clients;
+}
 const CURRENCIES = { INR: { symbol: '₹', code: 'INR' }, USD: { symbol: '$', code: 'USD' } };
 const MILESTONE_STATUSES = ['Pending', 'Achieved', 'Missed'];
 const AMS_TYPES = ['Bug Fix', 'Enhancement', 'Config Change', 'Support Ticket', 'Reporting', 'Training', 'Meeting', 'Consultation'];
@@ -725,7 +743,7 @@ async function backgroundRefreshClients() {
   try {
     const fresh = await apiReadSilent('data/clients.json');
     const keepLocalId = S.params && S.params.clientId ? S.params.clientId : null;
-    const freshMap = new Map(fresh.content.map(c => [c.id, c]));
+    const freshMap = new Map(normalizeModulePhases(fresh.content).map(c => [c.id, c]));
     if (keepLocalId) {
       const mine = S.clients.find(c => c.id === keepLocalId);
       if (mine) freshMap.set(keepLocalId, mine);
@@ -800,7 +818,7 @@ async function saveClients(msg, changedIds) {
   try {
     if (changedIds && changedIds.length) {
       fresh = await apiRead('data/clients.json');
-      const freshMap = new Map(fresh.content.map(c => [c.id, c]));
+      const freshMap = new Map(normalizeModulePhases(fresh.content).map(c => [c.id, c]));
       changedIds.forEach(id => {
         const local = S.clients.find(c => c.id === id);
         if (local) freshMap.set(id, local); else freshMap.delete(id);
