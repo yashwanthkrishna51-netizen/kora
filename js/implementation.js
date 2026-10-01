@@ -207,7 +207,9 @@ function renderImplClientDetail(clientId) {
 function renderImplPhaseDetail(clientId, moduleId, phaseName) {
   const c = S.clients.find(x => x.id === clientId);
   const mod = (c?.modules || []).find(x => x.id === moduleId);
-  const ph = mod?.phases?.find(x => x.name === phaseName);
+  // Modules created before a phase was added to PHASES (e.g. Staging Config)
+  // have no stored entry for it — show a blank one; Save/Post persists it.
+  const ph = mod?.phases?.find(x => x.name === phaseName) || (mod && !mod.singlePhase && PHASES.includes(phaseName) ? { name: phaseName, status: 'Not Started', startDate: '', targetDate: '', updates: [] } : null);
   if (!c || !mod || !ph) return `<div class="p-8 text-gray-400">Not found</div>`;
   if (!ph.updates) ph.updates = [];
   return `<div class="max-w-6xl mx-auto px-6 py-7 fade">

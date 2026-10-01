@@ -478,7 +478,12 @@ document.addEventListener('click', async e => {
     const text = document.getElementById('ip-update-input')?.value.trim();
     if (!text) { showToast('Enter an update', 'error'); return; }
     const c = S.clients.find(x => x.id === cid); const mod = (c?.modules || []).find(x => x.id === mid); if (!mod) return;
-    const ph = mod.phases.find(x => x.name === phaseName); if (!ph) return;
+    let ph = mod.phases.find(x => x.name === phaseName), created = false;
+    if (!ph) {
+      if (mod.singlePhase || !PHASES.includes(phaseName)) return;
+      ph = { name: phaseName, status: 'Not Started', startDate: '', targetDate: '', updates: [] };
+      mod.phases.push(ph); created = true;
+    }
     if (!ph.updates) ph.updates = [];
     const attachUrl = document.getElementById('ip-attach-url')?.value.trim() || '';
     const attachLabel = document.getElementById('ip-attach-label')?.value.trim() || '';
@@ -488,7 +493,7 @@ document.addEventListener('click', async e => {
     const entry = { id: uid(), date: todayStr(), update: text, addedBy: S.user.name, addedAt: new Date().toISOString(), ...(attachment ? { attachment } : {}) };
     ph.updates.unshift(entry); setBtnBusy(el, 'Saving…');
     try { await saveClients(`Update ${phaseName}: ${mod.name}`, [cid]); showToast('Update added ✓'); navigate('impl-phase-detail', { clientId: cid, moduleId: mid, phase: phaseName }); }
-    catch (err) { ph.updates.shift(); showToast('Failed: ' + err.message, 'error'); clearBtnBusy(el); }
+    catch (err) { ph.updates.shift(); if (created) mod.phases.splice(mod.phases.indexOf(ph), 1); showToast('Failed: ' + err.message, 'error'); clearBtnBusy(el); }
     return;
   }
   if (act === 'save-edit-impl-update') {

@@ -41,7 +41,7 @@ function validateView(view, params) {
   if (['dashboard', 'pipeline', 'clients', 'impl-clients', 'ams-clients', 'admin'].includes(view)) return true;
   if (view === 'client-detail' || view === 'impl-client-detail' || view === 'ams-client-detail') return !!S.clients.find(x => x.id === params.clientId);
   if (view === 'integ-detail') { const c = S.clients.find(x => x.id === params.clientId); return !!(c && c.integrations.find(x => x.id === params.integId)); }
-  if (view === 'impl-phase-detail') { const c = S.clients.find(x => x.id === params.clientId); if (!c) return false; const m = (c.modules || []).find(x => x.id === params.moduleId); return !!(m && (m.phases || []).find(p => p.name === params.phase)); }
+  if (view === 'impl-phase-detail') { const c = S.clients.find(x => x.id === params.clientId); if (!c) return false; const m = (c.modules || []).find(x => x.id === params.moduleId); return !!(m && ((m.phases || []).find(p => p.name === params.phase) || (!m.singlePhase && PHASES.includes(params.phase)))); }
   return false;
 }
 // Offline detection
