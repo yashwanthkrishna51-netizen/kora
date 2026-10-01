@@ -30,7 +30,7 @@ function renderImplClientDetail(clientId) {
   const sel = S.bulkSelected;
   const selCount = sel.size;
 
-  const clientRail = `<div class="overflow-y-auto pr-1" style="max-height:calc(100vh - 132px);">
+  const clientRail = `<div class="overflow-y-auto overflow-x-hidden" style="max-height:calc(100vh - 132px);padding:4px 6px 6px 4px;">
     <div class="flex items-center justify-between mb-3 px-1">
       <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">${implClients.length} Client${implClients.length !== 1 ? 's' : ''}</span>
       <button data-act="modal-open" data-modal="add-impl-client" title="Add Client" class="text-[#0e7490] text-lg leading-none font-bold">+</button>
@@ -43,7 +43,7 @@ function renderImplClientDetail(clientId) {
     const ringColor = rag === 'Red' ? 'var(--red)' : rag === 'Amber' ? 'var(--amber)' : 'var(--green)';
     const atRiskPhases = mods.reduce((a, m) => a + (m.phases || []).filter(ph => ph.status === 'At Risk').length, 0);
     const active = cl.id === c.id;
-    return `<div data-act="open-impl-client" data-id="${esc(cl.id)}" class="card-hover cursor-pointer bg-white rounded-2xl border p-4 ${active ? 'border-[#0e7490] ring-1 ring-[#0e7490]/30' : 'border-gray-100'}">
+    return `<div data-act="open-impl-client" data-id="${esc(cl.id)}" class="card-hover cursor-pointer select-none bg-white rounded-2xl border p-4 ${active ? 'border-[#0e7490] ring-1 ring-[#0e7490]/30' : 'border-gray-100'}">
         <div class="flex items-center gap-3">
           ${ringSvg(clPr.pct, ringColor, 40)}
           <div class="flex-1 min-w-0">

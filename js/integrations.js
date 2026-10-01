@@ -47,14 +47,14 @@ function renderClientDetail(clientId) {
   // same visual language as everywhere else in the app), not a flat list.
   // Stacked vertically since the column is narrow, but each entry is a
   // genuine card: rounded, bordered, hover-lift — not a dense list row.
-  const clientRail = `<div class="overflow-y-auto pr-1" style="max-height:calc(100vh - 132px);">
+  const clientRail = `<div class="overflow-y-auto overflow-x-hidden" style="max-height:calc(100vh - 132px);padding:4px 6px 6px 4px;">
     <div class="flex items-center justify-between mb-2 px-1">
       <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">${railClients.length}${railClients.length !== allClients.length ? ` of ${allClients.length}` : ''} Client${allClients.length !== 1 ? 's' : ''}</span>
       <button data-act="modal-open" data-modal="add-client" title="Add Client" class="text-[#0e7490] text-lg leading-none font-bold">+</button>
     </div>
     <div class="flex items-center gap-1.5 mb-3 px-1">
       <input type="text" id="integ-rail-filter-inp" data-act="integ-rail-filter" value="${esc(S.integRailFilter)}" placeholder="Filter clients…" class="flex-1 min-w-0 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/>
-      <select data-act="integ-rail-sort" class="text-xs border border-gray-200 rounded-lg px-1.5 py-1.5 text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0e7490]" title="Sort clients">
+      <select data-act="integ-rail-sort" style="width:auto;flex:none;" class="text-xs border border-gray-200 rounded-lg px-1.5 py-1.5 text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0e7490]" title="Sort clients">
         <option value="name"${S.integRailSort === 'name' ? ' selected' : ''}>Name</option>
         <option value="health"${S.integRailSort === 'health' ? ' selected' : ''}>Health</option>
         <option value="overdue"${S.integRailSort === 'overdue' ? ' selected' : ''}>Overdue</option>
@@ -68,7 +68,7 @@ function renderClientDetail(clientId) {
     const completed = cl.integrations.filter(i => i.status === 'Completed').length;
     const pct = total ? completed / total * 100 : 0;
     const active = cl.id === c.id;
-    return `<div data-act="open-client" data-id="${esc(cl.id)}" class="card-hover cursor-pointer bg-white rounded-2xl border p-4 ${active ? 'border-[#0e7490] ring-1 ring-[#0e7490]/30' : 'border-gray-100'}">
+    return `<div data-act="open-client" data-id="${esc(cl.id)}" class="card-hover cursor-pointer select-none bg-white rounded-2xl border p-4 ${active ? 'border-[#0e7490] ring-1 ring-[#0e7490]/30' : 'border-gray-100'}">
         <div class="flex items-center gap-3">
           ${ringSvg(pct, healthVar(cl), 40)}
           <div class="flex-1 min-w-0">

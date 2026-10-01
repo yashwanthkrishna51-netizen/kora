@@ -561,11 +561,14 @@ function pipelineWeightedValue(entry) {
 // again the way the old bespoke card markup did.
 function ringSvg(pct, color, size = 48) {
   const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
-  const r = (size - 10) / 2, circ = 2 * Math.PI * r, off = circ - (p / 100) * circ;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="shrink-0">
-    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/>
-    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" stroke-linecap="round" transform="rotate(-90 ${size / 2} ${size / 2})"/>
-    <text x="${size / 2}" y="${size / 2 + 4}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">${p}%</text>
+  // Stroke and label scale with size so "100%" stays inside the ring's hole.
+  const sw = Math.max(3, Math.round(size / 10));
+  const r = (size - sw) / 2 - 1, circ = 2 * Math.PI * r, off = circ - (p / 100) * circ;
+  const fs = Math.round(size * (p === 100 ? 0.2 : 0.25));
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="shrink-0" style="flex:none;display:block;">
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="${sw}"/>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" stroke-linecap="round" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+    <text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="600" letter-spacing="-0.2" fill="var(--ink)">${p}%</text>
   </svg>`;
 }
 function miniStat(value, label, color) {
