@@ -175,7 +175,7 @@ kora/
 
 4. **Run the local development server:**
    ```bash
-   vercel dev
+   npm run local
    ```
    Open `http://localhost:3000` in your browser.
 

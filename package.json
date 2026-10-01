@@ -2,6 +2,9 @@
   "name": "kora-api",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "local": "vercel dev"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3"
   }

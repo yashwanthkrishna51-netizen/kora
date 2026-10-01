@@ -2,9 +2,11 @@
 // Delivery-progress tally — singlePhase modules (Governance) are a standing
 // responsibility, not a delivery phase, so they're excluded here to keep
 // "X/Y phases complete" meaningful for actual BPU→Hypercare progress.
+// Iterates PHASES (not m.phases) so modules created before a phase was added
+// still count it, as Not Started, in the denominator.
 function implProgress(client) {
   let total = 0, completed = 0, atRisk = 0;
-  (client.modules || []).forEach(m => { if (m.singlePhase) return; (m.phases || []).forEach(ph => { total++; if (ph.status === 'Completed') completed++; if (ph.status === 'At Risk') atRisk++; }); });
+  (client.modules || []).forEach(m => { if (m.singlePhase) return; PHASES.forEach(phName => { const ph = (m.phases || []).find(x => x.name === phName) || { status: 'Not Started' }; total++; if (ph.status === 'Completed') completed++; if (ph.status === 'At Risk') atRisk++; }); });
   return { total, completed, atRisk, pct: total ? Math.round(completed / total * 100) : 0 };
 }
 const DEFAULT_IMPL_RAG_RULES = { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true };
