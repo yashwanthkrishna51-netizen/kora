@@ -543,6 +543,22 @@ document.addEventListener('click', async e => {
     const c = S.clients.find(x => x.id === el.dataset.cid); const i = c?.integrations.find(x => x.id === el.dataset.iid); const ms = (i?.milestones || []).find(x => x.id === el.dataset.mid); if (!ms) return;
     S.modal = { type: 'edit-milestone', cid: el.dataset.cid, iid: el.dataset.iid, mid: ms.id, msName: ms.name, msDue: ms.dueDate || '', msStatus: ms.status, msOwner: ms.owner || '', msNotes: ms.notes || '' }; render(); setTimeout(() => document.getElementById('ms-name')?.focus(), 50); return;
   }
+  // Implementation milestones live on a phase: modules[].phases[].milestones[]
+  // (same object shape as integration milestones, same modal).
+  if (act === 'add-impl-milestone-btn') {
+    if (!can('editor')) return;
+    S.modal = { type: 'add-milestone', scope: 'impl', cid: el.dataset.cid, modId: el.dataset.mod, phase: el.dataset.phase }; render(); setTimeout(() => document.getElementById('ms-name')?.focus(), 50); return;
+  }
+  if (act === 'edit-impl-milestone-btn') {
+    if (!can('editor')) return;
+    const ms = findImplMilestone(el.dataset.cid, el.dataset.mod, el.dataset.phase, el.dataset.msid); if (!ms) return;
+    S.modal = { type: 'edit-milestone', scope: 'impl', cid: el.dataset.cid, modId: el.dataset.mod, phase: el.dataset.phase, mid: ms.id, msName: ms.name, msDue: ms.dueDate || '', msStatus: ms.status, msOwner: ms.owner || '', msNotes: ms.notes || '' }; render(); setTimeout(() => document.getElementById('ms-name')?.focus(), 50); return;
+  }
+  if (act === 'delete-impl-milestone') {
+    if (!can('admin')) return;
+    const ms = findImplMilestone(el.dataset.cid, el.dataset.mod, el.dataset.phase, el.dataset.msid); if (!ms) return;
+    S.modal = { type: 'confirm', msg: `Delete milestone "${ms.name}"? Cannot be undone.`, _act: 'delete-impl-milestone', _cid: el.dataset.cid, _mod: el.dataset.mod, _phase: el.dataset.phase, _msid: ms.id }; render(); return;
+  }
   if (act === 'delete-milestone') {
     if (!can('admin')) return;
     const c = S.clients.find(x => x.id === el.dataset.cid); const i = c?.integrations.find(x => x.id === el.dataset.iid); const ms = (i?.milestones || []).find(x => x.id === el.dataset.mid); if (!ms) return;
@@ -1037,12 +1053,51 @@ document.addEventListener('click', async e => {
         try { await saveClients(`Delete entry: ${c.name}`, [m._cid]); S.modal = null; showToast('Entry deleted'); navigate('ams-client-detail', { clientId: m._cid }); }
         catch (err) { c.workLog.splice(idx, 0, rem); S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
       }
+      else if (m._act === 'delete-impl-milestone') {
+        const ph = findImplPhase(m._cid, m._mod, m._phase);
+        const idx = (ph?.milestones || []).findIndex(x => x.id === m._msid); if (idx < 0) { S.modal = null; render(); return; }
+        const [rem] = ph.milestones.splice(idx, 1);
+        try { await saveClients(`Delete milestone: ${rem.name}`, [m._cid]); S.modal = null; showToast('Milestone deleted'); navigate('impl-phase-detail', { clientId: m._cid, moduleId: m._mod, phase: m._phase }); }
+        catch (err) { ph.milestones.splice(idx, 0, rem); S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
+      }
       else if (m._act === 'delete-milestone') {
         const c = S.clients.find(x => x.id === m._cid); const i = c?.integrations.find(x => x.id === m._iid); if (!i) { S.modal = null; render(); return; }
         const idx = (i.milestones || []).findIndex(x => x.id === m._mid); if (idx < 0) { S.modal = null; render(); return; }
         const [rem] = (i.milestones || []).splice(idx, 1);
         try { await saveClients(`Delete milestone: ${rem.name}`, [m._cid]); S.modal = null; showToast('Milestone deleted'); navigate('integ-detail', { clientId: m._cid, integId: m._iid }); }
         catch (err) { i.milestones.splice(idx, 0, rem); S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
+      }
+    } else if ((m.type === 'add-milestone' || m.type === 'edit-milestone') && m.scope === 'impl') {
+      const name = document.getElementById('ms-name')?.value.trim();
+      if (!name) { showToast('Milestone name required', 'error'); return; }
+      const mod = (S.clients.find(x => x.id === m.cid)?.modules || []).find(x => x.id === m.modId); if (!mod) return;
+      // Modules stored before a phase existed may not have it yet — create it
+      // here (same as add-impl-update) and drop it again if the save fails.
+      let ph = (mod.phases || []).find(x => x.name === m.phase), createdPhase = false;
+      if (!ph) {
+        if (mod.singlePhase || !PHASES.includes(m.phase)) return;
+        ph = { name: m.phase, status: 'Not Started', startDate: '', targetDate: '', updates: [] };
+        (mod.phases = mod.phases || []).push(ph); createdPhase = true;
+      }
+      const createdList = !ph.milestones;
+      if (createdList) ph.milestones = [];
+      const msObj = { id: m.mid || uid(), name, dueDate: document.getElementById('ms-due')?.value || '', status: document.getElementById('ms-status')?.value || 'Pending', owner: document.getElementById('ms-owner')?.value || '', notes: document.getElementById('ms-notes')?.value.trim() || '' };
+      const isEdit = m.type === 'edit-milestone';
+      const idx = isEdit ? ph.milestones.findIndex(x => x.id === m.mid) : -1;
+      if (isEdit && idx < 0) {
+        if (createdList) delete ph.milestones;
+        if (createdPhase) mod.phases.splice(mod.phases.indexOf(ph), 1);
+        S.modal = null; showToast('Milestone no longer exists — reload and try again', 'error'); render(); return;
+      }
+      const prevMs = isEdit ? ph.milestones[idx] : null;
+      if (isEdit) ph.milestones[idx] = msObj; else ph.milestones.push(msObj);
+      S.modal = { ...m, busy: true }; render();
+      try { await saveClients(`${isEdit ? 'Edit' : 'Add'} milestone: ${name} (${mod.name} — ${m.phase})`, [m.cid]); S.modal = null; showToast(`Milestone ${isEdit ? 'updated' : 'added'} ✓`); navigate('impl-phase-detail', { clientId: m.cid, moduleId: m.modId, phase: m.phase }); }
+      catch (err) {
+        if (isEdit) ph.milestones[idx] = prevMs; else ph.milestones.pop();
+        if (createdList) delete ph.milestones;
+        if (createdPhase) mod.phases.splice(mod.phases.indexOf(ph), 1);
+        S.modal = null; showToast('Failed: ' + err.message, 'error'); render();
       }
     } else if (m.type === 'add-milestone' || m.type === 'edit-milestone') {
       const name = document.getElementById('ms-name')?.value.trim();

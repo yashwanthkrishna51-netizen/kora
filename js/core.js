@@ -268,6 +268,22 @@ function overdueBadge(i) { if (!isOverdue(i)) return ''; const d = daysOverdue(i
 function staleBadge(i) { if (isOverdue(i) || !isStale(i, 7)) return ''; const lu = lastUpdateDate(i); const d = lu ? daysDiff(lu) : null; return `<span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">🕐 ${d !== null ? d + 'd stale' : 'No updates'}</span>`; }
 // Urgency color for a Pending milestone, based on due-date proximity — Achieved/Missed
 // milestones don't call this, they keep their own fixed green/rose.
+// One milestone row — shared by Integration (integ-detail) and
+// Implementation (phase page + client rollup) so both look identical.
+// metaPrefix is prepended to the owner/due line (e.g. the phase name in the
+// Implementation rollup); actionsHtml is the Edit/Delete buttons, if any.
+function milestoneRowHtml(ms, actionsHtml = '', metaPrefix = '', rowAttrs = '') {
+  const msColor = ms.status === 'Achieved' ? 'green' : ms.status === 'Missed' ? 'rose' : milestoneUrgencyColor(ms);
+  return `<div class="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition"${rowAttrs}>
+          <div class="w-2 h-2 rounded-full bg-${msColor}-500 shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-gray-900">${esc(ms.name)}</div>
+            <div class="text-xs text-gray-400 mt-0.5">${metaPrefix}${ms.owner ? `Owner: ${esc(ms.owner)} · ` : ''}${ms.dueDate ? `Due: ${fmtDate(ms.dueDate)}` : 'No due date'}${ms.notes ? ` · ${esc(ms.notes)}` : ''}</div>
+          </div>
+          <span class="text-xs font-semibold bg-${msColor}-50 text-${msColor}-700 border border-${msColor}-200 px-2 py-0.5 rounded-full shrink-0">${ms.status}</span>
+          ${actionsHtml}
+        </div>`;
+}
 function milestoneUrgencyColor(ms) { if (!ms.dueDate) return 'amber'; const d = daysDiff(ms.dueDate); if (d > 0) return 'rose'; if (d >= -3) return 'orange'; return 'amber'; }
 function healthColor(c) { const integs = c.integrations || []; const ar = integs.filter(i => i.status === 'At Risk').length; const od = integs.filter(isOverdue).length; if (ar > 0 || od > 0) return 'bg-rose-500'; const oh = integs.filter(i => i.status === 'On Hold — Internal' || i.status === 'On Hold — Client').length; if (oh > 0) return 'bg-violet-400'; return 'bg-green-500'; }
 function healthVar(c) { const cls = healthColor(c); if (cls === 'bg-rose-500') return 'var(--red)'; if (cls === 'bg-violet-400') return `#${VIOLET}`; return 'var(--green)'; }

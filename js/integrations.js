@@ -458,21 +458,10 @@ function renderIntegDetail(clientId, integId) {
       ${can('editor') ? `<button data-act="add-milestone-btn" data-cid="${esc(c.id)}" data-iid="${esc(i.id)}" class="text-xs text-[#0e7490] font-semibold border border-[#0e7490]/30 bg-[#0e7490]/5 px-3 py-1.5 rounded-xl hover:bg-[#0e7490]/10 transition">+ Add Milestone</button>` : ''}
     </div>
     ${(i.milestones || []).length ? `<div class="space-y-2">
-      ${(i.milestones || []).map(ms => {
-        const msColor = ms.status === 'Achieved' ? 'green' : ms.status === 'Missed' ? 'rose' : milestoneUrgencyColor(ms);
-        return `<div class="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition">
-          <div class="w-2 h-2 rounded-full bg-${msColor}-500 shrink-0"></div>
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium text-gray-900">${esc(ms.name)}</div>
-            <div class="text-xs text-gray-400 mt-0.5">${ms.owner ? `Owner: ${esc(ms.owner)} · ` : ''}${ms.dueDate ? `Due: ${fmtDate(ms.dueDate)}` : 'No due date'}${ms.notes ? ` · ${esc(ms.notes)}` : ''}</div>
-          </div>
-          <span class="text-xs font-semibold bg-${msColor}-50 text-${msColor}-700 border border-${msColor}-200 px-2 py-0.5 rounded-full shrink-0">${ms.status}</span>
-          ${can('editor') ? `<div class="flex gap-2 shrink-0">
+      ${(i.milestones || []).map(ms => milestoneRowHtml(ms, can('editor') ? `<div class="flex gap-2 shrink-0">
             <button data-act="edit-milestone-btn" data-cid="${esc(c.id)}" data-iid="${esc(i.id)}" data-mid="${esc(ms.id)}" class="text-xs text-gray-300 hover:text-[#0e7490]">Edit</button>
             ${can('admin') ? `<button data-act="delete-milestone" data-cid="${esc(c.id)}" data-iid="${esc(i.id)}" data-mid="${esc(ms.id)}" class="text-xs text-gray-300 hover:text-rose-500">Delete</button>` : ''}
-          </div>`: ''}
-        </div>`;
-      }).join('')}
+          </div>` : '')).join('')}
     </div>`: `<div class="text-center py-8 text-gray-400 text-sm">No milestones yet. Add key checkpoints for this integration.</div>`}
   </div>
 </div>`;

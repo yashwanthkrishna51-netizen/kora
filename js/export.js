@@ -815,6 +815,10 @@ function exportExcel(type, clientId){
     headers=['Module','Phase','Status','Assignee','Start Date','Target Date','Current Activity','Next Action','All Updates'];
     data=(c.modules||[]).flatMap(m=>(m.phases||[]).map(ph=>[m.name,ph.name,ph.status||'',ph.assignee||'',ph.startDate?fmtDate(ph.startDate):'',ph.targetDate?fmtDate(ph.targetDate):'',ph.currentActivity||'',ph.nextAction||'',(ph.updates||[]).length?(ph.updates||[]).map(t=>`(${fmtDate(t.date)}) ${t.update}`).join('\n'):'']));
     filename=exportFilename(c.name,'Implementation','xlsx');
+  }else if(type==='impl-milestones'){
+    headers=['Module','Phase','Milestone','Status','Due Date','Owner','Notes'];
+    data=(c.modules||[]).flatMap(m=>(m.phases||[]).flatMap(ph=>(ph.milestones||[]).map(ms=>[m.name,ph.name,ms.name,ms.status,ms.dueDate?fmtDate(ms.dueDate):'',ms.owner||'',ms.notes||''])));
+    filename=exportFilename(c.name,'Impl_Milestones','xlsx');
   }else if(type==='milestones'){
     headers=['Integration','Milestone','Status','Due Date','Owner','Notes'];
     data=(c.integrations||[]).flatMap(i=>(i.milestones||[]).map(ms=>[i.name,ms.name,ms.status,ms.dueDate?fmtDate(ms.dueDate):'',ms.owner||'',ms.notes||'']));

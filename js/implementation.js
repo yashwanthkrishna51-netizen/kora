@@ -79,6 +79,7 @@ function renderImplClientDetail(clientId) {
         ${exportMenuButton(`impl-${c.id}`, [
         { label: '📄 PDF', act: 'exp-impl-pdf', data: { cid: c.id } },
         { label: '📊 Excel', act: 'exp-excel', data: { etype: 'impl', cid: c.id } },
+        { label: '🎯 Excel (Milestones)', act: 'exp-excel', data: { etype: 'impl-milestones', cid: c.id } },
       ])}
         ${can('editor') ? `<button data-act="edit-impl-client" data-id="${esc(c.id)}" class="text-gray-400 hover:text-[#0e7490] text-xs px-2 border border-gray-200 rounded-lg py-1.5">Edit Client</button>` : ''}
         ${can('admin') ? `<button data-act="delete-impl-client" data-id="${esc(c.id)}" class="text-rose-400 hover:text-rose-600 text-xs px-2">Remove Client</button>` : ''}`}
@@ -178,6 +179,7 @@ function renderImplClientDetail(clientId) {
       ${STATUSES.map(s => `<span class="flex items-center gap-1.5 text-gray-500"><span style="width:9px;height:9px;border-radius:3px;background:${s === 'Not Started' ? '#e5e7eb' : `#${SHEX[s]}`};display:inline-block;"></span>${esc(s)}</span>`).join('')}
     </div>`: ''}
   </div>
+  ${implMilestoneRollup(c)}
   ${bulk ? `<div class="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-xl px-6 py-4 flex items-center justify-between gap-4">
     <div class="flex items-center gap-3">
       <div class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700">${selCount}</div>
@@ -202,6 +204,36 @@ function renderImplClientDetail(clientId) {
     <div style="min-width:0;">${detailPanel}</div>
   </div>
 </div>`;
+}
+
+function findImplPhase(cid, modId, phaseName) {
+  const mod = (S.clients.find(x => x.id === cid)?.modules || []).find(x => x.id === modId);
+  return (mod?.phases || []).find(x => x.name === phaseName) || null;
+}
+function findImplMilestone(cid, modId, phaseName, msId) {
+  return (findImplPhase(cid, modId, phaseName)?.milestones || []).find(x => x.id === msId) || null;
+}
+// Read-only list of every phase milestone on this client, grouped by module.
+// Editing happens on the phase page — each row opens it.
+function implMilestoneRollup(c) {
+  const groups = (c.modules || []).map(m => ({
+    m, rows: (m.phases || []).flatMap(ph => (ph.milestones || []).map(ms => ({ ph, ms }))),
+  })).filter(g => g.rows.length);
+  if (!groups.length) return '';
+  return `<div class="mt-6 bg-white rounded-2xl border border-gray-100 p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-gray-900 text-sm">Milestones</h3>
+      <span class="text-xs text-gray-400">Add or edit from a phase page</span>
+    </div>
+    <div class="space-y-4">
+      ${groups.map(({ m, rows }) => `<div>
+        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">${esc(m.name)}</div>
+        <div class="space-y-2">
+          ${rows.map(({ ph, ms }) => milestoneRowHtml(ms, '', m.singlePhase ? '' : `${esc(ph.name)} · `, ` data-act="open-impl-phase" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" data-phase="${esc(ph.name)}" style="cursor:pointer;"`)).join('')}
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
 }
 
 function renderImplPhaseDetail(clientId, moduleId, phaseName) {
@@ -357,6 +389,18 @@ function renderImplPhaseDetail(clientId, moduleId, phaseName) {
       }).join('')}
       </div>
     </div>
+  </div>
+  <div class="mt-6 bg-white rounded-2xl border border-gray-100 p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-gray-900 text-sm">Milestones</h3>
+      ${can('editor') ? `<button data-act="add-impl-milestone-btn" data-cid="${esc(c.id)}" data-mod="${esc(mod.id)}" data-phase="${esc(phaseName)}" class="text-xs text-[#0e7490] font-semibold border border-[#0e7490]/30 bg-[#0e7490]/5 px-3 py-1.5 rounded-xl hover:bg-[#0e7490]/10 transition">+ Add Milestone</button>` : ''}
+    </div>
+    ${(ph.milestones || []).length ? `<div class="space-y-2">
+      ${(ph.milestones || []).map(ms => milestoneRowHtml(ms, can('editor') ? `<div class="flex gap-2 shrink-0">
+            <button data-act="edit-impl-milestone-btn" data-cid="${esc(c.id)}" data-mod="${esc(mod.id)}" data-phase="${esc(phaseName)}" data-msid="${esc(ms.id)}" class="text-xs text-gray-300 hover:text-[#0e7490]">Edit</button>
+            ${can('admin') ? `<button data-act="delete-impl-milestone" data-cid="${esc(c.id)}" data-mod="${esc(mod.id)}" data-phase="${esc(phaseName)}" data-msid="${esc(ms.id)}" class="text-xs text-gray-300 hover:text-rose-500">Delete</button>` : ''}
+          </div>` : '')).join('')}
+    </div>`: `<div class="text-center py-8 text-gray-400 text-sm">No milestones yet. Add key checkpoints for this phase.</div>`}
   </div>
 </div>`;
 }
