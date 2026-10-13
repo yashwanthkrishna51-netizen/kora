@@ -71,7 +71,7 @@ async function handleAudit(req, res, env, check) {
 }
 
 // ─── op=settings — verbatim from the current api/settings.js ──────────
-const SETTINGS_ALLOWED_KEYS = ['capacity_weights', 'digest_recipients', 'pipeline_stage_weights', 'implementation_rag_rules', 'module_weights'];
+const SETTINGS_ALLOWED_KEYS = ['capacity_weights', 'digest_recipients', 'pipeline_stage_weights', 'implementation_rag_rules', 'module_weights', 'milestone_schedule_rules'];
 const DEFAULT_CAPACITY_WEIGHTS = { module: 1, pmo: 0.5, ams: 0.25, cap: 5 };
 const DEFAULT_DIGEST_RECIPIENTS = { emails: [] };
 // Default win-probability % per stage — admin-editable via the Pipeline
@@ -88,6 +88,9 @@ const DEFAULT_PIPELINE_STAGE_WEIGHTS = { Lead: 10, Qualified: 30, 'Proposal Sent
 //   is red all the time" was tried first and found too discouraging/alarming
 //   to work with day to day, so flagIncomplete replaced it as the default.
 const DEFAULT_IMPLEMENTATION_RAG_RULES = { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true };
+// Milestone schedule: a task 1..redFromDays-1 days past its planned end is
+// "slightly delayed", redFromDays+ days is "delayed" (Implementation milestones).
+const DEFAULT_MILESTONE_SCHEDULE_RULES = { redFromDays: 4 };
 
 async function handleSettings(req, res, env, check) {
   const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = env;
@@ -99,7 +102,7 @@ async function handleSettings(req, res, env, check) {
 
   if (req.method === 'GET') {
     try {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?key=in.(capacity_weights,digest_recipients,pipeline_stage_weights,implementation_rag_rules,module_weights)&select=*`, { headers: sbHeaders });
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/app_settings?key=in.(capacity_weights,digest_recipients,pipeline_stage_weights,implementation_rag_rules,module_weights,milestone_schedule_rules)&select=*`, { headers: sbHeaders });
       if (!r.ok) return res.status(r.status).json({ error: 'Settings read error' });
       const rows = await r.json();
       const cw = rows.find(row => row.key === 'capacity_weights')?.value || DEFAULT_CAPACITY_WEIGHTS;
@@ -107,12 +110,14 @@ async function handleSettings(req, res, env, check) {
       const psw = rows.find(row => row.key === 'pipeline_stage_weights')?.value || DEFAULT_PIPELINE_STAGE_WEIGHTS;
       const irr = rows.find(row => row.key === 'implementation_rag_rules')?.value || DEFAULT_IMPLEMENTATION_RAG_RULES;
       const mw = rows.find(row => row.key === 'module_weights')?.value || {};
+      const msr = rows.find(row => row.key === 'milestone_schedule_rules')?.value || DEFAULT_MILESTONE_SCHEDULE_RULES;
       return res.status(200).json({
         capacityWeights: { ...DEFAULT_CAPACITY_WEIGHTS, ...cw },
         digestRecipients: { ...DEFAULT_DIGEST_RECIPIENTS, ...dr },
         pipelineStageWeights: { ...DEFAULT_PIPELINE_STAGE_WEIGHTS, ...psw },
         implementationRagRules: { ...DEFAULT_IMPLEMENTATION_RAG_RULES, ...irr },
         moduleWeights: mw,
+        milestoneScheduleRules: { ...DEFAULT_MILESTONE_SCHEDULE_RULES, ...msr },
       });
     } catch (err) {
       return serverError(res, err, 'ops.js settings GET');
@@ -166,6 +171,11 @@ async function handleSettings(req, res, env, check) {
         const n = Number(value[k]);
         if (!Number.isFinite(n) || n <= 0 || n > 365) return res.status(400).json({ error: `Invalid value for ${k}` });
       }
+    }
+
+    if (key === 'milestone_schedule_rules') {
+      const n = Number(value.redFromDays);
+      if (!Number.isInteger(n) || n < 1 || n > 365) return res.status(400).json({ error: 'redFromDays must be a whole number from 1 to 365' });
     }
 
     try {

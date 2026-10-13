@@ -306,13 +306,19 @@ function renderModal() {
     body = `<div class="space-y-3">
       <div><label class="block text-xs font-medium text-gray-500 mb-1">Milestone Name *</label><input id="ms-name" type="text" value="${esc(m.msName || '')}" placeholder="e.g. API spec agreed, Signoff received" autocomplete="off" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="block text-xs font-medium text-gray-500 mb-1">Due Date</label><input id="ms-due" type="date" value="${esc(m.msDue || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">${m.scope === 'impl' ? 'Planned End / Due' : 'Due Date'}</label><input id="ms-due" type="date" value="${esc(m.msDue || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
         <div><label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
           <select id="ms-status" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]">
             ${MILESTONE_STATUSES.map(s => `<option${s === (m.msStatus || 'Pending') ? ' selected' : ''}>${s}</option>`).join('')}
           </select>
         </div>
       </div>
+      ${m.scope === 'impl' ? `<div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">Planned Start</label><input id="ms-plan-start" type="date" value="${esc(m.msPlannedStart || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">Actual Start</label><input id="ms-act-start" type="date" value="${esc(m.msActualStart || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+        <div><label class="block text-xs font-medium text-gray-500 mb-1">Actual End</label><input id="ms-act-end" type="date" value="${esc(m.msActualEnd || '')}" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      </div>
+      <label class="flex items-center gap-2 text-xs text-gray-600"><input id="ms-toll" type="checkbox" ${m.msToll ? 'checked' : ''} class="accent-[#0e7490]"/> 🚩 Toll gate (key sign-off milestone)</label>` : ''}
       <div><label class="block text-xs font-medium text-gray-500 mb-1">Owner</label>${assigneeSelect('ms-owner', m.msOwner || '')}</div>
       <div><label class="block text-xs font-medium text-gray-500 mb-1">Notes</label><input id="ms-notes" type="text" value="${esc(m.msNotes || '')}" placeholder="Any context or dependencies" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
     </div>`;
@@ -397,6 +403,65 @@ function renderModal() {
       ${m.done ? `<div class="mt-3 text-sm font-semibold ${m.totalFailed ? 'text-amber-600' : 'text-green-600'}">${m.totalFailed ? `⚠ Done — ${m.totalProcessed} processed, ${m.totalFailed} failed (see log above)` : `✓ Done — ${m.totalProcessed} processed successfully`}</div>` : ''}`;
       btnLabel = m.done ? 'Close' : 'Running…';
     }
+  } else if (m.type === 'import-plan') {
+    title = 'Import Project Plan';
+    const c = S.clients.find(x => x.id === m.cid);
+    const sel = (attrs, opts, cur) => `<select ${attrs} class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#0e7490]">${opts.map(([v, l]) => `<option value="${esc(String(v))}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    const pick = `<label class="block border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-[#0e7490]/50 transition">
+        <input id="plan-file" type="file" accept=".xlsx,.xls,.csv" class="hidden"/>
+        <div class="text-2xl mb-1">📄</div>
+        <div class="text-sm font-medium text-gray-700">${m.fileName ? `${esc(m.fileName)} — choose another file` : 'Choose an Excel or CSV project plan'}</div>
+        <div class="text-xs text-gray-400 mt-1">Any layout: one row per task, a module column or module headings, planned &amp; actual dates</div>
+      </label>`;
+    if (!m.sheets) {
+      btnLabel = 'Import';
+      body = `<div class="space-y-3">
+        <p class="text-xs text-gray-500">Every task becomes a milestone on <b>${esc(c?.name || '')}</b>, under the right module and phase. Missing modules are created. Re-uploading an updated plan updates the same tasks instead of duplicating them. Nothing is saved until you review the preview and click Import.</p>
+        ${pick}
+        <button data-act="download-plan-template" class="text-xs text-[#0e7490] font-semibold hover:underline">⬇ Download the standard Kora plan template</button>
+      </div>`;
+    } else {
+      const pv = planPreview(m); m._pv = pv;
+      const colOpts = [[-1, '— not in file —'], ...pv.columns.map(col => [col.idx, col.label])];
+      const st = pv.stats;
+      btnLabel = st.created + st.updated ? `Import ${st.created} new · update ${st.updated}` : 'Nothing to import';
+      const fields = PLAN_FIELDS.filter(f => f.key !== 'planActual' || pv.map.planActual >= 0);
+      const srcs = Object.keys(pv.srcCounts);
+      const reasons = {}; pv.skipped.forEach(s => reasons[s.reason] = (reasons[s.reason] || 0) + 1);
+      body = `<div class="space-y-4">
+        ${pick}
+        <button data-act="download-plan-template" class="text-xs text-[#0e7490] font-semibold hover:underline">⬇ Download the standard Kora plan template</button>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-medium text-gray-500 mb-1">Sheet</label>${sel('data-plan="sheet"', m.sheets.map(s => [s.name, s.name]), m.sheet)}</div>
+          <div><label class="block text-xs font-medium text-gray-500 mb-1">Header row</label>${sel('data-plan="header"', (m.sheets.find(s => s.name === m.sheet)?.rows || []).slice(0, 25).map((r, i) => [i, `Row ${i + 1}: ${r.map(v => String(v ?? '').trim()).filter(Boolean).slice(0, 4).join(' | ').slice(0, 60)}`]), m.headerIdx)}</div>
+        </div>
+        <div class="grid grid-cols-4 gap-2 text-center">
+          <div class="bg-green-50 rounded-xl py-2"><div class="text-lg font-bold text-green-700">${st.created}</div><div class="text-[11px] text-green-700">new</div></div>
+          <div class="bg-sky-50 rounded-xl py-2"><div class="text-lg font-bold text-sky-700">${st.updated}</div><div class="text-[11px] text-sky-700">updated</div></div>
+          <div class="bg-gray-50 rounded-xl py-2"><div class="text-lg font-bold text-gray-600">${st.unchanged}</div><div class="text-[11px] text-gray-500">unchanged</div></div>
+          <div class="bg-amber-50 rounded-xl py-2"><div class="text-lg font-bold text-amber-700">${pv.skipped.length}</div><div class="text-[11px] text-amber-700">rows skipped</div></div>
+        </div>
+        ${pv.skipped.length ? `<p class="text-[11px] text-amber-700">Skipped: ${Object.entries(reasons).map(([r, n]) => `${esc(r)} (${n})`).join(', ')}${pv.skipped.length <= 12 ? ` — rows ${pv.skipped.map(s => s.rowNo).join(', ')}` : ''}</p>` : ''}
+        ${st.modulesCreated.length ? `<p class="text-xs text-gray-600"><b>${st.modulesCreated.length} new module${st.modulesCreated.length !== 1 ? 's' : ''}</b> will be created: ${st.modulesCreated.map(esc).join(', ')}</p>` : ''}
+        ${pv.schedule ? `<p class="text-xs text-gray-600">After import: <b style="color:${pv.schedule.color}">Schedule: ${esc(pv.schedule.label)}</b> — ${pv.schedule.onTime} on time/on track · ${pv.schedule.slight} slightly delayed · ${pv.schedule.delayed} delayed</p>` : ''}
+        <details ${m.showCols ? 'open' : ''} data-plan-details="cols" class="border border-gray-100 rounded-xl p-3">
+          <summary class="text-xs font-semibold text-gray-700 cursor-pointer">Columns <span class="font-normal text-gray-400">· ${pv.mode === 'outline' ? 'outline layout (modules from headings)' : pv.mode === 'gantt' ? 'planned / actual rows' : 'one row per task'}</span></summary>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-2 mt-3">${fields.map(f => `<div><label class="block text-[11px] text-gray-500 mb-0.5">${esc(f.label)}</label>${sel(`data-plan="col" data-key="${f.key}"`, colOpts, pv.map[f.key])}</div>`).join('')}</div>
+        </details>
+        ${srcs.length ? `<details ${m.showPhases !== false ? 'open' : ''} data-plan-details="phases" class="border border-gray-100 rounded-xl p-3">
+          <summary class="text-xs font-semibold text-gray-700 cursor-pointer">Phases in the file → Kora phase</summary>
+          <div class="space-y-1.5 mt-3">${srcs.map((src, i) => `<div class="grid grid-cols-5 gap-2 items-center"><div class="col-span-3 text-xs text-gray-600 truncate" title="${esc(src)}">${esc(src)} <span class="text-gray-400">(${pv.srcCounts[src]})</span></div><div class="col-span-2">${sel(`data-plan="phase" data-idx="${i}"`, PHASES.map(p => [p, p]), pv.phaseMap[src])}</div></div>`).join('')}</div>
+          <label class="flex items-center gap-2 mt-3 text-xs text-gray-600"><input type="checkbox" data-plan="route" ${m.routeByTask !== false ? 'checked' : ''} class="accent-[#0e7490]"/> Route by task name too (sign-offs &amp; toll gates → Signoff phases, UAT configuration → Staging Config…)</label>
+        </details>` : ''}
+        <div>
+          <div class="text-xs font-semibold text-gray-700 mb-1.5">First ${pv.sample.length} of ${pv.items.length} tasks</div>
+          <div class="max-h-56 overflow-auto border border-gray-100 rounded-xl">
+            <table class="w-full text-[11px]"><thead class="bg-gray-50 text-gray-500 sticky top-0"><tr>${['Module', 'Kora phase', 'Task', 'Plan end', 'Actual end', 'Status'].map(h => `<th class="text-left font-semibold px-2 py-1.5">${h}</th>`).join('')}</tr></thead>
+            <tbody>${pv.sample.map(it => `<tr class="border-t border-gray-50"><td class="px-2 py-1">${esc(it.module)}</td><td class="px-2 py-1">${esc(it.koraPhase)}</td><td class="px-2 py-1">${it.tollGate ? '🚩 ' : ''}${esc(it.name)}</td><td class="px-2 py-1 whitespace-nowrap">${it.plannedEnd ? fmtDate(it.plannedEnd) : '—'}</td><td class="px-2 py-1 whitespace-nowrap">${it.actualEnd ? fmtDate(it.actualEnd) : '—'}</td><td class="px-2 py-1">${esc(it.status)}</td></tr>`).join('')}</tbody></table>
+          </div>
+        </div>
+      </div>`;
+    }
   } else if (m.type === 'confirm') {
     title = 'Confirm'; btnLabel = 'Delete'; btnCls = 'bg-rose-600 hover:bg-rose-700';
     body = `<p class="text-sm text-gray-600">${esc(m.msg || 'Are you sure? This cannot be undone.')}</p>`;
@@ -405,7 +470,7 @@ function renderModal() {
   const busyLabel = m.type === 'confirm' ? 'Deleting…' : m.type === 'admin-task-runner' ? 'Running…' : 'Saving…';
   const hideCancel = m.type === 'admin-task-runner' && (m.log.length > 0 || m.done);
   return `<div class="k-modal-overlay fade" id="modal-overlay">
-  <div class="k-modal modal-pop" style="max-width:${['add-ams-entry', 'edit-ams-entry', 'bulk-import-users', 'portfolio-export', 'import-ams-entries', 'import-integrations', 'admin-task-runner'].includes(m.type) ? '640px' : '440px'};">
+  <div class="k-modal modal-pop" style="max-width:${m.type === 'import-plan' ? '860px' : ['add-ams-entry', 'edit-ams-entry', 'bulk-import-users', 'portfolio-export', 'import-ams-entries', 'import-integrations', 'admin-task-runner'].includes(m.type) ? '640px' : '440px'};">
     <div class="k-modal-header flex items-center justify-between">
       <h2 class="k-h2">${esc(title)}</h2>
       <button data-act="modal-close" ${busy ? 'disabled' : ''} class="k-btn k-btn-ghost k-btn-sm" style="height:28px;width:28px;padding:0;">✕</button>

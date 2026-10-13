@@ -176,6 +176,28 @@ document.addEventListener('click', async e => {
     finally { clearBtnBusy(el); }
     return;
   }
+  if (act === 'save-milestone-schedule-rules') {
+    if (!can('admin')) return;
+    const redFromDays = Number(document.getElementById('msr-red-days')?.value);
+    if (!Number.isInteger(redFromDays) || redFromDays < 1 || redFromDays > 365) { showToast('Enter a whole number of days from 1 to 365', 'error'); return; }
+    setBtnBusy(el, 'Saving…');
+    try { await saveMilestoneScheduleRules({ redFromDays }); showToast('Schedule rule saved ✓'); render(); }
+    catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    finally { clearBtnBusy(el); }
+    return;
+  }
+  if (act === 'open-plan-import') {
+    if (!can('admin')) return;
+    S.modal = { type: 'import-plan', cid: el.dataset.cid }; render(); return;
+  }
+  if (act === 'download-plan-template') { planDownloadTemplate(); return; }
+  if (act === 'remove-plan-import') {
+    if (!can('admin')) return;
+    const c = S.clients.find(x => x.id === el.dataset.cid); if (!c) return;
+    const b = planImportBatches(c).find(x => x.batch === el.dataset.batch); if (!b) return;
+    S.modal = { type: 'confirm', msg: `Remove the ${b.count} milestone${b.count !== 1 ? 's' : ''} created by "${b.file}" (and any module it created that is still empty)? Changes that upload made to milestones that already existed are not undone.`, _act: 'remove-plan-import', _cid: c.id, _batch: b.batch }; render(); return;
+  }
+  if (act === 'toggle-milestone-late') { S.milestoneDelayedOnly = !S.milestoneDelayedOnly; render(); return; }
   if (act === 'save-impl-rag-rules') {
     if (!can('admin')) return;
     const forceRed = !!document.getElementById('rag-force-red')?.checked;
@@ -552,7 +574,7 @@ document.addEventListener('click', async e => {
   if (act === 'edit-impl-milestone-btn') {
     if (!can('editor')) return;
     const ms = findImplMilestone(el.dataset.cid, el.dataset.mod, el.dataset.phase, el.dataset.msid); if (!ms) return;
-    S.modal = { type: 'edit-milestone', scope: 'impl', cid: el.dataset.cid, modId: el.dataset.mod, phase: el.dataset.phase, mid: ms.id, msName: ms.name, msDue: ms.dueDate || '', msStatus: ms.status, msOwner: ms.owner || '', msNotes: ms.notes || '' }; render(); setTimeout(() => document.getElementById('ms-name')?.focus(), 50); return;
+    S.modal = { type: 'edit-milestone', scope: 'impl', cid: el.dataset.cid, modId: el.dataset.mod, phase: el.dataset.phase, mid: ms.id, msName: ms.name, msDue: ms.dueDate || '', msStatus: ms.status, msOwner: ms.owner || '', msNotes: ms.notes || '', msPlannedStart: ms.plannedStart || '', msActualStart: ms.actualStart || '', msActualEnd: ms.actualEnd || '', msToll: !!ms.tollGate }; render(); setTimeout(() => document.getElementById('ms-name')?.focus(), 50); return;
   }
   if (act === 'delete-impl-milestone') {
     if (!can('admin')) return;
@@ -1053,6 +1075,13 @@ document.addEventListener('click', async e => {
         try { await saveClients(`Delete entry: ${c.name}`, [m._cid]); S.modal = null; showToast('Entry deleted'); navigate('ams-client-detail', { clientId: m._cid }); }
         catch (err) { c.workLog.splice(idx, 0, rem); S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
       }
+      else if (m._act === 'remove-plan-import') {
+        const c = S.clients.find(x => x.id === m._cid); if (!c) { S.modal = null; render(); return; }
+        const prev = JSON.parse(JSON.stringify(c.modules || []));
+        const r = planRemoveBatch(c, m._batch);
+        try { await saveClients(`Remove plan import: ${r.removed} milestones, ${r.modulesRemoved} modules`, [c.id]); S.modal = null; showToast(`Removed ${r.removed} milestone${r.removed !== 1 ? 's' : ''}${r.modulesRemoved ? ` and ${r.modulesRemoved} empty module${r.modulesRemoved !== 1 ? 's' : ''}` : ''} ✓`); navigate('impl-client-detail', { clientId: c.id }); }
+        catch (err) { c.modules = prev; S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
+      }
       else if (m._act === 'delete-impl-milestone') {
         const ph = findImplPhase(m._cid, m._mod, m._phase);
         const idx = (ph?.milestones || []).findIndex(x => x.id === m._msid); if (idx < 0) { S.modal = null; render(); return; }
@@ -1066,6 +1095,23 @@ document.addEventListener('click', async e => {
         const [rem] = (i.milestones || []).splice(idx, 1);
         try { await saveClients(`Delete milestone: ${rem.name}`, [m._cid]); S.modal = null; showToast('Milestone deleted'); navigate('integ-detail', { clientId: m._cid, integId: m._iid }); }
         catch (err) { i.milestones.splice(idx, 0, rem); S.modal = null; showToast('Failed: ' + err.message, 'error'); render(); }
+      }
+    } else if (m.type === 'import-plan') {
+      if (!m.sheets) { showToast('Choose a file first', 'error'); return; }
+      const c = S.clients.find(x => x.id === m.cid); if (!c) return;
+      const pv = planPreview(m);
+      if (!pv.stats.created && !pv.stats.updated) { showToast('Nothing new to import — every task already matches', 'error'); return; }
+      const hadModules = c.modules !== undefined;
+      const prev = JSON.parse(JSON.stringify(c.modules || []));
+      const st = planApply(c, pv.items, { phaseMap: pv.phaseMap, routeByTask: m.routeByTask !== false, batch: uid(), fileName: m.fileName, uid, phases: PHASES });
+      S.modal = { ...m, busy: true }; render();
+      try {
+        await saveClients(`Import plan ${m.fileName}: ${st.created} new, ${st.updated} updated${st.modulesCreated.length ? `, ${st.modulesCreated.length} modules created` : ''}`, [m.cid]);
+        S.modal = null; showToast(`Imported ✓ ${st.created} new · ${st.updated} updated${st.modulesCreated.length ? ` · ${st.modulesCreated.length} modules created` : ''}`);
+        navigate('impl-client-detail', { clientId: m.cid });
+      } catch (err) {
+        if (hadModules) c.modules = prev; else delete c.modules;
+        S.modal = { ...m, busy: false }; showToast('Import failed — nothing was saved: ' + err.message, 'error'); render();
       }
     } else if ((m.type === 'add-milestone' || m.type === 'edit-milestone') && m.scope === 'impl') {
       const name = document.getElementById('ms-name')?.value.trim();
@@ -1081,9 +1127,12 @@ document.addEventListener('click', async e => {
       }
       const createdList = !ph.milestones;
       if (createdList) ph.milestones = [];
-      const msObj = { id: m.mid || uid(), name, dueDate: document.getElementById('ms-due')?.value || '', status: document.getElementById('ms-status')?.value || 'Pending', owner: document.getElementById('ms-owner')?.value || '', notes: document.getElementById('ms-notes')?.value.trim() || '' };
+      const fields = { name, dueDate: document.getElementById('ms-due')?.value || '', status: document.getElementById('ms-status')?.value || 'Pending', owner: document.getElementById('ms-owner')?.value || '', notes: document.getElementById('ms-notes')?.value.trim() || '',
+        plannedStart: document.getElementById('ms-plan-start')?.value || '', actualStart: document.getElementById('ms-act-start')?.value || '', actualEnd: document.getElementById('ms-act-end')?.value || '', tollGate: !!document.getElementById('ms-toll')?.checked };
       const isEdit = m.type === 'edit-milestone';
       const idx = isEdit ? ph.milestones.findIndex(x => x.id === m.mid) : -1;
+      // keep fields the form doesn't show (e.g. import source) on edit
+      const msObj = isEdit && idx >= 0 ? { ...ph.milestones[idx], ...fields } : { id: uid(), ...fields };
       if (isEdit && idx < 0) {
         if (createdList) delete ph.milestones;
         if (createdPhase) mod.phases.splice(mod.phases.indexOf(ph), 1);
@@ -1523,6 +1572,30 @@ document.addEventListener('click', async e => {
 });
 
 document.addEventListener('change', async e => {
+  // ── project-plan import modal ──
+  if (S.modal?.type === 'import-plan' && (e.target.id === 'plan-file' || e.target.dataset.plan)) {
+    const m = S.modal;
+    const scroller = document.querySelector('.k-modal'); const top = scroller ? scroller.scrollTop : 0;
+    if (e.target.closest('[data-plan-details="cols"]')) m.showCols = true;
+    if (e.target.id === 'plan-file') {
+      const file = e.target.files?.[0]; if (!file) return;
+      try {
+        const sheets = await planReadFile(file);
+        Object.assign(m, { sheets, fileName: file.name, routeByTask: true, showCols: false });
+        planInitSheet(m, planPickSheet(sheets));
+      } catch (err) { showToast('Could not read that file: ' + err.message, 'error'); return; }
+    } else {
+      const k = e.target.dataset.plan, v = e.target.value;
+      if (k === 'sheet') planInitSheet(m, v);
+      else if (k === 'header') { m.headerIdx = Number(v); const sh = m.sheets.find(s => s.name === m.sheet); m.map = planAutoMap(sh.rows[m.headerIdx] || []); m.phaseMap = null; }
+      else if (k === 'col') { m.map = { ...(m._pv?.map || m.map), [e.target.dataset.key]: Number(v) }; if (['phase', 'task', 'module'].includes(e.target.dataset.key)) m.phaseMap = null; }
+      else if (k === 'phase') { const src = Object.keys(m._pv?.srcCounts || {})[Number(e.target.dataset.idx)]; if (src) m.phaseMap = { ...(m.phaseMap || {}), [src]: v }; }
+      else if (k === 'route') m.routeByTask = e.target.checked;
+    }
+    render();
+    const sc = document.querySelector('.k-modal'); if (sc) sc.scrollTop = top;
+    return;
+  }
   const pipelineSortEl = e.target.closest('[data-act="pipeline-sort"]');
   if (pipelineSortEl) { S.pipelineSort = pipelineSortEl.value; render(); return; }
   const statusEl = e.target.closest('[data-act="inline-status"]');

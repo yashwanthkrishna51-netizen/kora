@@ -1,7 +1,7 @@
 const KOGNOZ_LOGO = "/kognoz_Iogo.png";
 let _bgRefreshTimer = null; // Phase 2 staleness-reduction poll, started on login, stopped on logout
 // ─── STATE ────────────────────────────────────────────────────────
-const S = { user: null, clients: [], archivedClients: [], users: [], usersForDropdown: [], shas: { clients: null, users: null }, sessionToken: null, view: 'login', params: {}, adminTab: 'integrations', filter: 'all', search: '', modal: null, toast: null, sidebarCollapsed: false, mobileSidebarOpen: false, sidebarClientsOpen: false, sort: { key: 'name', dir: 'asc' }, editingTimelineId: null, expandedHistory: new Set(), amsFrom: '', amsTo: '', amsQuick: '', editingAmsEntryId: null, expandedAmsHistory: new Set(), selectedAmsEntryId: null, selectedIntegId: null, openExportMenu: null, cmdPaletteOpen: false, cmdQuery: '', cmdSelectedIdx: 0, recentlyViewed: [], darkMode: false, shortcutsHelpOpen: false, bulkImplMode: false, bulkImplCid: null, bulkSelected: new Set(), offlineMode: false, bulkIntegMode: false, bulkIntegCid: null, bulkIntegSelected: new Set(), dashAttnSort: { key: 'reason', dir: 'desc' }, dashClientSort: { key: 'name', dir: 'asc' }, dashAssigneeSort: { key: 'total', dir: 'desc' }, dashAssigneeSearch: '', dashAssigneeExpanded: new Set(), dashCapacityExpanded: new Set(), dashAssigneeFilter: 'all', dashCritSearch: '', dashCritFilter: 'all', dashPerson: null, dashPersonSearch: '', dashFilter: 'all', dashCallMode: false, dashCallIdx: 0, adminSearch: '', auditRows: [], auditTotal: 0, auditPage: 0, auditPageSize: 50, auditFrom: '', auditTo: '', auditUser: '', auditSearch: '', auditLoading: false, auditLoaded: false, snapshotHistory: [], snapshotChecked: false, snapshotHistoryFetched: false, capacityWeights: { module: 1, pmo: 0.5, ams: 0.25, cap: 5 }, capacityWeightsFetched: false, digestRecipients: { emails: [] }, digestRecipientsFetched: false, pipelineEntries: [], pipelineEntriesFetched: false, pipelineStageWeights: { 'Lead': 10, 'Qualified': 30, 'Proposal Sent': 50, 'Negotiation': 75, 'Won': 100, 'Lost': 0 }, pipelineStageWeightsFetched: false, implementationRagRules: { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true }, implementationRagRulesFetched: false, moduleWeights: {}, moduleWeightsFetched: false, pipelineFilter: 'all', pipelineSort: 'created', selectedPipelineId: null, pipelineStats: null, pipelineStatsFetched: false, pendingPath: null, authMessage: null, integRailFilter: '', integRailSort: 'name', integMineOnly: false, lastActiveMap: {}, lastActiveFetched: false, viewAsRole: null, bulkUserMode: false, bulkUserSelected: new Set(), pomodoro: null, pomodoroModePref: 'simple' };
+const S = { user: null, clients: [], archivedClients: [], users: [], usersForDropdown: [], shas: { clients: null, users: null }, sessionToken: null, view: 'login', params: {}, adminTab: 'integrations', filter: 'all', search: '', modal: null, toast: null, sidebarCollapsed: false, mobileSidebarOpen: false, sidebarClientsOpen: false, sort: { key: 'name', dir: 'asc' }, editingTimelineId: null, expandedHistory: new Set(), amsFrom: '', amsTo: '', amsQuick: '', editingAmsEntryId: null, expandedAmsHistory: new Set(), selectedAmsEntryId: null, selectedIntegId: null, openExportMenu: null, cmdPaletteOpen: false, cmdQuery: '', cmdSelectedIdx: 0, recentlyViewed: [], darkMode: false, shortcutsHelpOpen: false, bulkImplMode: false, bulkImplCid: null, bulkSelected: new Set(), offlineMode: false, bulkIntegMode: false, bulkIntegCid: null, bulkIntegSelected: new Set(), dashAttnSort: { key: 'reason', dir: 'desc' }, dashClientSort: { key: 'name', dir: 'asc' }, dashAssigneeSort: { key: 'total', dir: 'desc' }, dashAssigneeSearch: '', dashAssigneeExpanded: new Set(), dashCapacityExpanded: new Set(), dashAssigneeFilter: 'all', dashCritSearch: '', dashCritFilter: 'all', dashPerson: null, dashPersonSearch: '', dashFilter: 'all', dashCallMode: false, dashCallIdx: 0, adminSearch: '', auditRows: [], auditTotal: 0, auditPage: 0, auditPageSize: 50, auditFrom: '', auditTo: '', auditUser: '', auditSearch: '', auditLoading: false, auditLoaded: false, snapshotHistory: [], snapshotChecked: false, snapshotHistoryFetched: false, capacityWeights: { module: 1, pmo: 0.5, ams: 0.25, cap: 5 }, capacityWeightsFetched: false, digestRecipients: { emails: [] }, digestRecipientsFetched: false, pipelineEntries: [], pipelineEntriesFetched: false, pipelineStageWeights: { 'Lead': 10, 'Qualified': 30, 'Proposal Sent': 50, 'Negotiation': 75, 'Won': 100, 'Lost': 0 }, pipelineStageWeightsFetched: false, implementationRagRules: { forceRed: false, redDays: 14, amberDays: 7, flagIncomplete: true }, implementationRagRulesFetched: false, milestoneScheduleRules: { redFromDays: 4 }, milestoneDelayedOnly: false, moduleWeights: {}, moduleWeightsFetched: false, pipelineFilter: 'all', pipelineSort: 'created', selectedPipelineId: null, pipelineStats: null, pipelineStatsFetched: false, pendingPath: null, authMessage: null, integRailFilter: '', integRailSort: 'name', integMineOnly: false, lastActiveMap: {}, lastActiveFetched: false, viewAsRole: null, bulkUserMode: false, bulkUserSelected: new Set(), pomodoro: null, pomodoroModePref: 'simple' };
 
 try { S.sidebarCollapsed = localStorage.getItem('itk_sb_collapsed') === '1'; } catch (e) { }
 try { const r = localStorage.getItem('itk_recent'); if (r) S.recentlyViewed = JSON.parse(r); } catch (e) { }
@@ -272,8 +272,24 @@ function staleBadge(i) { if (isOverdue(i) || !isStale(i, 7)) return ''; const lu
 // Implementation (phase page + client rollup) so both look identical.
 // metaPrefix is prepended to the owner/due line (e.g. the phase name in the
 // Implementation rollup); actionsHtml is the Edit/Delete buttons, if any.
-function milestoneRowHtml(ms, actionsHtml = '', metaPrefix = '', rowAttrs = '') {
+function milestoneRowHtml(ms, actionsHtml = '', metaPrefix = '', rowAttrs = '', extra = {}) {
   const msColor = ms.status === 'Achieved' ? 'green' : ms.status === 'Missed' ? 'rose' : milestoneUrgencyColor(ms);
+  if (extra.plan) {
+    // Implementation: planned vs actual dates and the schedule pill.
+    const dr = (a, b) => a || b ? `${a ? fmtDate(a) : '…'} → ${b ? fmtDate(b) : '…'}` : '';
+    const plan = dr(ms.plannedStart, ms.dueDate), act = dr(ms.actualStart, ms.actualEnd);
+    const meta = [ms.tollGate ? '🚩 Toll gate' : '', plan && `Plan ${plan}`, act && `Actual ${act}`, ms.owner && `Owner: ${esc(ms.owner)}`, ms.notes && esc(ms.notes)].filter(Boolean).join(' · ') || 'No dates';
+    return `<div class="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition"${rowAttrs}>
+          <div class="w-2 h-2 rounded-full bg-${msColor}-500 shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-gray-900">${esc(ms.name)}</div>
+            <div class="text-xs text-gray-400 mt-0.5">${metaPrefix}${meta}</div>
+          </div>
+          ${schedulePillHtml(ms)}
+          <span class="text-xs font-semibold bg-${msColor}-50 text-${msColor}-700 border border-${msColor}-200 px-2 py-0.5 rounded-full shrink-0">${ms.status}</span>
+          ${actionsHtml}
+        </div>`;
+  }
   return `<div class="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition"${rowAttrs}>
           <div class="w-2 h-2 rounded-full bg-${msColor}-500 shrink-0"></div>
           <div class="flex-1 min-w-0">
@@ -506,6 +522,7 @@ async function fetchImplementationRagRules() {
     const r = await fetch('/api/ops?op=settings', { headers: { 'x-session-token': S.sessionToken || '' } });
     if (!r.ok) return;
     const d = await r.json();
+    if (d.milestoneScheduleRules) S.milestoneScheduleRules = d.milestoneScheduleRules;
     if (d.implementationRagRules) { S.implementationRagRules = d.implementationRagRules; render(); }
   } catch (e) {/* defaults already in state */ }
 }
@@ -513,6 +530,55 @@ async function saveImplementationRagRules(newValue) {
   const r = await fetch('/api/ops?op=settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ key: 'implementation_rag_rules', value: newValue }) });
   if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Failed to save RAG rules'); }
   S.implementationRagRules = newValue;
+}
+async function saveMilestoneScheduleRules(newValue) {
+  const r = await fetch('/api/ops?op=settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-token': S.sessionToken || '' }, body: JSON.stringify({ key: 'milestone_schedule_rules', value: newValue }) });
+  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Failed to save schedule rules'); }
+  S.milestoneScheduleRules = newValue;
+}
+// ── Milestone schedule (plan vs actual) ────────────────────────────
+// Days late = actual end (or today, while unfinished) minus planned end.
+//   untracked  no planned end date
+//   on-time    finished on/before plan       on-track  not due yet
+//   slight     1 … redFromDays-1 days late   delayed   redFromDays+ days late
+function _isoDayDiff(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
+function milestoneSchedule(ms, rules) {
+  if (!ms || !ms.dueDate) return { state: 'untracked', daysLate: 0 };
+  const done = ms.status === 'Achieved';
+  const end = done ? (ms.actualEnd || ms.dueDate) : todayStr();
+  const late = _isoDayDiff(ms.dueDate, end);
+  if (late <= 0) return { state: done ? 'on-time' : 'on-track', daysLate: 0 };
+  const red = Number((rules || S.milestoneScheduleRules || {}).redFromDays) || 4;
+  return { state: late >= red ? 'delayed' : 'slight', daysLate: late };
+}
+const SCHEDULE_TONE = { 'on-time': 'var(--green)', 'on-track': 'var(--green)', slight: 'var(--amber)', delayed: 'var(--red)', untracked: 'var(--mute-2)' };
+function schedulePillHtml(ms) {
+  const s = milestoneSchedule(ms);
+  if (s.state === 'untracked') return '';
+  const label = s.state === 'on-time' ? 'On time' : s.state === 'on-track' ? 'On track' : `+${s.daysLate}d ${ms.status === 'Achieved' ? 'late' : 'overdue'}`;
+  const tip = s.state === 'slight' ? 'Slightly delayed' : s.state === 'delayed' ? 'Delayed' : label;
+  return `<span title="${tip}" class="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0" style="color:${SCHEDULE_TONE[s.state]};border:1px solid currentColor;">${label}</span>`;
+}
+// Whole-client schedule: any delayed task → Delayed / At Risk, any slight → Slightly Delayed.
+function implScheduleStatus(c) {
+  const n = { onTime: 0, slight: 0, delayed: 0, total: 0 };
+  (c.modules || []).forEach(m => (m.phases || []).forEach(p => (p.milestones || []).forEach(ms => {
+    const s = milestoneSchedule(ms).state;
+    if (s === 'untracked') return;
+    n.total++;
+    if (s === 'delayed') n.delayed++; else if (s === 'slight') n.slight++; else n.onTime++;
+  })));
+  if (!n.total) return null;
+  const state = n.delayed ? 'delayed' : n.slight ? 'slight' : 'on-time';
+  const label = n.delayed ? 'Delayed — At Risk' : n.slight ? 'Slightly Delayed' : 'On Track';
+  return { ...n, state, label, color: SCHEDULE_TONE[state] };
+}
+function scheduleBadgeHtml(c, compact = false) {
+  const s = implScheduleStatus(c);
+  if (!s) return '';
+  const dot = `<span style="width:7px;height:7px;border-radius:50%;background:${s.color};display:inline-block;"></span>`;
+  if (compact) return `<span class="inline-flex items-center gap-1 text-[11px] font-medium" style="color:${s.color};" title="Schedule: ${s.label}">${dot}${s.label}</span>`;
+  return `<span class="k-status" title="Milestones: ${s.onTime} on time/on track · ${s.slight} slightly delayed · ${s.delayed} delayed" style="border-color:${s.color};color:${s.color};">${dot}Schedule: ${s.label}<span style="color:var(--mute-2);font-weight:400;margin-left:4px;">${s.onTime}✓ · ${s.slight} slight · ${s.delayed} late</span></span>`;
 }
 // ── Module weight catalog ─────────────────────────────────────────
 // { "<module name>": <standard weight> }. This is the DEFAULT used when a

@@ -52,6 +52,16 @@ function renderAdminImpl(){
     <button data-act="save-impl-rag-rules" class="text-sm font-semibold px-4 py-2 rounded-xl bg-[#0e7490] text-white hover:bg-[#0d3d4f]">Save RAG Rules</button>
   </div>
 
+  <div class="bg-white rounded-2xl border border-gray-100 p-4 mb-5">
+    <h2 class="text-base font-bold text-gray-900 mb-1">Milestone Schedule</h2>
+    <p class="text-xs text-gray-500 mb-4">Drives the "Schedule" badge on Implementation clients. Days late = Actual End (or today, if not finished) minus Planned End. Any <b class="text-rose-600">Delayed</b> milestone makes the project "Delayed — At Risk"; any <b class="text-amber-600">Slightly delayed</b> one makes it "Slightly Delayed".</p>
+    <div class="flex items-end gap-3 mb-4 flex-wrap">
+      <div><label class="block text-xs font-medium text-gray-500 mb-1">Delayed from (days late)</label><input id="msr-red-days" type="number" min="1" max="365" step="1" value="${S.milestoneScheduleRules.redFromDays}" class="w-40 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0e7490]"/></div>
+      <p class="text-xs text-gray-500 pb-2">→ 1–${Math.max(1, S.milestoneScheduleRules.redFromDays - 1)} day${S.milestoneScheduleRules.redFromDays - 1 === 1 ? '' : 's'} late = <b class="text-amber-600">Slightly delayed</b>, ${S.milestoneScheduleRules.redFromDays}+ = <b class="text-rose-600">Delayed</b></p>
+    </div>
+    <button data-act="save-milestone-schedule-rules" class="text-sm font-semibold px-4 py-2 rounded-xl bg-[#0e7490] text-white hover:bg-[#0d3d4f]">Save Schedule Rule</button>
+  </div>
+
   ${(()=>{
     const cw=S.capacityWeights;
     // Every unique module name in use, with how many clients carry one and

@@ -816,8 +816,9 @@ function exportExcel(type, clientId){
     data=(c.modules||[]).flatMap(m=>(m.phases||[]).map(ph=>[m.name,ph.name,ph.status||'',ph.assignee||'',ph.startDate?fmtDate(ph.startDate):'',ph.targetDate?fmtDate(ph.targetDate):'',ph.currentActivity||'',ph.nextAction||'',(ph.updates||[]).length?(ph.updates||[]).map(t=>`(${fmtDate(t.date)}) ${t.update}`).join('\n'):'']));
     filename=exportFilename(c.name,'Implementation','xlsx');
   }else if(type==='impl-milestones'){
-    headers=['Module','Phase','Milestone','Status','Due Date','Owner','Notes'];
-    data=(c.modules||[]).flatMap(m=>(m.phases||[]).flatMap(ph=>(ph.milestones||[]).map(ms=>[m.name,ph.name,ms.name,ms.status,ms.dueDate?fmtDate(ms.dueDate):'',ms.owner||'',ms.notes||''])));
+    headers=['Module','Phase','Milestone','Toll Gate','Status','Planned Start','Planned End / Due','Actual Start','Actual End','Schedule','Days Late','Owner','Notes'];
+    const schLabel={ 'on-time':'On time','on-track':'On track',slight:'Slightly delayed',delayed:'Delayed',untracked:'' };
+    data=(c.modules||[]).flatMap(m=>(m.phases||[]).flatMap(ph=>(ph.milestones||[]).map(ms=>{const sc=milestoneSchedule(ms);return [m.name,ph.name,ms.name,ms.tollGate?'Yes':'',ms.status,ms.plannedStart?fmtDate(ms.plannedStart):'',ms.dueDate?fmtDate(ms.dueDate):'',ms.actualStart?fmtDate(ms.actualStart):'',ms.actualEnd?fmtDate(ms.actualEnd):'',schLabel[sc.state],sc.daysLate||'',ms.owner||'',ms.notes||''];})));
     filename=exportFilename(c.name,'Impl_Milestones','xlsx');
   }else if(type==='milestones'){
     headers=['Integration','Milestone','Status','Due Date','Owner','Notes'];

@@ -49,6 +49,7 @@ function renderImplClientDetail(clientId) {
           <div class="flex-1 min-w-0">
             <div class="font-semibold text-sm truncate" style="color:${active ? '#0e7490' : '#111827'}">${esc(cl.name)}</div>
             <div class="text-xs text-gray-400 mt-0.5 truncate">${mods.length} module${mods.length !== 1 ? 's' : ''}</div>
+            ${scheduleBadgeHtml(cl, true) ? `<div class="mt-0.5 truncate">${scheduleBadgeHtml(cl, true)}</div>` : ''}
           </div>
         </div>
         <div class="mt-2.5" onclick="event.stopPropagation()">
@@ -66,6 +67,7 @@ function renderImplClientDetail(clientId) {
       <div class="flex items-center gap-3 flex-wrap">
         <h1 class="text-xl font-bold text-gray-900">${esc(c.name)}</h1>
         ${(() => { const r = implAutoRag(c); return r ? ragBadge(r) : '' })()}
+        ${scheduleBadgeHtml(c)}
       </div>
       ${c.description ? `<p class="text-sm text-gray-400 mt-0.5">${esc(c.description)}</p>` : ''}
       ${pr.total > 0 ? `<p class="text-xs text-gray-400 mt-1">${pr.completed}/${pr.total} phases complete · ${pr.pct}%${pr.atRisk > 0 ? ` · <span class="text-rose-500">${pr.atRisk} at risk</span>` : ''}</p>` : ''}
@@ -76,6 +78,7 @@ function renderImplClientDetail(clientId) {
         <button data-act="toggle-bulk-impl" data-cid="${esc(c.id)}" class="text-xs text-gray-500 border border-gray-200 px-3 py-2 rounded-xl hover:bg-gray-50 transition">✕ Cancel</button>`
       : `${can('admin') ? `<button data-act="toggle-bulk-impl" data-cid="${esc(c.id)}" class="bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium px-3 py-2 rounded-xl hover:bg-amber-100 transition">✓ Bulk Mark Complete</button>` : ''}
         <button data-act="modal-open" data-modal="add-impl-module" data-cid="${esc(c.id)}" class="bg-green-50 border border-green-200 text-green-700 text-xs font-medium px-3 py-2 rounded-xl hover:bg-green-100 transition">+ Add Module</button>
+        ${can('admin') ? `<button data-act="open-plan-import" data-cid="${esc(c.id)}" title="Import tasks from a project-plan Excel/CSV as milestones" class="bg-white border border-[#0e7490]/30 text-[#0e7490] text-xs font-medium px-3 py-2 rounded-xl hover:bg-[#0e7490]/5 transition">⬆ Import Plan</button>` : ''}
         ${exportMenuButton(`impl-${c.id}`, [
         { label: '📄 PDF', act: 'exp-impl-pdf', data: { cid: c.id } },
         { label: '📊 Excel', act: 'exp-excel', data: { etype: 'impl', cid: c.id } },
@@ -216,22 +219,33 @@ function findImplMilestone(cid, modId, phaseName, msId) {
 // Read-only list of every phase milestone on this client, grouped by module.
 // Editing happens on the phase page — each row opens it.
 function implMilestoneRollup(c) {
-  const groups = (c.modules || []).map(m => ({
+  const lateOnly = S.milestoneDelayedOnly;
+  const isLate = ms => ['slight', 'delayed'].includes(milestoneSchedule(ms).state);
+  const all = (c.modules || []).map(m => ({
     m, rows: (m.phases || []).flatMap(ph => (ph.milestones || []).map(ms => ({ ph, ms }))),
   })).filter(g => g.rows.length);
-  if (!groups.length) return '';
+  if (!all.length) return '';
+  const groups = all.map(g => ({ ...g, rows: lateOnly ? g.rows.filter(r => isLate(r.ms)) : g.rows })).filter(g => g.rows.length);
+  const batches = can('admin') ? planImportBatches(c) : [];
   return `<div class="mt-6 bg-white rounded-2xl border border-gray-100 p-6">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
       <h3 class="font-semibold text-gray-900 text-sm">Milestones</h3>
-      <span class="text-xs text-gray-400">Add or edit from a phase page</span>
+      <div class="flex items-center gap-3">
+        <button data-act="toggle-milestone-late" class="text-xs px-2.5 py-1 rounded-full border ${lateOnly ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}">${lateOnly ? '✓ ' : ''}Delayed only</button>
+        <span class="text-xs text-gray-400">Add or edit from a phase page</span>
+      </div>
     </div>
+    ${batches.length ? `<div class="mb-4 space-y-1">${batches.map(b => `<div class="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-1.5">
+        <span class="truncate flex-1">⬆ Imported <b class="text-gray-700">${esc(b.file || 'plan')}</b> · ${fmtDateTime(b.importedAt)} · ${b.count} milestone${b.count !== 1 ? 's' : ''}</span>
+        <button data-act="remove-plan-import" data-cid="${esc(c.id)}" data-batch="${esc(b.batch)}" class="text-gray-400 hover:text-rose-600 shrink-0">Remove import</button>
+      </div>`).join('')}</div>` : ''}
     <div class="space-y-4">
-      ${groups.map(({ m, rows }) => `<div>
+      ${groups.length ? groups.map(({ m, rows }) => `<div>
         <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">${esc(m.name)}</div>
         <div class="space-y-2">
-          ${rows.map(({ ph, ms }) => milestoneRowHtml(ms, '', m.singlePhase ? '' : `${esc(ph.name)} · `, ` data-act="open-impl-phase" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" data-phase="${esc(ph.name)}" style="cursor:pointer;"`)).join('')}
+          ${rows.map(({ ph, ms }) => milestoneRowHtml(ms, '', m.singlePhase ? '' : `${esc(ph.name)} · `, ` data-act="open-impl-phase" data-cid="${esc(c.id)}" data-mid="${esc(m.id)}" data-phase="${esc(ph.name)}" style="cursor:pointer;"`, { plan: true })).join('')}
         </div>
-      </div>`).join('')}
+      </div>`).join('') : `<div class="text-center py-6 text-gray-400 text-sm">Nothing is delayed 🎉</div>`}
     </div>
   </div>`;
 }
@@ -399,7 +413,7 @@ function renderImplPhaseDetail(clientId, moduleId, phaseName) {
       ${(ph.milestones || []).map(ms => milestoneRowHtml(ms, can('editor') ? `<div class="flex gap-2 shrink-0">
             <button data-act="edit-impl-milestone-btn" data-cid="${esc(c.id)}" data-mod="${esc(mod.id)}" data-phase="${esc(phaseName)}" data-msid="${esc(ms.id)}" class="text-xs text-gray-300 hover:text-[#0e7490]">Edit</button>
             ${can('admin') ? `<button data-act="delete-impl-milestone" data-cid="${esc(c.id)}" data-mod="${esc(mod.id)}" data-phase="${esc(phaseName)}" data-msid="${esc(ms.id)}" class="text-xs text-gray-300 hover:text-rose-500">Delete</button>` : ''}
-          </div>` : '')).join('')}
+          </div>` : '', '', '', { plan: true })).join('')}
     </div>`: `<div class="text-center py-8 text-gray-400 text-sm">No milestones yet. Add key checkpoints for this phase.</div>`}
   </div>
 </div>`;
